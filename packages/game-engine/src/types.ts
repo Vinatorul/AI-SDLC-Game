@@ -38,11 +38,24 @@ export type ScenarioRound = {
   title: string;
 };
 
+export type MetricBounds = {
+  maximum: number;
+  minimum: number;
+};
+
+export type ScenarioMechanics = {
+  initialMetrics: MetricValues;
+  metricBounds: MetricBounds;
+  propertyEffects: Record<ProcessProperty, MetricDelta>;
+};
+
 export type Scenario = {
-  contentStatus: 'TECHNICAL_DRAFT';
+  contentStatus: 'READY' | 'TECHNICAL_DRAFT';
   id: string;
+  mechanics: ScenarioMechanics;
   rounds: ScenarioRound[];
   rules: GameRules;
+  schemaVersion: 1;
   version: number;
 };
 

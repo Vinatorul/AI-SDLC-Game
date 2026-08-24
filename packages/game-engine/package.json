@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdlc/contracts": "workspace:*"
+    "@ai-sdlc/contracts": "workspace:*",
+    "zod": "4.1.13"
   }
 }

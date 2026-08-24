@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx watch src/server.ts",
+    "scenario:validate": "node --import tsx src/validate-scenario.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
   },

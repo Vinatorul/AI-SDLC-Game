@@ -14,19 +14,12 @@ import type {
   EventRule,
   OutcomeEvaluation,
   ResolutionPlan,
+  ScenarioMechanics,
   ScenarioRound,
 } from './types';
 
-const propertyEffects: Record<ProcessProperty, MetricDelta> = {
-  automatedTests: { deliverySpeed: 1, quality: 3, controllability: 1 },
-  currentContext: { deliverySpeed: 1, quality: 2 },
-  humanReview: { quality: 2, controllability: 1, teamCapacity: -1 },
-  observability: { controllability: 3, teamCapacity: 1 },
-  rollback: { deliverySpeed: 1, controllability: 2 },
-};
-
-export function createInitialMetrics(): MetricValues {
-  return { deliverySpeed: 60, quality: 60, controllability: 60, teamCapacity: 60 };
+export function createInitialMetrics(mechanics: ScenarioMechanics): MetricValues {
+  return { ...mechanics.initialMetrics };
 }
 
 export function createInitialStages(): EngineSnapshot['stages'] {
@@ -37,12 +30,13 @@ export function resolveRound(
   snapshot: EngineSnapshot,
   round: ScenarioRound,
   option: EngineOption,
+  mechanics: ScenarioMechanics,
 ): ResolutionPlan {
   const event = selectEvent(round.eventRules, option.id, snapshot.properties);
   const properties = mergeProperties(snapshot.properties, option.addProperties);
-  const propertyDelta = collectPropertyEffects(properties);
+  const propertyDelta = collectPropertyEffects(properties, mechanics);
   const breakdown = createBreakdown(option.effect, event.effect, propertyDelta);
-  const metrics = applyMetricDelta(snapshot.metrics, breakdown.total);
+  const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
   const decisionStages = applyStageChanges(snapshot.stages, option.stageChanges);
   const stages = applyStageChanges(decisionStages, event.stageChanges);
   return { breakdown, event, metrics, properties, stages };
@@ -85,8 +79,11 @@ function mergeProperties(current: ProcessProperty[], added: ProcessProperty[]) {
   return [...new Set([...current, ...added])];
 }
 
-function collectPropertyEffects(properties: ProcessProperty[]): MetricDelta {
-  return sumDeltas(properties.map((property) => propertyEffects[property]));
+function collectPropertyEffects(
+  properties: EngineSnapshot['properties'],
+  mechanics: ScenarioMechanics,
+): MetricDelta {
+  return sumDeltas(properties.map((property) => mechanics.propertyEffects[property]));
 }
 
 function createBreakdown(decision: MetricDelta, event: MetricDelta, properties: MetricDelta) {
@@ -99,14 +96,18 @@ function sumDeltas(deltas: MetricDelta[]): MetricDelta {
   );
 }
 
-function applyMetricDelta(metrics: MetricValues, delta: MetricDelta): MetricValues {
+function applyMetricDelta(
+  metrics: MetricValues,
+  delta: MetricDelta,
+  mechanics: ScenarioMechanics,
+): MetricValues {
   return Object.fromEntries(
-    metricKeys.map((key) => [key, clamp(metrics[key] + (delta[key] ?? 0))]),
+    metricKeys.map((key) => [key, clamp(metrics[key] + (delta[key] ?? 0), mechanics)]),
   ) as MetricValues;
 }
 
-function clamp(value: number) {
-  return Math.max(0, Math.min(100, value));
+function clamp(value: number, mechanics: ScenarioMechanics) {
+  return Math.max(mechanics.metricBounds.minimum, Math.min(mechanics.metricBounds.maximum, value));
 }
 
 function applyStageChanges(

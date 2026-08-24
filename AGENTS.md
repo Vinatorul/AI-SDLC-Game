@@ -34,20 +34,26 @@ still a technical draft and will be refined separately.
 
 ## Content source of truth
 
-The MVP currently has one scenario. Its source of truth is
-**packages/game-engine/src/scenario.ts**:
+The bundled MVP scenario is the JSON file
+**packages/game-engine/content/scenarios/technical-mvp.json**. The field guide and authoring
+examples are in **packages/game-engine/content/README.md**.
 
 - **rounds** contains situations, options, effects, and event-selection rules;
-- **defaultRules** contains tunable game rules such as thresholds, round count, and win conditions;
-- **defaultScenario** binds content to rules and defines the scenario id, version, and status.
+- **rules** contains thresholds, round count, feedback share, and win conditions;
+- **mechanics** contains initial metrics, metric bounds, and process-property effects;
+- top-level metadata defines the schema version, scenario id, content version, and status.
+
+**packages/game-engine/src/scenario.ts** only imports and validates the bundled JSON. Do not put
+scenario copy or tuning values back into that TypeScript file. The Zod boundary and semantic checks
+live in **packages/game-engine/src/scenario-schema.ts**.
 
 Do not copy scenario text or balance values into React components, HTTP handlers, or SQL. The
 frontend should render the scenario and rules received from the API.
 
 ## Adding or changing content
 
-Add a ScenarioRound to the rounds array in **packages/game-engine/src/scenario.ts**. Each round must
-have:
+Edit **packages/game-engine/content/scenarios/technical-mvp.json** for the bundled scenario. Each
+round must have:
 
 - a stable unique id and a sequential number;
 - short title and situation text that works on a projected screen;
@@ -61,22 +67,28 @@ treating the content as final.
 
 After a content change:
 
-1. Keep defaultRules.roundLimit equal to the number of rounds.
-2. Increment defaultScenario.version.
-3. Add or update focused tests for event selection and effect calculation.
-4. Verify that conditional events follow from earlier decisions instead of acting as random
+1. Keep rules.roundLimit equal to the number of rounds.
+2. Increment the top-level version.
+3. Run `pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json`.
+4. Add or update focused tests for event selection and effect calculation.
+5. Verify that conditional events follow from earlier decisions instead of acting as random
    penalties.
-5. Create a new room when checking the change; existing rooms use their stored snapshot.
+6. Create a new room when checking the change; existing rooms use their stored snapshot.
 
-When the project gains a second independent scenario, move scenarios to
-**packages/game-engine/src/scenarios/<scenario-id>.ts** and add an explicit scenario registry. Do not
-select scenarios through incidental imports or filenames.
+To add another scenario, copy the JSON to
+**packages/game-engine/content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,
+and start the API with an absolute `SCENARIO_PATH`. A bad external file must stop API startup; never
+silently fall back to the bundled scenario. Restart the API after changing an external file.
+
+The API may load one active scenario per process. Scenario selection in the UI and a multi-scenario
+catalog are outside the MVP. A new room snapshots its scenario id, version, rules, mechanics,
+rounds, options, and events in SQLite, so replacing the source file cannot change an existing room.
 
 ## Configuration rules
 
 There are three configuration layers:
 
-- scenario content and game balance in the typed game-engine scenario;
+- scenario content and game balance in the validated JSON scenario;
 - API runtime settings in environment variables documented by **apps/api/.env.example**;
 - web build settings in environment variables documented by **apps/web/.env.example**.
 
@@ -92,13 +104,9 @@ When adding a tunable setting:
 4. Include gameplay-affecting values in the new-game snapshot.
 5. Add a test with a non-default value to prove the implementation does not depend on the default.
 
-Current configuration debt: initial metrics, metric bounds, and process-property bonuses still live
-in **packages/game-engine/src/resolve.ts**. Move them into the typed scenario configuration before
-changing balance, persist them with each new game, and do not add more tuning constants there.
-
 Runtime configuration:
 
-- **apps/api/.env.example** documents PORT, HOST, DATABASE_PATH, and CORS_ORIGINS.
+- **apps/api/.env.example** documents PORT, HOST, DATABASE_PATH, CORS_ORIGINS, and SCENARIO_PATH.
 - **apps/web/.env.example** documents VITE_API_BASE_URL and VITE_BASE_PATH.
 - Real values belong in deployment settings or ignored local .env files.
 - Never put the host token, player tokens, or any other secret in VITE_* variables.
@@ -196,7 +204,12 @@ pnpm check
 Run only the focused engine and API flow tests:
 
 ~~~bash
-pnpm exec vitest run packages/game-engine/src/resolve.test.ts apps/api/src/game-flow.test.ts
+pnpm exec vitest run \
+  packages/game-engine/src/resolve.test.ts \
+  packages/game-engine/src/scenario-schema.test.ts \
+  apps/api/src/scenario-loader.test.ts \
+  apps/api/src/db/database.test.ts \
+  apps/api/src/game-flow.test.ts
 ~~~
 
 Build both applications:

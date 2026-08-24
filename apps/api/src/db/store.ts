@@ -8,12 +8,14 @@ export type GameRow = {
   code: string;
   current_round: number;
   id: string;
+  mechanics_json: string;
   metrics_json: string;
   outcome_reason: OutcomeReason | null;
   phase: GamePhase;
   properties_json: string;
   revision: number;
   rules_json: string;
+  scenario_id: string;
   scenario_version: number;
   stages_json: string;
   transition_version: number;
@@ -70,9 +72,9 @@ export type RoundPatch = Partial<
 
 export function insertGame(database: GameDatabase, game: NewGame) {
   const sql = `INSERT INTO games (
-    id, code, phase, metrics_json, properties_json, stages_json, rules_json,
-    scenario_version, admin_token_hash, created_at, updated_at
-  ) VALUES (?, ?, 'LOBBY', ?, ?, ?, ?, ?, ?, ?, ?)`;
+    id, code, phase, metrics_json, mechanics_json, properties_json, stages_json,
+    rules_json, scenario_id, scenario_version, admin_token_hash, created_at, updated_at
+  ) VALUES (?, ?, 'LOBBY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   const now = new Date().toISOString();
   database
     .prepare(sql)
@@ -80,9 +82,11 @@ export function insertGame(database: GameDatabase, game: NewGame) {
       game.id,
       game.code,
       game.metrics_json,
+      game.mechanics_json,
       game.properties_json,
       game.stages_json,
       game.rules_json,
+      game.scenario_id,
       game.scenario_version,
       game.admin_token_hash,
       now,

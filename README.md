@@ -7,6 +7,15 @@
 
 Сейчас сценарий — технический черновик. Он нужен, чтобы проверить состояние игры, голосование, расчёт и восстановление. Тексты раундов и баланс эффектов будут доработаны отдельно.
 
+Контент и баланс вынесены в
+[`packages/game-engine/content/scenarios/technical-mvp.json`](packages/game-engine/content/scenarios/technical-mvp.json).
+Инструкция по полям и добавлению сценария лежит рядом в
+[`packages/game-engine/content/README.md`](packages/game-engine/content/README.md).
+
+```bash
+pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json
+```
+
 ## Локальный запуск
 
 Нужен Node.js 24. В среде Codex используйте bundled runtime:
@@ -47,6 +56,8 @@ docker run --rm -p 8787:8787 \
 ```
 
 Контейнер запускает один процесс API. Файл базы лежит в `/data`, поэтому этому каталогу нужен постоянный диск.
+Другой сценарий можно подключить без пересборки образа через `SCENARIO_PATH` и read-only volume;
+точная команда приведена в инструкции по сценариям.
 
 Резервную копию можно сделать из собранного образа командой:
 

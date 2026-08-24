@@ -15,6 +15,7 @@
     "dev:web": "pnpm --filter @ai-sdlc/web dev",
     "format": "biome format --write .",
     "lint": "biome lint .",
+    "scenario:validate": "pnpm --filter @ai-sdlc/api scenario:validate",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck"
   },

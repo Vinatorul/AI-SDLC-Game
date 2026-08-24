@@ -1,0 +1,671 @@
+{
+  "schemaVersion": 1,
+  "id": "technical-mvp",
+  "version": 2,
+  "contentStatus": "TECHNICAL_DRAFT",
+  "rules": {
+    "roundLimit": 5,
+    "criticalThreshold": 15,
+    "dangerThreshold": 30,
+    "minAiStagesToWin": 3,
+    "requireNoBrokenStages": false,
+    "notableVoteShare": 0.15
+  },
+  "mechanics": {
+    "initialMetrics": {
+      "deliverySpeed": 60,
+      "quality": 60,
+      "controllability": 60,
+      "teamCapacity": 60
+    },
+    "metricBounds": {
+      "minimum": 0,
+      "maximum": 100
+    },
+    "propertyEffects": {
+      "humanReview": {
+        "quality": 2,
+        "controllability": 1,
+        "teamCapacity": -1
+      },
+      "automatedTests": {
+        "deliverySpeed": 1,
+        "quality": 3,
+        "controllability": 1
+      },
+      "currentContext": {
+        "deliverySpeed": 1,
+        "quality": 2
+      },
+      "observability": {
+        "controllability": 3,
+        "teamCapacity": 1
+      },
+      "rollback": {
+        "deliverySpeed": 1,
+        "controllability": 2
+      }
+    }
+  },
+  "rounds": [
+    {
+      "id": "round-1",
+      "number": 1,
+      "title": "Первое ускорение",
+      "situation": "Выберите один этап, с которого команда начнёт встраивать AI.",
+      "options": [
+        {
+          "id": "r1-a",
+          "key": "A",
+          "title": "Продуктовая проработка",
+          "description": "AI готовит черновик задачи, продукт проверяет.",
+          "stage": "productDiscovery",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "controllability": 5,
+            "deliverySpeed": 2
+          },
+          "addProperties": ["currentContext"],
+          "stageChanges": [
+            {
+              "stage": "productDiscovery",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r1-b",
+          "key": "B",
+          "title": "Техническая проработка",
+          "description": "AI исследует код, инженер принимает план.",
+          "stage": "technicalDiscovery",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 3,
+            "deliverySpeed": 3
+          },
+          "addProperties": ["currentContext"],
+          "stageChanges": [
+            {
+              "stage": "technicalDiscovery",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r1-c",
+          "key": "C",
+          "title": "Написание кода",
+          "description": "AI готовит реализацию и тесты, разработчик проверяет.",
+          "stage": "coding",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 12,
+            "teamCapacity": 4
+          },
+          "addProperties": ["humanReview"],
+          "stageChanges": [
+            {
+              "stage": "coding",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r1-d",
+          "key": "D",
+          "title": "Тестирование",
+          "description": "AI готовит проверки, QA определяет достаточность.",
+          "stage": "testing",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 8,
+            "deliverySpeed": 2
+          },
+          "addProperties": ["automatedTests"],
+          "stageChanges": [
+            {
+              "stage": "testing",
+              "state": "AI_ENABLED"
+            }
+          ]
+        }
+      ],
+      "eventRules": [
+        {
+          "optionIds": ["r1-c"],
+          "event": {
+            "id": "event-1-code",
+            "title": "Поток изменений вырос",
+            "description": "Код появился быстрее, а ревью и тестирование стали следующим ограничением.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -8,
+              "controllability": -5,
+              "teamCapacity": -6
+            },
+            "stageChanges": [
+              {
+                "stage": "review",
+                "state": "BROKEN"
+              },
+              {
+                "stage": "testing",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "id": "event-1-default",
+            "title": "Появился новый разрыв",
+            "description": "Ускоренный этап упёрся в соседний ручной этап.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": -3,
+              "controllability": -3
+            },
+            "stageChanges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "round-2",
+      "number": 2,
+      "title": "Незнакомый сервис",
+      "situation": "Следующая задача пересекла границу команды. Какой участок укрепить?",
+      "options": [
+        {
+          "id": "r2-a",
+          "key": "A",
+          "title": "Актуальный контекст",
+          "description": "AI сверяет документацию с кодом, инженер фиксирует контракт.",
+          "stage": "technicalDiscovery",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 5,
+            "controllability": 4
+          },
+          "addProperties": ["currentContext"],
+          "stageChanges": [
+            {
+              "stage": "technicalDiscovery",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r2-b",
+          "key": "B",
+          "title": "Ревью",
+          "description": "AI собирает контекст изменения, человек принимает риск.",
+          "stage": "review",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 6,
+            "teamCapacity": -2
+          },
+          "addProperties": ["humanReview"],
+          "stageChanges": [
+            {
+              "stage": "review",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r2-c",
+          "key": "C",
+          "title": "Автоматические тесты",
+          "description": "AI готовит проверки фактического поведения.",
+          "stage": "testing",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 7,
+            "controllability": 2
+          },
+          "addProperties": ["automatedTests"],
+          "stageChanges": [
+            {
+              "stage": "testing",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r2-d",
+          "key": "D",
+          "title": "Ещё больше генерации",
+          "description": "AI сразу меняет незнакомый сервис по доступному описанию.",
+          "stage": "coding",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 10,
+            "quality": -4
+          },
+          "addProperties": [],
+          "stageChanges": [
+            {
+              "stage": "coding",
+              "state": "AI_ENABLED"
+            }
+          ]
+        }
+      ],
+      "eventRules": [
+        {
+          "missingProperty": "currentContext",
+          "event": {
+            "id": "event-2-risk",
+            "title": "Описание устарело",
+            "description": "Решение опиралось на непроверенный контекст.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -11,
+              "controllability": -7,
+              "teamCapacity": -4
+            },
+            "stageChanges": [
+              {
+                "stage": "technicalDiscovery",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "id": "event-2-safe",
+            "title": "Контракт удалось проверить",
+            "description": "Актуальный контекст сократил область неопределённости.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 2,
+              "controllability": 2
+            },
+            "stageChanges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "round-3",
+      "number": 3,
+      "title": "Проверки не успевают",
+      "situation": "Изменений стало больше. Куда направить следующий ход?",
+      "options": [
+        {
+          "id": "r3-a",
+          "key": "A",
+          "title": "Ревью по риску",
+          "description": "AI собирает доказательства, человек проверяет рискованные места.",
+          "stage": "review",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 7,
+            "controllability": 4
+          },
+          "addProperties": ["humanReview"],
+          "stageChanges": [
+            {
+              "stage": "review",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r3-b",
+          "key": "B",
+          "title": "Регрессионные тесты",
+          "description": "AI поддерживает автоматические проверки изменений.",
+          "stage": "testing",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 9,
+            "deliverySpeed": 2
+          },
+          "addProperties": ["automatedTests"],
+          "stageChanges": [
+            {
+              "stage": "testing",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r3-c",
+          "key": "C",
+          "title": "Технический контекст",
+          "description": "AI обновляет карту зависимостей перед работой.",
+          "stage": "technicalDiscovery",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "controllability": 6,
+            "teamCapacity": 2
+          },
+          "addProperties": ["currentContext"],
+          "stageChanges": [
+            {
+              "stage": "technicalDiscovery",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r3-d",
+          "key": "D",
+          "title": "Параллельные агенты",
+          "description": "Команда запускает больше изменений одновременно.",
+          "stage": "coding",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 12,
+            "teamCapacity": -7
+          },
+          "addProperties": [],
+          "stageChanges": [
+            {
+              "stage": "coding",
+              "state": "AI_ENABLED"
+            }
+          ]
+        }
+      ],
+      "eventRules": [
+        {
+          "missingProperty": "automatedTests",
+          "event": {
+            "id": "event-3-overload",
+            "title": "Очередь проверок выросла",
+            "description": "Без автоматических тестов поток снова сошёлся к людям.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -9,
+              "teamCapacity": -10
+            },
+            "stageChanges": [
+              {
+                "stage": "review",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "id": "event-3-covered",
+            "title": "Регрессия поймана автоматически",
+            "description": "Проверка остановила ошибку до ручного разбора.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 3,
+              "teamCapacity": 2
+            },
+            "stageChanges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "round-4",
+      "number": 4,
+      "title": "Рискованный релиз",
+      "situation": "Изменение готово к проду. Как встроить безопасность в следующий этап?",
+      "options": [
+        {
+          "id": "r4-a",
+          "key": "A",
+          "title": "Управляемый деплой",
+          "description": "AI готовит план выпуска, человек подтверждает шаги.",
+          "stage": "deployment",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 4,
+            "controllability": 7
+          },
+          "addProperties": ["rollback"],
+          "stageChanges": [
+            {
+              "stage": "deployment",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r4-b",
+          "key": "B",
+          "title": "Наблюдаемость",
+          "description": "AI готовит сигналы и связывает их с изменением.",
+          "stage": "support",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "controllability": 8,
+            "teamCapacity": 2
+          },
+          "addProperties": ["observability"],
+          "stageChanges": [
+            {
+              "stage": "support",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r4-c",
+          "key": "C",
+          "title": "Проверка перед выпуском",
+          "description": "AI собирает набор проверок для релизного решения.",
+          "stage": "testing",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 7,
+            "deliverySpeed": -1
+          },
+          "addProperties": ["automatedTests"],
+          "stageChanges": [
+            {
+              "stage": "testing",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r4-d",
+          "key": "D",
+          "title": "Автономный выпуск",
+          "description": "AI выкатывает изменение сразу после зелёных тестов.",
+          "stage": "deployment",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 11,
+            "controllability": -5
+          },
+          "addProperties": [],
+          "stageChanges": [
+            {
+              "stage": "deployment",
+              "state": "AI_ENABLED"
+            }
+          ]
+        }
+      ],
+      "eventRules": [
+        {
+          "missingProperty": "rollback",
+          "event": {
+            "id": "event-4-no-rollback",
+            "title": "После релиза выросли ошибки",
+            "description": "Без готового отката восстановление заняло больше внимания.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -10,
+              "controllability": -10,
+              "teamCapacity": -7
+            },
+            "stageChanges": [
+              {
+                "stage": "deployment",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "id": "event-4-rollback",
+            "title": "Откат сработал",
+            "description": "Команда быстро вернула стабильную версию.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": 4,
+              "teamCapacity": 2
+            },
+            "stageChanges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "round-5",
+      "number": 5,
+      "title": "Замыкаем цикл",
+      "situation": "Последний ход должен связать разработку с обратной связью из прода.",
+      "options": [
+        {
+          "id": "r5-a",
+          "key": "A",
+          "title": "Диагностика поддержки",
+          "description": "AI собирает сигнал, контекст и шаги воспроизведения.",
+          "stage": "support",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "controllability": 8,
+            "teamCapacity": 4
+          },
+          "addProperties": ["observability"],
+          "stageChanges": [
+            {
+              "stage": "support",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r5-b",
+          "key": "B",
+          "title": "Безопасное восстановление",
+          "description": "AI готовит исправление и план отката, человек выпускает.",
+          "stage": "deployment",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 4,
+            "quality": 5
+          },
+          "addProperties": ["rollback"],
+          "stageChanges": [
+            {
+              "stage": "deployment",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r5-c",
+          "key": "C",
+          "title": "Обратная связь в постановку",
+          "description": "AI возвращает выводы инцидента в критерии следующей задачи.",
+          "stage": "businessRequest",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "quality": 4,
+            "controllability": 6
+          },
+          "addProperties": ["currentContext"],
+          "stageChanges": [
+            {
+              "stage": "businessRequest",
+              "state": "AI_ENABLED"
+            }
+          ]
+        },
+        {
+          "id": "r5-d",
+          "key": "D",
+          "title": "Автономный фикс",
+          "description": "AI диагностирует, исправляет и выкатывает без остановки.",
+          "stage": "support",
+          "evidence": "SCENARIO",
+          "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+          "effect": {
+            "deliverySpeed": 12,
+            "controllability": -8,
+            "quality": -5
+          },
+          "addProperties": [],
+          "stageChanges": [
+            {
+              "stage": "support",
+              "state": "AI_ENABLED"
+            }
+          ]
+        }
+      ],
+      "eventRules": [
+        {
+          "missingProperty": "observability",
+          "event": {
+            "id": "event-5-blind",
+            "title": "Сигнала недостаточно",
+            "description": "Без наблюдаемости нельзя надёжно проверить гипотезу.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -8,
+              "controllability": -12,
+              "teamCapacity": -6
+            },
+            "stageChanges": [
+              {
+                "stage": "support",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "id": "event-5-loop",
+            "title": "Контекст инцидента сохранён",
+            "description": "Сигнал вернулся в проверки и следующий цикл работы.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 4,
+              "controllability": 5
+            },
+            "stageChanges": []
+          }
+        }
+      ]
+    }
+  ]
+}

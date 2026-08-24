@@ -5,6 +5,7 @@ export {
   resolveRound,
 } from './resolve';
 export { defaultRules, defaultScenario } from './scenario';
+export { parseScenario } from './scenario-schema';
 export type {
   EngineEvent,
   EngineOption,
@@ -13,5 +14,6 @@ export type {
   OutcomeEvaluation,
   ResolutionPlan,
   Scenario,
+  ScenarioMechanics,
   ScenarioRound,
 } from './types';

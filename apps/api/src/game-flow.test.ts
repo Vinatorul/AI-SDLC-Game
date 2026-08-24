@@ -160,6 +160,27 @@ it('после перезапуска использует сохранённы�
   rmSync(directory, { force: true, recursive: true });
 });
 
+it('после перезапуска использует сохранённую механику', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ai-sdlc-mechanics-'));
+  const databasePath = join(directory, 'game.sqlite');
+  const scenario = scenarioWithContextQuality(20);
+  const first = await testApp(databasePath, scenario);
+  const game = await createGame(first);
+  await closeTrackedApp(first);
+  const second = await testApp(databasePath);
+  const player = await joinGame(second, game.state.code, 'Ира');
+  let state = await command(second, game, 'OPEN_VOTING', 0);
+  const optionId = state.currentRound?.options[0]?.id;
+  if (!optionId) throw new Error('Нет варианта');
+  await vote(second, game.state.code, player.playerToken, optionId);
+  state = await command(second, game, 'CLOSE_VOTING', 1);
+  state = await command(second, game, 'SHOW_EVENT', 2);
+  state = await command(second, game, 'APPLY_CONSEQUENCES', 3);
+  expect(state.metrics.quality).toBe(80);
+  await closeTrackedApp(second);
+  rmSync(directory, { force: true, recursive: true });
+});
+
 async function testApp(databasePath = ':memory:', scenario?: Scenario) {
   const app = await createApp({ databasePath, scenario });
   openApps.push(app);
@@ -175,6 +196,19 @@ function noRoundsScenario(): Scenario {
   return {
     ...defaultScenario,
     rules: { ...defaultScenario.rules, roundLimit: 0 },
+  };
+}
+
+function scenarioWithContextQuality(quality: number): Scenario {
+  return {
+    ...defaultScenario,
+    mechanics: {
+      ...defaultScenario.mechanics,
+      propertyEffects: {
+        ...defaultScenario.mechanics.propertyEffects,
+        currentContext: { quality },
+      },
+    },
   };
 }
 

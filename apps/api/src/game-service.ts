@@ -19,6 +19,7 @@ import {
   evaluateOutcome,
   resolveRound,
   type Scenario,
+  type ScenarioMechanics,
   type ScenarioRound,
 } from '@ai-sdlc/game-engine';
 import { createRoomCode, createToken, hashToken, tokenMatches } from './auth';
@@ -112,9 +113,11 @@ export class GameService {
       admin_token_hash: hashToken(token),
       code,
       id,
-      metrics_json: JSON.stringify(createInitialMetrics()),
+      mechanics_json: JSON.stringify(this.scenario.mechanics),
+      metrics_json: JSON.stringify(createInitialMetrics(this.scenario.mechanics)),
       properties_json: '[]',
       rules_json: JSON.stringify(this.scenario.rules),
+      scenario_id: this.scenario.id,
       scenario_version: this.scenario.version,
       stages_json: JSON.stringify(createInitialStages()),
     };
@@ -241,7 +244,12 @@ export class GameService {
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const optionId = assertFound(round.selected_option_id, 'Победитель ещё не выбран');
     const option = parseOption(assertFound(findOption(this.database, round.id, optionId)));
-    const plan = resolveRound(engineSnapshot(game), scenarioRound(this.database, round), option);
+    const plan = resolveRound(
+      engineSnapshot(game),
+      scenarioRound(this.database, round),
+      option,
+      parseMechanics(game),
+    );
     persistRound(this.database, round, {
       pending_plan_json: JSON.stringify(plan),
       shown_event_json: JSON.stringify(plan.event),
@@ -306,6 +314,10 @@ function engineSnapshot(game: GameRow): EngineSnapshot {
 
 function parseRules(game: GameRow): GameRules {
   return JSON.parse(game.rules_json) as GameRules;
+}
+
+function parseMechanics(game: GameRow): ScenarioMechanics {
+  return JSON.parse(game.mechanics_json) as ScenarioMechanics;
 }
 
 function scenarioRound(database: GameDatabase, round: RoundRow): ScenarioRound {
