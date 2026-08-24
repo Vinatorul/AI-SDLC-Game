@@ -1,8 +1,9 @@
-import type { GameState } from '@ai-sdlc/contracts';
+import type { GameState, VoteRequest } from '@ai-sdlc/contracts';
 import { type FormEvent, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { playerTokenKey } from '../api/storage';
+import { BallotFocus } from '../components/BallotFocus';
 import { CodeEntry } from '../components/CodeEntry';
 import { GameFocus } from '../components/GameFocus';
 import { GameHeader } from '../components/GameHeader';
@@ -99,26 +100,12 @@ type PlayerGameProps = {
 };
 
 function PlayerGame({ code, game, state, token }: PlayerGameProps) {
-  const [error, setError] = useState<string | null>(null);
-  async function vote(optionId: string) {
-    try {
-      const result = await api.vote(code, token, optionId);
-      game.setState(result.state);
-      setError(null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Голос не принят');
-      await game.refresh();
-    }
-  }
+  const vote = usePlayerVote(code, game, token);
   return (
     <Layout compact>
       <main className="game-page player-page">
         <GameHeader connected={game.connected} state={state} />
-        {state.phase === 'VOTING' && state.currentRound ? (
-          <PlayerVote error={error} onVote={vote} selected={state.myVoteOptionId} state={state} />
-        ) : (
-          <GameFocus state={state} />
-        )}
+        <PlayerDecision error={vote.error} onVote={vote.submit} state={state} />
         <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
         <StageMap state={state} />
       </main>
@@ -126,17 +113,58 @@ function PlayerGame({ code, game, state, token }: PlayerGameProps) {
   );
 }
 
-function PlayerVote({
-  error,
-  onVote,
-  selected,
-  state,
-}: {
+function usePlayerVote(code: string, game: PlayerGameProps['game'], token: string) {
+  const [error, setError] = useState<string | null>(null);
+  async function submit(vote: VoteRequest) {
+    try {
+      const result = await api.vote(code, token, vote);
+      game.setState(result.state);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Голос не принят');
+      await game.refresh();
+    }
+  }
+  return { error, submit };
+}
+
+function PlayerDecision({ error, onVote, state }: PlayerDecisionProps) {
+  if (state.phase !== 'VOTING') {
+    return <GameFocus selectedChoiceId={state.myVoteChoiceId} state={state} />;
+  }
+  const ballot = state.currentBallot;
+  if (state.decisionModel === 'STAGE_ACTION_V2' && ballot && ballot.kind !== 'LEGACY_OPTION') {
+    return <PlayerBallotVote error={error} onVote={onVote} state={state} />;
+  }
+  return <PlayerLegacyVote error={error} onVote={onVote} state={state} />;
+}
+
+type PlayerDecisionProps = {
   error: string | null;
-  onVote: (optionId: string) => void;
-  selected: string | null;
+  onVote: (vote: VoteRequest) => void;
   state: GameState;
-}) {
+};
+
+function PlayerBallotVote({ error, onVote, state }: PlayerDecisionProps) {
+  const ballot = state.currentBallot;
+  if (!ballot) return <GameFocus state={state} />;
+  return (
+    <>
+      <BallotFocus
+        interactive
+        onSelect={(choiceId) => onVote({ ballotId: ballot.id, choiceId })}
+        selected={state.myVoteChoiceId}
+        state={state}
+      />
+      {state.myVoteChoiceId && ballot.kind !== 'LEGACY_OPTION' && (
+        <VoteConfirmation kind={ballot.kind} />
+      )}
+      {error && <p className="form-error">{error}</p>}
+    </>
+  );
+}
+
+function PlayerLegacyVote({ error, state, onVote }: PlayerDecisionProps) {
   const round = state.currentRound;
   if (!round) return null;
   return (
@@ -146,12 +174,25 @@ function PlayerVote({
         <h2>{round.title}</h2>
         <p>{round.situation}</p>
       </div>
-      <OptionGrid onSelect={onVote} round={round} selected={selected} />
-      {selected && (
+      <OptionGrid
+        onSelect={(optionId) => onVote({ optionId })}
+        round={round}
+        selected={state.myVoteOptionId}
+      />
+      {state.myVoteOptionId && (
         <p className="vote-confirmation">Голос принят. До закрытия можно выбрать другой вариант.</p>
       )}
       {error && <p className="form-error">{error}</p>}
     </section>
+  );
+}
+
+function VoteConfirmation({ kind }: { kind: 'STAGE' | 'ACTION' }) {
+  return (
+    <p className="vote-confirmation">
+      {kind === 'STAGE' ? 'Голос за этап принят.' : 'Голос за способ принят.'} До закрытия можно
+      выбрать другой вариант.
+    </p>
   );
 }
 

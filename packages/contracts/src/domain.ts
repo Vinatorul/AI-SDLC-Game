@@ -27,6 +27,8 @@ export type ProcessProperty = (typeof processProperties)[number];
 export type StageState = 'AS_IS' | 'AI_ENABLED' | 'BROKEN';
 export type GamePhase = 'LOBBY' | 'VOTING' | 'RESULT' | 'EVENT' | 'FEEDBACK' | 'WON' | 'BROKEN';
 export type EvidenceKind = 'FACT' | 'SCENARIO';
+export type DecisionModel = 'SINGLE_OPTION_V1' | 'STAGE_ACTION_V2';
+export type BallotKind = 'LEGACY_OPTION' | 'STAGE' | 'ACTION';
 
 export type GameRules = {
   criticalThreshold: number;
@@ -52,6 +54,25 @@ export type RoundOption = {
   title: string;
 };
 
+export type StageBallotChoice = {
+  description: string;
+  id: StageKey;
+  kind: 'STAGE';
+  stage: StageKey;
+  title: string;
+};
+
+export type ActionBallotChoice = RoundOption & {
+  kind: 'ACTION';
+  repeatable: boolean;
+};
+
+export type LegacyOptionBallotChoice = RoundOption & {
+  kind: 'LEGACY_OPTION';
+};
+
+export type BallotChoice = StageBallotChoice | ActionBallotChoice | LegacyOptionBallotChoice;
+
 export type GameEvent = {
   description: string;
   evidence: EvidenceKind;
@@ -59,10 +80,38 @@ export type GameEvent = {
   title: string;
 };
 
+export type BallotTally = {
+  choiceId: string;
+  count: number;
+  share: number;
+};
+
 export type VoteTally = {
   count: number;
   optionId: string;
   share: number;
+};
+
+export type BallotView<TChoice extends BallotChoice = BallotChoice> = {
+  choices: TChoice[];
+  id: string;
+  kind: BallotKind;
+  selectedChoiceId: string | null;
+  stage: StageKey | null;
+  tiedChoiceIds: string[];
+  voteTallies: BallotTally[];
+};
+
+export type AppliedActionView = {
+  actionId: string;
+  roundNumber: number;
+  stage: StageKey;
+  title: string;
+};
+
+export type StageProgress = {
+  appliedActions: AppliedActionView[];
+  state: StageState;
 };
 
 export type EffectBreakdown = {
@@ -88,8 +137,11 @@ export type RoundView = {
 export type GameState = {
   allowedCommands: AdminCommandName[];
   code: string;
+  currentBallot: BallotView | null;
   currentRound: RoundView | null;
+  decisionModel: DecisionModel;
   metrics: MetricValues;
+  myVoteChoiceId: string | null;
   myVoteOptionId: string | null;
   outcomeReason: OutcomeReason | null;
   phase: GamePhase;
@@ -98,6 +150,7 @@ export type GameState = {
   revision: number;
   roundIndex: number;
   rules: GameRules;
+  stageProgress: Record<StageKey, StageProgress>;
   stages: Record<StageKey, StageState>;
   transitionVersion: number;
   voteCount: number;
@@ -107,12 +160,14 @@ export type OutcomeReason = 'CRITICAL_METRIC' | 'AI_NOT_EMBEDDED' | 'BROKEN_STAG
 
 export type AdminCommandName =
   | 'OPEN_VOTING'
+  | 'OPEN_NEXT_BALLOT'
   | 'CLOSE_VOTING'
   | 'RESOLVE_TIE'
   | 'SHOW_EVENT'
   | 'APPLY_CONSEQUENCES';
 
 export type AdminCommand = {
+  choiceId?: string;
   expectedTransitionVersion: number;
   optionId?: string;
   type: AdminCommandName;

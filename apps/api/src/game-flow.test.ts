@@ -1,16 +1,26 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type {
-  AdminCommandName,
-  CreateGameResponse,
-  GameState,
-  JoinGameResponse,
+import { DatabaseSync } from 'node:sqlite';
+import {
+  type AdminCommandName,
+  type CreateGameResponse,
+  type GameState,
+  type JoinGameResponse,
+  type StageKey,
+  stageKeys,
+  type VoteRequest,
 } from '@ai-sdlc/contracts';
-import { defaultScenario, type Scenario } from '@ai-sdlc/game-engine';
+import {
+  createInitialStages,
+  defaultScenario,
+  type EngineOption,
+  type Scenario,
+} from '@ai-sdlc/game-engine';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from './app';
+import { hashToken } from './auth';
 
 const openApps: FastifyInstance[] = [];
 
@@ -18,21 +28,28 @@ afterEach(async () => {
   await Promise.all(openApps.splice(0).map((app) => app.close()));
 });
 
-it('заменяет голос и запрещает голосовать после закрытия', async () => {
+it('заменяет голос за этап и запрещает голосовать после закрытия', async () => {
   const app = await testApp();
   const game = await createGame(app);
   const player = await joinGame(app, game.state.code, 'Ира');
   let state = await command(app, game, 'OPEN_VOTING', 0);
-  const [first, second] = state.currentRound?.options ?? [];
-  if (!first || !second) throw new Error('Нет вариантов');
-  await vote(app, game.state.code, player.playerToken, first.id);
-  await vote(app, game.state.code, player.playerToken, second.id);
+  const ballot = requiredBallot(state);
+  expect(ballot.choices.map(({ id }) => id)).toEqual(stageKeys);
+  const [first, second] = ballot.choices;
+  if (!first || !second) throw new Error('Нет этапов');
+  expect(first).not.toHaveProperty('actionIds');
+  await vote(app, game.state.code, player.playerToken, { ballotId: ballot.id, choiceId: first.id });
+  await vote(app, game.state.code, player.playerToken, {
+    ballotId: ballot.id,
+    choiceId: second.id,
+  });
   state = await command(app, game, 'CLOSE_VOTING', 1);
-  expect(state.currentRound?.voteTallies.find((item) => item.optionId === first.id)?.count).toBe(0);
-  expect(state.currentRound?.voteTallies.find((item) => item.optionId === second.id)?.count).toBe(
-    1,
-  );
-  const response = await vote(app, game.state.code, player.playerToken, first.id);
+  expect(tally(state, first.id)).toBe(0);
+  expect(tally(state, second.id)).toBe(1);
+  const response = await vote(app, game.state.code, player.playerToken, {
+    ballotId: ballot.id,
+    choiceId: first.id,
+  });
   expect(response.statusCode).toBe(409);
 });
 
@@ -45,54 +62,74 @@ it('отклоняет устаревшую версию админской ко
   expect(response.json().code).toBe('VERSION_CONFLICT');
 });
 
-it('применяет решение и последствия только один раз', async () => {
-  const app = await testApp();
+it('не открывает раунд, если осталось меньше двух доступных этапов', async () => {
+  const app = await testApp(':memory:', scenarioWithOneStage());
   const game = await createGame(app);
-  let state = await command(app, game, 'OPEN_VOTING', 0);
-  state = await command(app, game, 'CLOSE_VOTING', 1);
-  const leader = state.currentRound?.tiedOptionIds[2];
-  if (!leader) throw new Error('Ожидалась ничья без голосов');
-  state = await command(app, game, 'RESOLVE_TIE', 2, leader);
-  state = await command(app, game, 'SHOW_EVENT', 3);
-  expect(state.phase).toBe('EVENT');
-  expect(state.currentRound?.event).not.toHaveProperty('effect');
-  expect(state.currentRound?.event).not.toHaveProperty('stageChanges');
-  state = await command(app, game, 'APPLY_CONSEQUENCES', 4);
-  const response = await rawCommand(app, game, 'APPLY_CONSEQUENCES', 5);
-  expect(state.phase).toBe('FEEDBACK');
+  const response = await rawCommand(app, game, 'OPEN_VOTING', 0);
   expect(response.statusCode).toBe(409);
+  expect(response.json().code).toBe('NOT_ENOUGH_STAGES');
 });
 
-it('при ничьей разрешает выбрать только лидирующий вариант', async () => {
+it('отклоняет голос из предыдущего бюллетеня', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  const opened = await openActionBallot(app, game, player, 'technicalDiscovery', 0);
+  const stale = opened.stageBallot;
+  const response = await vote(app, game.state.code, player.playerToken, {
+    ballotId: stale.id,
+    choiceId: stale.choices[0]?.id ?? '',
+  });
+  expect(response.statusCode).toBe(409);
+  expect(response.json().code).toBe('STALE_BALLOT');
+});
+
+it('разрешает ничьи отдельно для этапа и действия', async () => {
   const app = await testApp();
   const game = await createGame(app);
   const firstPlayer = await joinGame(app, game.state.code, 'Ира');
   const secondPlayer = await joinGame(app, game.state.code, 'Олег');
   let state = await command(app, game, 'OPEN_VOTING', 0);
-  const [first, second, notLeader] = state.currentRound?.options ?? [];
-  if (!first || !second || !notLeader) throw new Error('Нет вариантов');
-  await vote(app, game.state.code, firstPlayer.playerToken, first.id);
-  await vote(app, game.state.code, secondPlayer.playerToken, second.id);
+  const stage = requiredBallot(state);
+  const technical = stage.choices.find(({ id }) => id === 'technicalDiscovery');
+  const coding = stage.choices.find(({ id }) => id === 'coding');
+  await voteFor(app, game, firstPlayer, stage.id, technical?.id);
+  await voteFor(app, game, secondPlayer, stage.id, coding?.id);
   state = await command(app, game, 'CLOSE_VOTING', 1);
-  expect(state.currentRound?.tiedOptionIds).toEqual([first.id, second.id]);
-  const response = await rawCommand(app, game, 'RESOLVE_TIE', 2, notLeader.id);
-  expect(response.statusCode).toBe(400);
-  expect(response.json().code).toBe('NOT_A_LEADER');
+  expect(requiredBallot(state).tiedChoiceIds).toHaveLength(2);
+  state = await command(app, game, 'RESOLVE_TIE', 2, technical?.id);
+  state = await command(app, game, 'OPEN_NEXT_BALLOT', 3);
+  const action = requiredBallot(state);
+  await voteFor(app, game, firstPlayer, action.id, action.choices[0]?.id);
+  await voteFor(app, game, secondPlayer, action.id, action.choices[1]?.id);
+  state = await command(app, game, 'CLOSE_VOTING', 4);
+  expect(requiredBallot(state).tiedChoiceIds).toEqual([
+    action.choices[0]?.id,
+    action.choices[1]?.id,
+  ]);
+  const invalid = await rawCommand(app, game, 'RESOLVE_TIE', 5, action.choices[2]?.id);
+  expect(invalid.statusCode).toBe(400);
+  expect(invalid.json().code).toBe('NOT_A_LEADER');
 });
 
-it('не раскрывает игровые эффекты вместе с публичным вариантом', async () => {
+it('не раскрывает эффекты действия и применяет последствия один раз', async () => {
   const app = await testApp();
   const game = await createGame(app);
-  expect(game.state.currentRound).toBeNull();
-  const state = await command(app, game, 'OPEN_VOTING', 0);
-  const option = state.currentRound?.options[0];
-  expect(option).toBeDefined();
-  expect(option?.shortFeedback).toBeNull();
-  expect(option).not.toHaveProperty('effect');
-  expect(option).not.toHaveProperty('addProperties');
-  expect(option).not.toHaveProperty('stageChanges');
-  const result = await command(app, game, 'CLOSE_VOTING', 1);
-  expect(result.currentRound?.options[0]?.shortFeedback).toBeTypeOf('string');
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let { state } = await openActionBallot(app, game, player, 'technicalDiscovery', 0);
+  const action = requiredBallot(state).choices[0];
+  expect(action).not.toHaveProperty('effect');
+  expect(action).not.toHaveProperty('addProperties');
+  await voteFor(app, game, player, requiredBallot(state).id, action?.id);
+  state = await command(app, game, 'CLOSE_VOTING', 3);
+  const duplicate = await rawCommand(app, game, 'OPEN_NEXT_BALLOT', 4);
+  expect(duplicate.statusCode).toBe(409);
+  state = await command(app, game, 'SHOW_EVENT', 4);
+  expect(state.currentRound?.event).not.toHaveProperty('effect');
+  state = await command(app, game, 'APPLY_CONSEQUENCES', 5);
+  const response = await rawCommand(app, game, 'APPLY_CONSEQUENCES', 6);
+  expect(state.phase).toBe('FEEDBACK');
+  expect(response.statusCode).toBe(409);
 });
 
 it('восстанавливает личный голос только по токену игрока', async () => {
@@ -100,13 +137,48 @@ it('восстанавливает личный голос только по т�
   const game = await createGame(app);
   const player = await joinGame(app, game.state.code, 'Ира');
   const state = await command(app, game, 'OPEN_VOTING', 0);
-  const optionId = state.currentRound?.options[0]?.id;
-  if (!optionId) throw new Error('Нет варианта');
-  await vote(app, game.state.code, player.playerToken, optionId);
+  const ballot = requiredBallot(state);
+  const choiceId = ballot.choices[0]?.id ?? '';
+  await voteFor(app, game, player, ballot.id, choiceId);
   const personal = await getState(app, game.state.code, player.playerToken);
   const publicState = await getState(app, game.state.code);
-  expect(personal.myVoteOptionId).toBe(optionId);
-  expect(publicState.myVoteOptionId).toBeNull();
+  expect(personal.myVoteChoiceId).toBe(choiceId);
+  expect(publicState.myVoteChoiceId).toBeNull();
+});
+
+it('позволяет вернуться к этапу, но скрывает уже применённое неповторяемое действие', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  await playRound(app, game, player, 'technicalDiscovery', 'technicalDiscovery.code-research', 0);
+  const opened = await openActionBallot(app, game, player, 'technicalDiscovery', 6);
+  const actionIds = requiredBallot(opened.state).choices.map(({ id }) => id);
+  expect(actionIds).not.toContain('technicalDiscovery.code-research');
+  expect(actionIds).toContain('technicalDiscovery.sync-docs-and-contract');
+  const state = await finishAction(
+    app,
+    game,
+    player,
+    'technicalDiscovery.sync-docs-and-contract',
+    9,
+    opened.state,
+  );
+  expect(
+    state.stageProgress.technicalDiscovery.appliedActions.map(({ actionId }) => actionId),
+  ).toEqual(['technicalDiscovery.code-research', 'technicalDiscovery.sync-docs-and-contract']);
+});
+
+it('чинит сломанный этап следующим решением и сохраняет историю', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 0);
+  expect(state.stageProgress.review.state).toBe('BROKEN');
+  state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 6);
+  expect(state.stageProgress.review.state).toBe('AI_ENABLED');
+  expect(state.stageProgress.review.appliedActions[0]?.actionId).toBe(
+    'review.context-and-human-risk',
+  );
 });
 
 it('разрешает CORS preflight для смены голоса', async () => {
@@ -125,31 +197,51 @@ it('разрешает CORS preflight для смены голоса', async () 
 });
 
 describe('восстановление SQLite', () => {
-  it('возвращает игру после повторного открытия базы', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'ai-sdlc-game-'));
-    const databasePath = join(directory, 'game.sqlite');
+  it('возвращает открытый бюллетень и голос после перезапуска', async () => {
+    const { databasePath, directory } = temporaryDatabase('ai-sdlc-ballot-');
     const first = await testApp(databasePath);
     const game = await createGame(first);
-    await first.close();
-    openApps.splice(openApps.indexOf(first), 1);
+    const player = await joinGame(first, game.state.code, 'Ира');
+    const opened = await openActionBallot(first, game, player, 'testing', 0);
+    const ballot = requiredBallot(opened.state);
+    const choiceId = ballot.choices[0]?.id ?? '';
+    await voteFor(first, game, player, ballot.id, choiceId);
+    await closeTrackedApp(first);
     const second = await testApp(databasePath);
-    const response = await second.inject({
-      method: 'GET',
-      url: `/api/games/${game.state.code}/state`,
-    });
-    expect(response.statusCode).toBe(200);
-    expect((response.json() as GameState).code).toBe(game.state.code);
-    await second.close();
-    openApps.splice(openApps.indexOf(second), 1);
+    const state = await getState(second, game.state.code, player.playerToken);
+    expect(state.currentBallot?.id).toBe(ballot.id);
+    expect(state.myVoteChoiceId).toBe(choiceId);
+    await closeTrackedApp(second);
+    rmSync(directory, { force: true, recursive: true });
+  });
+
+  it('возвращает историю решений после перезапуска', async () => {
+    const { databasePath, directory } = temporaryDatabase('ai-sdlc-history-');
+    const first = await testApp(databasePath);
+    const game = await createGame(first);
+    const player = await joinGame(first, game.state.code, 'Ира');
+    await playRound(
+      first,
+      game,
+      player,
+      'technicalDiscovery',
+      'technicalDiscovery.code-research',
+      0,
+    );
+    await closeTrackedApp(first);
+    const second = await testApp(databasePath);
+    const state = await getState(second, game.state.code);
+    expect(state.stageProgress.technicalDiscovery.appliedActions[0]?.actionId).toBe(
+      'technicalDiscovery.code-research',
+    );
+    await closeTrackedApp(second);
     rmSync(directory, { force: true, recursive: true });
   });
 });
 
 it('после перезапуска использует сохранённые правила игры', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ai-sdlc-rules-'));
-  const databasePath = join(directory, 'game.sqlite');
-  const scenario = noRoundsScenario();
-  const first = await testApp(databasePath, scenario);
+  const { databasePath, directory } = temporaryDatabase('ai-sdlc-rules-');
+  const first = await testApp(databasePath, noRoundsScenario());
   const game = await createGame(first);
   await closeTrackedApp(first);
   const second = await testApp(databasePath);
@@ -161,23 +253,57 @@ it('после перезапуска использует сохранённы�
 });
 
 it('после перезапуска использует сохранённую механику', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'ai-sdlc-mechanics-'));
-  const databasePath = join(directory, 'game.sqlite');
-  const scenario = scenarioWithContextQuality(20);
-  const first = await testApp(databasePath, scenario);
+  const { databasePath, directory } = temporaryDatabase('ai-sdlc-mechanics-');
+  const first = await testApp(databasePath, scenarioWithContextQuality(20));
   const game = await createGame(first);
   await closeTrackedApp(first);
   const second = await testApp(databasePath);
   const player = await joinGame(second, game.state.code, 'Ира');
-  let state = await command(second, game, 'OPEN_VOTING', 0);
-  const optionId = state.currentRound?.options[0]?.id;
-  if (!optionId) throw new Error('Нет варианта');
-  await vote(second, game.state.code, player.playerToken, optionId);
-  state = await command(second, game, 'CLOSE_VOTING', 1);
-  state = await command(second, game, 'SHOW_EVENT', 2);
-  state = await command(second, game, 'APPLY_CONSEQUENCES', 3);
-  expect(state.metrics.quality).toBe(80);
+  const state = await playRound(
+    second,
+    game,
+    player,
+    'technicalDiscovery',
+    'technicalDiscovery.code-research',
+    0,
+  );
+  expect(state.metrics.quality).toBe(83);
   await closeTrackedApp(second);
+  rmSync(directory, { force: true, recursive: true });
+});
+
+it('продолжает старую игру из активного голосования после миграции', async () => {
+  const { databasePath, directory } = temporaryDatabase('ai-sdlc-legacy-flow-');
+  seedLegacyGame(databasePath);
+  const app = await testApp(databasePath);
+  const player = await joinGame(app, 'OLD234', 'Ира');
+  let state = await getState(app, 'OLD234');
+  expect(state.currentBallot?.kind).toBe('LEGACY_OPTION');
+  const optionId = state.currentRound?.options[0]?.id ?? '';
+  await vote(app, 'OLD234', player.playerToken, { optionId });
+  state = await legacyCommand(app, 'CLOSE_VOTING', 0);
+  state = await legacyCommand(app, 'SHOW_EVENT', 1);
+  state = await legacyCommand(app, 'APPLY_CONSEQUENCES', 2);
+  expect(state.decisionModel).toBe('SINGLE_OPTION_V1');
+  expect(state.stages.testing).toBe('BROKEN');
+  expect(state.phase).toBe('WON');
+  await closeTrackedApp(app);
+  rmSync(directory, { force: true, recursive: true });
+});
+
+it.each([
+  'RESULT',
+  'EVENT',
+] as const)('продолжает старую игру из фазы %s после миграции', async (phase) => {
+  const { databasePath, directory } = temporaryDatabase(`ai-sdlc-legacy-${phase}-`);
+  seedLegacyGame(databasePath, phase);
+  const app = await testApp(databasePath);
+  let state = await getState(app, 'OLD234');
+  expect(state.currentBallot?.selectedChoiceId).toBe('old-a');
+  if (phase === 'RESULT') state = await legacyCommand(app, 'SHOW_EVENT', 0);
+  state = await legacyCommand(app, 'APPLY_CONSEQUENCES', phase === 'RESULT' ? 1 : 0);
+  expect(state.phase).toBe('WON');
+  await closeTrackedApp(app);
   rmSync(directory, { force: true, recursive: true });
 });
 
@@ -185,31 +311,6 @@ async function testApp(databasePath = ':memory:', scenario?: Scenario) {
   const app = await createApp({ databasePath, scenario });
   openApps.push(app);
   return app;
-}
-
-async function closeTrackedApp(app: FastifyInstance) {
-  await app.close();
-  openApps.splice(openApps.indexOf(app), 1);
-}
-
-function noRoundsScenario(): Scenario {
-  return {
-    ...defaultScenario,
-    rules: { ...defaultScenario.rules, roundLimit: 0 },
-  };
-}
-
-function scenarioWithContextQuality(quality: number): Scenario {
-  return {
-    ...defaultScenario,
-    mechanics: {
-      ...defaultScenario.mechanics,
-      propertyEffects: {
-        ...defaultScenario.mechanics.propertyEffects,
-        currentContext: { quality },
-      },
-    },
-  };
 }
 
 async function createGame(app: FastifyInstance) {
@@ -224,16 +325,29 @@ async function joinGame(app: FastifyInstance, code: string, name: string) {
     payload: { name },
     url: `/api/games/${code}/join`,
   });
+  expect(response.statusCode).toBe(200);
   return response.json() as JoinGameResponse;
 }
 
-async function vote(app: FastifyInstance, code: string, token: string, optionId: string) {
+async function vote(app: FastifyInstance, code: string, token: string, payload: VoteRequest) {
   return app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: 'PUT',
-    payload: { optionId },
+    payload,
     url: `/api/games/${code}/vote`,
   });
+}
+
+async function voteFor(
+  app: FastifyInstance,
+  game: CreateGameResponse,
+  player: JoinGameResponse,
+  ballotId: string,
+  choiceId: string | undefined,
+) {
+  if (!choiceId) throw new Error('Нет варианта');
+  const response = await vote(app, game.state.code, player.playerToken, { ballotId, choiceId });
+  expect(response.statusCode).toBe(200);
 }
 
 async function getState(app: FastifyInstance, code: string, token?: string) {
@@ -251,9 +365,9 @@ async function command(
   game: CreateGameResponse,
   type: AdminCommandName,
   version: number,
-  optionId?: string,
+  choiceId?: string,
 ) {
-  const response = await rawCommand(app, game, type, version, optionId);
+  const response = await rawCommand(app, game, type, version, choiceId);
   expect(response.statusCode).toBe(200);
   return (response.json() as { state: GameState }).state;
 }
@@ -263,12 +377,224 @@ async function rawCommand(
   game: CreateGameResponse,
   type: AdminCommandName,
   version: number,
-  optionId?: string,
+  choiceId?: string,
 ) {
   return app.inject({
     headers: { authorization: `Bearer ${game.adminToken}` },
     method: 'POST',
-    payload: { expectedTransitionVersion: version, optionId, type },
+    payload: { choiceId, expectedTransitionVersion: version, type },
     url: `/api/games/${game.state.code}/admin/commands`,
   });
+}
+
+async function openActionBallot(
+  app: FastifyInstance,
+  game: CreateGameResponse,
+  player: JoinGameResponse,
+  stage: StageKey,
+  version: number,
+) {
+  let state = await command(app, game, 'OPEN_VOTING', version);
+  const stageBallot = requiredBallot(state);
+  await voteFor(app, game, player, stageBallot.id, stage);
+  state = await command(app, game, 'CLOSE_VOTING', version + 1);
+  state = await command(app, game, 'OPEN_NEXT_BALLOT', version + 2);
+  return { stageBallot, state };
+}
+
+async function playRound(
+  app: FastifyInstance,
+  game: CreateGameResponse,
+  player: JoinGameResponse,
+  stage: StageKey,
+  actionId: string,
+  version: number,
+) {
+  const opened = await openActionBallot(app, game, player, stage, version);
+  return finishAction(app, game, player, actionId, version + 3, opened.state);
+}
+
+async function finishAction(
+  app: FastifyInstance,
+  game: CreateGameResponse,
+  player: JoinGameResponse,
+  actionId: string,
+  version: number,
+  state: GameState,
+) {
+  await voteFor(app, game, player, requiredBallot(state).id, actionId);
+  await command(app, game, 'CLOSE_VOTING', version);
+  await command(app, game, 'SHOW_EVENT', version + 1);
+  return command(app, game, 'APPLY_CONSEQUENCES', version + 2);
+}
+
+function requiredBallot(state: GameState) {
+  if (!state.currentBallot) throw new Error('Нет бюллетеня');
+  return state.currentBallot;
+}
+
+function tally(state: GameState, choiceId: string) {
+  return state.currentBallot?.voteTallies.find((item) => item.choiceId === choiceId)?.count;
+}
+
+function noRoundsScenario(): Scenario {
+  return { ...defaultScenario, rules: { ...defaultScenario.rules, roundLimit: 0 } };
+}
+
+function scenarioWithContextQuality(quality: number): Scenario {
+  return {
+    ...defaultScenario,
+    mechanics: {
+      ...defaultScenario.mechanics,
+      propertyEffects: {
+        ...defaultScenario.mechanics.propertyEffects,
+        currentContext: { quality },
+      },
+    },
+  };
+}
+
+function scenarioWithOneStage(): Scenario {
+  const [first, ...rest] = defaultScenario.rounds;
+  if (!first) throw new Error('Нет раундов');
+  return {
+    ...defaultScenario,
+    rounds: [{ ...first, stageChoices: first.stageChoices.slice(0, 1) }, ...rest],
+  };
+}
+
+async function closeTrackedApp(app: FastifyInstance) {
+  await app.close();
+  openApps.splice(openApps.indexOf(app), 1);
+}
+
+function temporaryDatabase(prefix: string) {
+  const directory = mkdtempSync(join(tmpdir(), prefix));
+  return { databasePath: join(directory, 'game.sqlite'), directory };
+}
+
+function seedLegacyGame(databasePath: string, phase: 'VOTING' | 'RESULT' | 'EVENT' = 'VOTING') {
+  const database = new DatabaseSync(databasePath);
+  database.exec(legacySeedSchema);
+  const now = new Date().toISOString();
+  database.prepare(legacyGameSql).run(
+    phase,
+    JSON.stringify(defaultScenario.mechanics.initialMetrics),
+    JSON.stringify(createInitialStages()),
+    JSON.stringify({
+      ...defaultScenario.rules,
+      minAiStagesToWin: 1,
+      requireNoBrokenStages: false,
+      roundLimit: 1,
+    }),
+    hashToken('legacy-admin'),
+    now,
+    now,
+  );
+  database.prepare(legacyRoundSql).run(JSON.stringify([legacyEvent()]));
+  for (const option of legacyOptions()) insertLegacyOption(database, option);
+  seedLegacyRoundState(database, phase);
+  database.close();
+}
+
+const legacyGameSql = `INSERT INTO games (
+  id, code, phase, metrics_json, properties_json, stages_json, rules_json,
+  scenario_version, admin_token_hash, created_at, updated_at
+) VALUES ('legacy', 'OLD234', ?, ?, '[]', ?, ?, 1, ?, ?, ?)`;
+
+const legacyRoundSql = `INSERT INTO game_rounds (
+  id, game_id, round_number, title, situation, event_rules_json
+) VALUES ('legacy:r1', 'legacy', 1, 'Старый раунд', 'Ситуация', ?)`;
+
+function legacyOptions(): EngineOption[] {
+  return ['old-a', 'old-b'].map((id, index) => ({
+    addProperties: [],
+    description: `Вариант ${index + 1}`,
+    effect: {},
+    evidence: 'SCENARIO',
+    id,
+    key: String.fromCharCode(65 + index),
+    shortFeedback: 'Разбор',
+    stage: 'coding',
+    stageChanges: [
+      { stage: 'coding', state: 'AI_ENABLED' },
+      { stage: 'testing', state: 'BROKEN' },
+    ],
+    title: `Вариант ${index + 1}`,
+  }));
+}
+
+function legacyEvent() {
+  return {
+    event: {
+      description: 'Старое событие',
+      effect: {},
+      evidence: 'SCENARIO',
+      id: 'old-event',
+      stageChanges: [],
+      title: 'Событие',
+    },
+  };
+}
+
+function insertLegacyOption(database: DatabaseSync, option: EngineOption) {
+  const sql = `INSERT INTO round_options (round_id, id, option_key, payload_json)
+    VALUES ('legacy:r1', ?, ?, ?)`;
+  database.prepare(sql).run(option.id, option.key, JSON.stringify(option));
+}
+
+function seedLegacyRoundState(database: DatabaseSync, phase: 'VOTING' | 'RESULT' | 'EVENT') {
+  if (phase === 'VOTING') return;
+  database.exec("UPDATE game_rounds SET selected_option_id = 'old-a' WHERE id = 'legacy:r1'");
+  if (phase !== 'EVENT') return;
+  const event = legacyEvent().event;
+  const sql = `UPDATE game_rounds SET shown_event_json = ?, pending_plan_json = ?
+    WHERE id = 'legacy:r1'`;
+  database.prepare(sql).run(JSON.stringify(event), JSON.stringify(legacyPlan(event)));
+}
+
+function legacyPlan(event: ReturnType<typeof legacyEvent>['event']) {
+  const stages = createInitialStages();
+  stages.coding = 'AI_ENABLED';
+  const empty = { controllability: 0, deliverySpeed: 0, quality: 0, teamCapacity: 0 };
+  return {
+    appliedActions: [],
+    breakdown: { decision: empty, event: empty, properties: empty, total: empty },
+    event,
+    metrics: defaultScenario.mechanics.initialMetrics,
+    properties: [],
+    stages,
+  };
+}
+
+const legacySeedSchema = `
+CREATE TABLE games (
+  id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, phase TEXT NOT NULL,
+  current_round INTEGER NOT NULL DEFAULT 0, metrics_json TEXT NOT NULL,
+  properties_json TEXT NOT NULL, stages_json TEXT NOT NULL, rules_json TEXT NOT NULL,
+  scenario_version INTEGER NOT NULL, transition_version INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0, admin_token_hash TEXT NOT NULL, outcome_reason TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE game_rounds (
+  id TEXT PRIMARY KEY, game_id TEXT NOT NULL, round_number INTEGER NOT NULL,
+  title TEXT NOT NULL, situation TEXT NOT NULL, event_rules_json TEXT NOT NULL,
+  selected_option_id TEXT, tied_option_ids_json TEXT NOT NULL DEFAULT '[]',
+  shown_event_json TEXT, pending_plan_json TEXT, applied_at TEXT,
+  UNIQUE(game_id, round_number)
+);
+CREATE TABLE round_options (
+  round_id TEXT NOT NULL, id TEXT NOT NULL, option_key TEXT NOT NULL,
+  payload_json TEXT NOT NULL, PRIMARY KEY(round_id, id), UNIQUE(round_id, option_key)
+);`;
+
+async function legacyCommand(app: FastifyInstance, type: AdminCommandName, version: number) {
+  const response = await app.inject({
+    headers: { authorization: 'Bearer legacy-admin' },
+    method: 'POST',
+    payload: { expectedTransitionVersion: version, type },
+    url: '/api/games/OLD234/admin/commands',
+  });
+  expect(response.statusCode).toBe(200);
+  return (response.json() as { state: GameState }).state;
 }

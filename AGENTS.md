@@ -19,18 +19,27 @@ still a technical draft and will be refined separately.
 ## Core invariants
 
 - The server is the only source of truth. Clients never calculate game consequences.
-- The main flow is LOBBY → VOTING → RESULT → EVENT → FEEDBACK; terminal states are WON and BROKEN.
+- A version 2 round has two ballots: STAGE VOTING → STAGE RESULT → ACTION VOTING →
+  ACTION RESULT → EVENT → FEEDBACK. Terminal states are WON and BROKEN. Persisted version 1
+  rooms keep their single legacy ballot.
 - **transitionVersion** changes only after a host command. **revision** changes after every mutation,
   including joins and votes.
 - Host commands run in short transactions and check the expected transition version.
-- A player's vote is an upsert and may change only while the game is in VOTING.
+- A player's vote is an upsert scoped to one ballot and may change only while that exact ballot is
+  open. Every version 2 vote includes the current ballot id so a late stage vote cannot become an
+  action vote.
 - WebSocket messages contain only the latest revision. A client fetches the full state over HTTP
   after a notification or reconnect.
-- Public responses must not expose effect, addProperties, stageChanges, or other hidden consequences
-  before the appropriate phase.
-- **myVoteOptionId** is returned only when the state request has a valid player token.
+- Public responses must not expose effect, addProperties, stageChanges, actionIds for a later
+  ballot, or other hidden consequences before the appropriate phase.
+- **myVoteChoiceId** and the deprecated **myVoteOptionId** are returned only when the state request
+  has a valid player token.
 - A new game snapshots its scenario and rules in SQLite. Later content edits must not alter an
   existing room.
+- A stage may be selected again in a later round. Its current AS_IS/AI_ENABLED/BROKEN value is a
+  summary; applied actions are stored as separate history records.
+- Applying another eligible action may extend an AI-enabled stage or repair a broken stage. Do not
+  treat AI_ENABLED as a one-time lock.
 
 ## Content source of truth
 
@@ -38,7 +47,9 @@ The bundled MVP scenario is the JSON file
 **packages/game-engine/content/scenarios/technical-mvp.json**. The field guide and authoring
 examples are in **packages/game-engine/content/README.md**.
 
-- **rounds** contains situations, options, effects, and event-selection rules;
+- **stageActions** is the reusable catalog of actions, effects, availability, and repeatability;
+- **rounds** contains situations, stage choices, action references, and event-selection rules;
+- every round in the bundled technical scenario exposes all eight SDLC stages;
 - **rules** contains thresholds, round count, feedback share, and win conditions;
 - **mechanics** contains initial metrics, metric bounds, and process-property effects;
 - top-level metadata defines the schema version, scenario id, content version, and status.
@@ -52,28 +63,44 @@ frontend should render the scenario and rules received from the API.
 
 ## Adding or changing content
 
-Edit **packages/game-engine/content/scenarios/technical-mvp.json** for the bundled scenario. Each
-round must have:
+Edit **packages/game-engine/content/scenarios/technical-mvp.json** for the bundled scenario. The
+top-level action catalog is reusable across rounds. Each round must have:
 
 - a stable unique id and a sequential number;
 - short title and situation text that works on a projected screen;
-- exactly four options with unique id and key values, an SDLC stage, effects, and properties;
+- all eight unique SDLC stage choices, each referencing existing actions for the same stage;
 - ordered eventRules: specific conditions first and one unconditional fallback event last.
 
-Decision consequences belong in effect, addProperties, and stageChanges. Event consequences belong
-in event.effect and event.stageChanges. Mark content as FACT only when it has a verified basis; mark
-simulations and hypotheses as SCENARIO. Give every option useful individual shortFeedback before
-treating the content as final.
+Action consequences belong in the reusable catalog entry. Its availability states decide whether
+it can extend or repair the current stage, **resultingStageState** defines the summary state after
+the decision, and **repeatable** controls whether the exact same action may be applied again.
+Different actions on the same stage remain valid in later rounds. Event consequences belong in
+event.effect and event.stageChanges.
+
+Keep at least one action for each bundled stage choice repeatable and available in AS_IS,
+AI_ENABLED, and BROKEN. This keeps all eight stages selectable after earlier actions have been
+used. Remember that a repeatable action applies its numeric effect again, so treat repeatability as
+an explicit balance decision.
+
+Use descriptive stable catalog ids such as **review.context-and-human-risk**. Do not encode the
+first round that happened to use an action in its id. A round references catalog ids and never owns
+or duplicates their copy, balance, or effects.
+
+Event conditions may use the selected action, pre-action process properties and stage states, and
+the history of previously applied actions. Keep the last rule unconditional. Mark content as FACT
+only when it has a verified basis; mark simulations and hypotheses as SCENARIO. Give every action
+useful individual shortFeedback before treating the content as final.
 
 After a content change:
 
 1. Keep rules.roundLimit equal to the number of rounds.
 2. Increment the top-level version.
 3. Run `pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json`.
-4. Add or update focused tests for event selection and effect calculation.
-5. Verify that conditional events follow from earlier decisions instead of acting as random
+4. Add or update focused tests for eligibility, event selection, history, and effect calculation.
+5. Verify that a round cannot lose all useful stage or action choices on reachable histories.
+6. Verify that conditional events follow from earlier decisions instead of acting as random
    penalties.
-6. Create a new room when checking the change; existing rooms use their stored snapshot.
+7. Create a new room when checking the change; existing rooms use their stored snapshot.
 
 To add another scenario, copy the JSON to
 **packages/game-engine/content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,
@@ -82,7 +109,8 @@ silently fall back to the bundled scenario. Restart the API after changing an ex
 
 The API may load one active scenario per process. Scenario selection in the UI and a multi-scenario
 catalog are outside the MVP. A new room snapshots its scenario id, version, rules, mechanics,
-rounds, options, and events in SQLite, so replacing the source file cannot change an existing room.
+rounds, action catalog, stage choices, and events in SQLite, so replacing the source file cannot
+change an existing room.
 
 ## Configuration rules
 
@@ -157,7 +185,8 @@ The container must run as a single API instance with a persistent volume mounted
 2. Reproduce the behavior and identify the owning layer before editing.
 3. Change **packages/contracts** first when the shared HTTP or state shape changes.
 4. Put deterministic rules in **packages/game-engine** and cover them with focused unit tests.
-5. Keep persistence, authentication, transitions, and broadcasting in **apps/api**.
+5. Keep persistence, ballot lifecycle, authentication, transitions, and broadcasting in
+   **apps/api**.
 6. Keep **apps/web** focused on rendering server state and sending user intent.
 7. Run formatting, type checks, and the narrow tests for the changed behavior.
 
@@ -177,6 +206,9 @@ screen. Do not present simulated consequences as proven experience.
 - Keep secrets hashed at rest and out of public game state.
 - Make schema changes forward-compatible with existing SQLite files. Add an explicit migration; do
   not rely on deleting the local database.
+- Keep legacy round_options and votes available while version 1 rooms still exist. New rooms use
+  ballot ids, ballot-scoped votes, a snapshotted action catalog, and append-only applied-action
+  history.
 - Keep transactions short and preserve foreign_keys, WAL, and busy_timeout.
 
 The SQLite MVP supports one API process with a persistent disk. Use PostgreSQL if a deployment needs

@@ -1,9 +1,13 @@
 import type { GameState } from '@ai-sdlc/contracts';
 import { outcomeLabels, propertyLabels } from '../labels';
+import { BallotFocus } from './BallotFocus';
 import { OptionGrid } from './OptionGrid';
 
-export function GameFocus({ state }: { state: GameState }) {
+type GameFocusProps = { selectedChoiceId?: string | null; state: GameState };
+
+export function GameFocus({ selectedChoiceId, state }: GameFocusProps) {
   if (state.phase === 'WON' || state.phase === 'BROKEN') return <FinalState state={state} />;
+  if (showCurrentBallot(state)) return <BallotFocus selected={selectedChoiceId} state={state} />;
   const round = state.currentRound;
   if (!round) return null;
   return (
@@ -17,6 +21,14 @@ export function GameFocus({ state }: { state: GameState }) {
       {!round.event && <OptionGrid disabled round={round} showResults={state.phase !== 'LOBBY'} />}
       <PropertyList state={state} />
     </section>
+  );
+}
+
+function showCurrentBallot(state: GameState) {
+  return (
+    state.decisionModel === 'STAGE_ACTION_V2' &&
+    Boolean(state.currentBallot) &&
+    (state.phase === 'VOTING' || state.phase === 'RESULT')
   );
 }
 

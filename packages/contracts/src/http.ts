@@ -15,9 +15,9 @@ export type JoinGameResponse = {
   state: GameState;
 };
 
-export type VoteRequest = {
-  optionId: string;
-};
+export type VoteRequest =
+  | { ballotId: string; choiceId: string; optionId?: never }
+  | { ballotId?: never; choiceId?: never; optionId: string };
 
 export type VoteResponse = {
   state: GameState;

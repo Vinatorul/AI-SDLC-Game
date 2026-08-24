@@ -5,6 +5,7 @@ import type {
   CreateGameResponse,
   GameState,
   JoinGameResponse,
+  VoteRequest,
   VoteResponse,
 } from '@ai-sdlc/contracts';
 
@@ -36,9 +37,9 @@ export const api = {
       body: JSON.stringify({ name }),
       method: 'POST',
     }),
-  vote: (code: string, token: string, optionId: string) =>
+  vote: (code: string, token: string, vote: VoteRequest) =>
     request<VoteResponse>(`/api/games/${code}/vote`, {
-      body: JSON.stringify({ optionId }),
+      body: JSON.stringify(vote),
       headers: authHeaders(token),
       method: 'PUT',
     }),

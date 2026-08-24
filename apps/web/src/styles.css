@@ -309,6 +309,84 @@ h1 {
   line-height: 1.4;
 }
 
+.ballot-round-context {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #dfe2e7;
+}
+
+.ballot-round-context h2 {
+  margin: 4px 0 6px;
+  font-size: clamp(22px, 3vw, 32px);
+}
+
+.ballot-round-context > p:last-child {
+  max-width: 880px;
+  margin: 0;
+  color: #62666d;
+  line-height: 1.4;
+}
+
+.ballot-progress {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  color: #777c84;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ballot-progress i {
+  color: #8a8f98;
+  font-size: 18px;
+  font-style: normal;
+  text-align: center;
+}
+
+.ballot-step {
+  padding: 10px 12px;
+  border: 1px solid #dfe2e7;
+  background: #f4f5f7;
+}
+
+.ballot-step:last-child {
+  text-align: right;
+}
+
+.ballot-step.is-active {
+  color: #195fbf;
+  border-color: #3d82f6;
+  background: #eaf4ff;
+}
+
+.ballot-step.is-complete {
+  color: #236c47;
+  border-color: #9fcfb5;
+  background: #ebf7f0;
+}
+
+.action-stage-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border-left: 5px solid #3d82f6;
+  background: #eaf4ff;
+}
+
+.action-stage-banner span {
+  color: #62666d;
+  font-size: 13px;
+}
+
+.action-stage-banner strong {
+  font-size: 20px;
+}
+
 .option-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -382,6 +460,17 @@ h1 {
 .option-copy > span {
   color: #555a62;
   line-height: 1.45;
+}
+
+.option-copy em {
+  color: #236c47;
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.ballot-focus button:disabled {
+  cursor: default;
 }
 
 .option-votes {
@@ -492,6 +581,12 @@ h1 {
 .tie-buttons {
   display: grid;
   gap: 8px;
+}
+
+.tie-buttons p {
+  margin: 0;
+  color: #6c438e;
+  font-weight: 800;
 }
 
 .tie-buttons button {
@@ -678,7 +773,7 @@ h1 {
 
 .stage-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -689,6 +784,159 @@ h1 {
   justify-content: space-between;
   padding: 18px;
   background: #eceef1;
+}
+
+.stage-card.stage-ai_enabled {
+  color: #195fbf;
+  background: #eaf4ff;
+}
+
+.stage-card.stage-broken {
+  color: #b33b3b;
+  background: #fff0f0;
+}
+
+button.stage-card {
+  width: 100%;
+  border: 1px solid transparent;
+  color: inherit;
+  text-align: left;
+}
+
+button.stage-card:not(:disabled):hover,
+button.stage-card:not(:disabled):focus-visible,
+.stage-card.is-selected {
+  border-color: #3d82f6;
+  outline: none;
+  box-shadow: inset 0 0 0 2px #3d82f6;
+}
+
+.stage-card.is-winner {
+  border-color: #3d82f6;
+  box-shadow: inset 0 0 0 2px #3d82f6;
+}
+
+.stage-card.is-tied {
+  border-color: #a477d3;
+}
+
+.stage-ballot-grid .stage-card {
+  min-height: 176px;
+}
+
+.screen-stage-ballot {
+  padding-top: 24px;
+}
+
+.screen-stage-ballot .game-header {
+  padding-bottom: 16px;
+}
+
+.screen-stage-ballot .metric-grid,
+.screen-stage-ballot .screen-qr {
+  margin: 14px 0 20px;
+}
+
+.screen-stage-ballot .metric-card {
+  padding: 12px 14px;
+}
+
+.screen-stage-ballot .metric-card > strong {
+  margin: 10px 0 8px;
+  font-size: 30px;
+}
+
+.screen-stage-ballot .screen-qr {
+  padding: 10px 14px;
+}
+
+.screen-stage-ballot .screen-qr svg {
+  width: 82px;
+  height: 82px;
+}
+
+.screen-stage-ballot .round-focus {
+  padding: 20px;
+}
+
+.screen-stage-ballot .ballot-round-context {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+
+.screen-stage-ballot .ballot-progress,
+.screen-stage-ballot .round-question {
+  margin-bottom: 12px;
+}
+
+.screen-stage-ballot .round-question h2 {
+  margin-bottom: 6px;
+  font-size: 32px;
+}
+
+.screen-stage-ballot .round-question > p:last-child {
+  font-size: 16px;
+}
+
+.screen-stage-ballot .stage-card {
+  min-height: 144px;
+  padding: 14px;
+}
+
+.stage-card-main {
+  display: grid;
+  gap: 8px;
+}
+
+.stage-actions {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(17 18 20 / 12%);
+}
+
+.stage-actions b {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.stage-actions small {
+  line-height: 1.25;
+}
+
+.stage-votes {
+  align-self: end;
+  color: #3d82f6;
+  font-size: 28px;
+}
+
+.applied-history {
+  margin-top: 28px;
+  padding: 22px;
+  border: 1px solid #dfe2e7;
+  background: #fff;
+}
+
+.applied-history-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.applied-history-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding-top: 9px;
+  border-top: 1px solid #e4e6ea;
+}
+
+.applied-history-list span {
+  color: #777c84;
+  font-size: 12px;
 }
 
 .stage-card span,
@@ -777,7 +1025,25 @@ h1 {
     grid-template-columns: 1fr;
   }
 
+  .ballot-progress {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .ballot-step {
+    padding: 9px 7px;
+  }
+
+  .action-stage-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .option-card {
+    min-height: 150px;
+  }
+
+  .stage-ballot-grid .stage-card {
     min-height: 150px;
   }
 

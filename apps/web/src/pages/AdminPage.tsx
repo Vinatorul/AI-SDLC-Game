@@ -121,8 +121,8 @@ function useAdminCommand(
     setError(null);
     try {
       const result = await api.command(code, token, {
+        ...commandChoice(state, optionId),
         expectedTransitionVersion: state.transitionVersion,
-        optionId,
         type,
       });
       game.setState(result.state);
@@ -152,22 +152,26 @@ function ControlButtons({
   if (!command) return <p className="muted">Игра завершена.</p>;
   return (
     <button className="primary-button" disabled={busy} onClick={() => send(command)} type="button">
-      {busy ? 'Применяем…' : commandLabels[command]}
+      {busy ? 'Применяем…' : commandLabel(command, state)}
     </button>
   );
 }
 
 function TieButtons({ busy, send, state }: Parameters<typeof ControlButtons>[0]) {
+  const leaders = tieLeaders(state);
   return (
     <div className="tie-buttons">
-      {state.currentRound?.tiedOptionIds.map((id) => {
-        const option = state.currentRound?.options.find((item) => item.id === id);
-        return (
-          <button disabled={busy} key={id} onClick={() => send('RESOLVE_TIE', id)} type="button">
-            {option?.key}: {option?.title}
-          </button>
-        );
-      })}
+      <p>{tieLabel(state)}</p>
+      {leaders.map((leader) => (
+        <button
+          disabled={busy}
+          key={leader.id}
+          onClick={() => send('RESOLVE_TIE', leader.id)}
+          type="button"
+        >
+          {leader.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -225,18 +229,68 @@ function PageError({ message }: { message: string }) {
 }
 
 function controlTitle(state: GameState) {
+  const kind = state.currentBallot?.kind;
+  if (state.phase === 'VOTING' && kind === 'STAGE') return 'Закройте выбор этапа, когда зал готов';
+  if (state.phase === 'VOTING' && kind === 'ACTION')
+    return 'Закройте выбор способа, когда зал готов';
   if (state.phase === 'VOTING') return 'Закройте голосование, когда зал готов';
-  if (state.phase === 'RESULT' && state.currentRound?.tiedOptionIds.length)
-    return 'Выберите лидера';
-  if (state.phase === 'RESULT') return 'Обсудите выбор перед событием';
+  if (state.phase === 'RESULT' && hasTie(state)) return tieLabel(state);
+  if (state.phase === 'RESULT' && kind === 'STAGE') return 'Обсудите этап перед выбором способа';
+  if (state.phase === 'RESULT') return 'Обсудите выбранный способ перед событием';
   if (state.phase === 'EVENT') return 'Обсудите событие перед расчётом';
   if (state.phase === 'FEEDBACK') return 'Зафиксируйте изменения и идите дальше';
-  return 'Откройте первый раунд';
+  return state.decisionModel === 'STAGE_ACTION_V2'
+    ? 'Откройте выбор этапа'
+    : 'Откройте первый раунд';
 }
 
-const commandLabels: Record<AdminCommandName, string> = {
+function commandLabel(command: AdminCommandName, state: GameState) {
+  if (command === 'OPEN_VOTING' && state.decisionModel === 'STAGE_ACTION_V2')
+    return 'Открыть выбор этапа';
+  if (command === 'OPEN_NEXT_BALLOT') return 'Перейти к выбору способа';
+  if (command === 'CLOSE_VOTING' && state.currentBallot?.kind === 'STAGE')
+    return 'Закрыть выбор этапа';
+  if (command === 'CLOSE_VOTING' && state.currentBallot?.kind === 'ACTION')
+    return 'Закрыть выбор способа';
+  return defaultCommandLabels[command];
+}
+
+function commandChoice(state: GameState, id?: string) {
+  if (!id) return {};
+  return state.decisionModel === 'STAGE_ACTION_V2' ? { choiceId: id } : { optionId: id };
+}
+
+function hasTie(state: GameState) {
+  return state.currentBallot
+    ? state.currentBallot.tiedChoiceIds.length > 0
+    : Boolean(state.currentRound?.tiedOptionIds.length);
+}
+
+function tieLabel(state: GameState) {
+  if (state.currentBallot?.kind === 'STAGE') return 'Ничья в выборе этапа';
+  if (state.currentBallot?.kind === 'ACTION') return 'Ничья в выборе способа';
+  return 'Выберите лидера';
+}
+
+function tieLeaders(state: GameState) {
+  const ballot = state.currentBallot;
+  if (ballot) {
+    return ballot.tiedChoiceIds.map((id) => {
+      const choice = ballot.choices.find((item) => item.id === id);
+      const key = choice && 'key' in choice ? `${choice.key}: ` : '';
+      return { id, label: `${key}${choice?.title ?? id}` };
+    });
+  }
+  return (state.currentRound?.tiedOptionIds ?? []).map((id) => {
+    const option = state.currentRound?.options.find((item) => item.id === id);
+    return { id, label: `${option?.key ?? ''}: ${option?.title ?? id}` };
+  });
+}
+
+const defaultCommandLabels: Record<AdminCommandName, string> = {
   APPLY_CONSEQUENCES: 'Применить последствия',
   CLOSE_VOTING: 'Закрыть голосование',
+  OPEN_NEXT_BALLOT: 'Перейти к следующему выбору',
   OPEN_VOTING: 'Открыть голосование',
   RESOLVE_TIE: 'Выбрать победителя',
   SHOW_EVENT: 'Показать событие',

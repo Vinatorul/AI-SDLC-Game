@@ -27,18 +27,27 @@ function ActiveScreen({
   connected: boolean;
   state: NonNullable<ReturnType<typeof useGameState>['state']>;
 }) {
+  const stageBallot = showsStageBallot(state);
   return (
     <Layout compact>
-      <main className="game-page screen-page">
+      <main className={`game-page screen-page${stageBallot ? ' screen-stage-ballot' : ''}`}>
         <GameHeader connected={connected} state={state} title="Экран зала" />
         <div className="screen-topline">
           <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
           <JoinQr code={code} />
         </div>
         <GameFocus state={state} />
-        <StageMap state={state} />
+        {!stageBallot && <StageMap state={state} />}
       </main>
     </Layout>
+  );
+}
+
+function showsStageBallot(state: NonNullable<ReturnType<typeof useGameState>['state']>) {
+  return (
+    state.decisionModel === 'STAGE_ACTION_V2' &&
+    state.currentBallot?.kind === 'STAGE' &&
+    (state.phase === 'VOTING' || state.phase === 'RESULT')
   );
 }
 

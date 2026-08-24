@@ -9,13 +9,16 @@ import {
   stageKeys,
 } from '@ai-sdlc/contracts';
 import type {
-  EngineOption,
+  CountRange,
+  EngineAction,
   EngineSnapshot,
   EventRule,
   OutcomeEvaluation,
   ResolutionPlan,
   ScenarioMechanics,
   ScenarioRound,
+  ScenarioStageChoice,
+  StageActionCatalog,
 } from './types';
 
 export function createInitialMetrics(mechanics: ScenarioMechanics): MetricValues {
@@ -29,17 +32,46 @@ export function createInitialStages(): EngineSnapshot['stages'] {
 export function resolveRound(
   snapshot: EngineSnapshot,
   round: ScenarioRound,
-  option: EngineOption,
+  action: EngineAction,
   mechanics: ScenarioMechanics,
 ): ResolutionPlan {
-  const event = selectEvent(round.eventRules, option.id, snapshot.properties);
-  const properties = mergeProperties(snapshot.properties, option.addProperties);
+  const event = selectEvent(round.eventRules, action.id, snapshot);
+  const properties = mergeProperties(snapshot.properties, action.addProperties);
   const propertyDelta = collectPropertyEffects(properties, mechanics);
-  const breakdown = createBreakdown(option.effect, event.effect, propertyDelta);
+  const breakdown = createBreakdown(action.effect, event.effect, propertyDelta);
   const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
-  const decisionStages = applyStageChanges(snapshot.stages, option.stageChanges);
+  const decisionStages = applyStageChanges(snapshot.stages, [actionStageMutation(action)]);
   const stages = applyStageChanges(decisionStages, event.stageChanges);
-  return { breakdown, event, metrics, properties, stages };
+  const appliedActions = appendAppliedAction(snapshot, action, round.number);
+  return { appliedActions, breakdown, event, metrics, properties, stages };
+}
+
+export function getAvailableActions(
+  catalog: StageActionCatalog,
+  choice: ScenarioStageChoice,
+  snapshot: EngineSnapshot,
+): EngineAction[] {
+  return choice.actionIds
+    .map((id) => getStageAction(catalog, id))
+    .filter((action) => action.stage === choice.stage)
+    .filter((action) => action.availableInStates.includes(snapshot.stages[choice.stage]))
+    .filter((action) => action.repeatable || !wasApplied(snapshot, action.id));
+}
+
+export function getAvailableStageChoices(
+  catalog: StageActionCatalog,
+  choices: ScenarioStageChoice[],
+  snapshot: EngineSnapshot,
+) {
+  return choices
+    .filter((choice) => getAvailableActions(catalog, choice, snapshot).length > 0)
+    .sort((left, right) => stageKeys.indexOf(left.stage) - stageKeys.indexOf(right.stage));
+}
+
+export function getStageAction(catalog: StageActionCatalog, actionId: string): EngineAction {
+  const action = catalog[actionId];
+  if (!action) throw new Error(`Неизвестное действие ${actionId}`);
+  return { ...action, id: actionId };
 }
 
 export function evaluateOutcome(
@@ -61,18 +93,58 @@ export function evaluateOutcome(
   return { phase: 'WON', reason: null };
 }
 
-function selectEvent(rules: EventRule[], optionId: string, properties: ProcessProperty[]) {
-  const matched = rules.find((rule) => eventRuleMatches(rule, optionId, properties));
+function selectEvent(rules: EventRule[], actionId: string, snapshot: EngineSnapshot) {
+  const matched = rules.find((rule) => eventRuleMatches(rule, actionId, snapshot));
   const fallback = rules.at(-1);
   if (!matched && !fallback) throw new Error('У раунда нет события');
   return (matched ?? fallback)?.event as NonNullable<typeof fallback>['event'];
 }
 
-function eventRuleMatches(rule: EventRule, optionId: string, properties: ProcessProperty[]) {
-  if (rule.optionIds && !rule.optionIds.includes(optionId)) return false;
-  if (rule.hasProperty && !properties.includes(rule.hasProperty)) return false;
-  if (rule.missingProperty && properties.includes(rule.missingProperty)) return false;
+function eventRuleMatches(rule: EventRule, actionId: string, snapshot: EngineSnapshot) {
+  if (rule.actionIds && !rule.actionIds.includes(actionId)) return false;
+  if (rule.hasProperty && !snapshot.properties.includes(rule.hasProperty)) return false;
+  if (rule.missingProperty && snapshot.properties.includes(rule.missingProperty)) return false;
+  if (!matchesActionHistory(rule, snapshot)) return false;
+  if (!matchesStageStates(rule, snapshot)) return false;
+  if (!countInRange(snapshot.appliedActions.length, rule.appliedActionCount)) return false;
+  if (!matchesStageActionCounts(rule, snapshot)) return false;
   return true;
+}
+
+function matchesActionHistory(rule: EventRule, snapshot: EngineSnapshot) {
+  const appliedIds = new Set(snapshot.appliedActions.map(({ actionId }) => actionId));
+  if (rule.hasAppliedActions?.some((id) => !appliedIds.has(id))) return false;
+  if (rule.missingAppliedActions?.some((id) => appliedIds.has(id))) return false;
+  return true;
+}
+
+function matchesStageStates(rule: EventRule, snapshot: EngineSnapshot) {
+  return (rule.stageStates ?? []).every(({ stage, state }) => snapshot.stages[stage] === state);
+}
+
+function matchesStageActionCounts(rule: EventRule, snapshot: EngineSnapshot) {
+  return (rule.stageActionCounts ?? []).every(({ stage, ...range }) => {
+    const count = snapshot.appliedActions.filter((action) => action.stage === stage).length;
+    return countInRange(count, range);
+  });
+}
+
+function countInRange(count: number, range?: CountRange) {
+  if (range?.minimum !== undefined && count < range.minimum) return false;
+  if (range?.maximum !== undefined && count > range.maximum) return false;
+  return true;
+}
+
+function wasApplied(snapshot: EngineSnapshot, actionId: string) {
+  return snapshot.appliedActions.some((action) => action.actionId === actionId);
+}
+
+function actionStageMutation(action: EngineAction): StageMutation {
+  return { stage: action.stage, state: action.resultingStageState };
+}
+
+function appendAppliedAction(snapshot: EngineSnapshot, action: EngineAction, roundNumber: number) {
+  return [...snapshot.appliedActions, { actionId: action.id, roundNumber, stage: action.stage }];
 }
 
 function mergeProperties(current: ProcessProperty[], added: ProcessProperty[]) {

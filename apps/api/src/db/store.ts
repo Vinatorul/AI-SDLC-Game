@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import type { GamePhase, OutcomeReason } from '@ai-sdlc/contracts';
+import type { DecisionModel, GamePhase, OutcomeReason } from '@ai-sdlc/contracts';
 import type { EngineOption, EventRule, ResolutionPlan, Scenario } from '@ai-sdlc/game-engine';
 import type { GameDatabase } from './database';
+import { insertActionCatalog, insertRoundDecision } from './decision-store';
 
 export type GameRow = {
   admin_token_hash: string;
   code: string;
   current_round: number;
+  decision_model: DecisionModel;
   id: string;
   mechanics_json: string;
   metrics_json: string;
@@ -73,8 +75,8 @@ export type RoundPatch = Partial<
 export function insertGame(database: GameDatabase, game: NewGame) {
   const sql = `INSERT INTO games (
     id, code, phase, metrics_json, mechanics_json, properties_json, stages_json,
-    rules_json, scenario_id, scenario_version, admin_token_hash, created_at, updated_at
-  ) VALUES (?, ?, 'LOBBY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    rules_json, scenario_id, scenario_version, decision_model, admin_token_hash, created_at, updated_at
+  ) VALUES (?, ?, 'LOBBY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   const now = new Date().toISOString();
   database
     .prepare(sql)
@@ -88,6 +90,7 @@ export function insertGame(database: GameDatabase, game: NewGame) {
       game.rules_json,
       game.scenario_id,
       game.scenario_version,
+      game.decision_model,
       game.admin_token_hash,
       now,
       now,
@@ -95,10 +98,11 @@ export function insertGame(database: GameDatabase, game: NewGame) {
 }
 
 export function insertScenario(database: GameDatabase, gameId: string, scenario: Scenario) {
+  insertActionCatalog(database, gameId, scenario.stageActions);
   for (const round of scenario.rounds) {
     const roundId = `${gameId}:${round.id}`;
     insertRound(database, gameId, roundId, round);
-    for (const option of round.options) insertOption(database, roundId, option);
+    insertRoundDecision(database, roundId, round.stageChoices);
   }
 }
 
@@ -121,12 +125,6 @@ function insertRound(
       round.situation,
       JSON.stringify(round.eventRules),
     );
-}
-
-function insertOption(database: GameDatabase, roundId: string, option: EngineOption) {
-  const sql = `INSERT INTO round_options (round_id, id, option_key, payload_json)
-    VALUES (?, ?, ?, ?)`;
-  database.prepare(sql).run(roundId, option.id, option.key, JSON.stringify(option));
 }
 
 export function findGameByCode(database: GameDatabase, code: string) {

@@ -22,12 +22,24 @@ const metricValuesSchema = z
 
 const propertySchema = z.enum(processProperties);
 const stageSchema = z.enum(stageKeys);
-const stageMutationSchema = z
+const stageStateSchema = z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']);
+const stageMutationSchema = z.object({ stage: stageSchema, state: stageStateSchema }).strict();
+const countRangeSchema = z
   .object({
-    stage: stageSchema,
-    state: z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']),
+    maximum: z.number().int().min(0).optional(),
+    minimum: z.number().int().min(0).optional(),
   })
-  .strict();
+  .strict()
+  .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
+
+const stageActionCountSchema = z
+  .object({
+    maximum: z.number().int().min(0).optional(),
+    minimum: z.number().int().min(0).optional(),
+    stage: stageSchema,
+  })
+  .strict()
+  .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
 
 const eventSchema = z
   .object({
@@ -42,24 +54,39 @@ const eventSchema = z
 
 const eventRuleSchema = z
   .object({
+    actionIds: z.array(z.string().min(1)).min(1).optional(),
+    appliedActionCount: countRangeSchema.optional(),
     event: eventSchema,
+    hasAppliedActions: z.array(z.string().min(1)).min(1).optional(),
     hasProperty: propertySchema.optional(),
+    missingAppliedActions: z.array(z.string().min(1)).min(1).optional(),
     missingProperty: propertySchema.optional(),
-    optionIds: z.array(z.string().min(1)).min(1).optional(),
+    stageActionCounts: z.array(stageActionCountSchema).min(1).optional(),
+    stageStates: z.array(stageMutationSchema).min(1).optional(),
   })
   .strict();
 
-const optionSchema = z
+const stageActionSchema = z
   .object({
     addProperties: z.array(propertySchema),
+    availableInStates: z.array(stageStateSchema).min(1),
     description: z.string().min(1),
     effect: metricDeltaSchema,
     evidence: z.enum(['FACT', 'SCENARIO']),
-    id: z.string().min(1),
     key: z.string().min(1),
+    repeatable: z.boolean(),
+    resultingStageState: stageStateSchema,
     shortFeedback: z.string().min(1).nullable(),
     stage: stageSchema,
-    stageChanges: z.array(stageMutationSchema),
+    title: z.string().min(1),
+  })
+  .strict();
+
+const stageChoiceSchema = z
+  .object({
+    actionIds: z.array(z.string().min(1)).min(1),
+    description: z.string().min(1),
+    stage: stageSchema,
     title: z.string().min(1),
   })
   .strict();
@@ -69,8 +96,8 @@ const roundSchema = z
     eventRules: z.array(eventRuleSchema).min(1),
     id: z.string().min(1),
     number: z.number().int().positive(),
-    options: z.array(optionSchema).length(4),
     situation: z.string().min(1),
+    stageChoices: z.array(stageChoiceSchema).min(2).max(stageKeys.length),
     title: z.string().min(1),
   })
   .strict();
@@ -105,11 +132,13 @@ const mechanicsSchema = z
 const scenarioSchema = z
   .object({
     contentStatus: z.enum(['READY', 'TECHNICAL_DRAFT']),
+    decisionModel: z.literal('STAGE_ACTION_V2'),
     id: z.string().min(1),
     mechanics: mechanicsSchema,
     rounds: z.array(roundSchema).min(1),
     rules: rulesSchema,
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
+    stageActions: z.record(z.string().min(1), stageActionSchema),
     version: z.number().int().positive(),
   })
   .strict()
@@ -129,15 +158,16 @@ export function parseScenario(input: unknown): Scenario {
 
 function validateScenario(scenario: ScenarioCandidate, context: IssueContext) {
   validateUnique(
-    scenario.rounds.map((round) => round.id),
+    scenario.rounds.map(({ id }) => id),
     ['rounds'],
     'id раунда',
     context,
   );
   validateRoundNumbers(scenario, context);
   validateMechanics(scenario, context);
+  validateActionCatalog(scenario, context);
   scenario.rounds.forEach((round, index) => {
-    validateRound(round, index, context);
+    validateRound(scenario, round, index, context);
   });
 }
 
@@ -147,11 +177,7 @@ function validateRoundNumbers(scenario: ScenarioCandidate, context: IssueContext
   }
   scenario.rounds.forEach((round, index) => {
     if (round.number !== index + 1) {
-      addIssue(
-        context,
-        ['rounds', index, 'number'],
-        'номера раундов должны идти с 1 без пропусков',
-      );
+      addIssue(context, ['rounds', index, 'number'], 'номера должны идти с 1 без пропусков');
     }
   });
 }
@@ -181,33 +207,65 @@ function validateThresholds(scenario: ScenarioCandidate, context: IssueContext) 
   }
 }
 
+function validateActionCatalog(scenario: ScenarioCandidate, context: IssueContext) {
+  if (Object.keys(scenario.stageActions).length === 0) {
+    addIssue(context, ['stageActions'], 'каталог действий не должен быть пустым');
+  }
+  Object.entries(scenario.stageActions).forEach(([id, action]) => {
+    validateUnique(
+      action.availableInStates,
+      ['stageActions', id, 'availableInStates'],
+      'состояние',
+      context,
+    );
+  });
+}
+
 function validateRound(
+  scenario: ScenarioCandidate,
   round: ScenarioCandidate['rounds'][number],
   index: number,
   context: IssueContext,
 ) {
   validateUnique(
-    round.options.map((option) => option.id),
-    ['rounds', index, 'options'],
-    'id варианта',
+    round.stageChoices.map(({ stage }) => stage),
+    ['rounds', index, 'stageChoices'],
+    'этап',
     context,
   );
   validateUnique(
-    round.options.map((option) => option.key),
-    ['rounds', index, 'options'],
-    'key варианта',
-    context,
-  );
-  validateUnique(
-    round.eventRules.map((rule) => rule.event.id),
+    round.eventRules.map(({ event }) => event.id),
     ['rounds', index, 'eventRules'],
     'id события',
     context,
   );
-  validateEventRules(round, index, context);
+  round.stageChoices.forEach((choice, choiceIndex) => {
+    validateStageChoice(scenario, choice, [index, choiceIndex], context);
+  });
+  validateEventRules(scenario, round, index, context);
+}
+
+function validateStageChoice(
+  scenario: ScenarioCandidate,
+  choice: ScenarioCandidate['rounds'][number]['stageChoices'][number],
+  indexes: [number, number],
+  context: IssueContext,
+) {
+  const path = ['rounds', indexes[0], 'stageChoices', indexes[1]] as (string | number)[];
+  validateUnique(choice.actionIds, [...path, 'actionIds'], 'id действия', context);
+  for (const actionId of choice.actionIds) {
+    const action = scenario.stageActions[actionId];
+    if (!action) addIssue(context, [...path, 'actionIds'], `неизвестный ${actionId}`);
+    else if (action.stage !== choice.stage) {
+      addIssue(context, [...path, 'actionIds'], `${actionId} относится к другому этапу`);
+    }
+  }
+  const keys = choice.actionIds.flatMap((id) => scenario.stageActions[id]?.key ?? []);
+  validateUnique(keys, [...path, 'actionIds'], 'key действия', context);
 }
 
 function validateEventRules(
+  scenario: ScenarioCandidate,
   round: ScenarioCandidate['rounds'][number],
   roundIndex: number,
   context: IssueContext,
@@ -215,29 +273,68 @@ function validateEventRules(
   const lastIndex = round.eventRules.length - 1;
   round.eventRules.forEach((rule, index) => {
     const path = ['rounds', roundIndex, 'eventRules', index] as (string | number)[];
-    if (rule.hasProperty && rule.hasProperty === rule.missingProperty) {
-      addIssue(context, path, 'одно свойство нельзя одновременно требовать и исключать');
-    }
-    if (index === lastIndex && hasCondition(rule)) {
+    validateRuleConditions(rule, path, context);
+    if (index === lastIndex && hasCondition(rule))
       addIssue(context, path, 'последнее событие должно быть безусловным');
-    }
-    if (index < lastIndex && !hasCondition(rule)) {
+    if (index < lastIndex && !hasCondition(rule))
       addIssue(context, path, 'безусловным может быть только последнее событие');
-    }
-    validateOptionReferences(rule.optionIds, round, path, context);
+    validateRuleReferences(scenario, round, rule, path, context);
   });
 }
 
-function validateOptionReferences(
-  optionIds: string[] | undefined,
-  round: ScenarioCandidate['rounds'][number],
+function validateRuleConditions(
+  rule: ScenarioCandidate['rounds'][number]['eventRules'][number],
   path: (string | number)[],
   context: IssueContext,
 ) {
-  const knownIds = new Set(round.options.map((option) => option.id));
-  for (const optionId of optionIds ?? []) {
-    if (!knownIds.has(optionId))
-      addIssue(context, [...path, 'optionIds'], `неизвестный ${optionId}`);
+  if (rule.hasProperty && rule.hasProperty === rule.missingProperty) {
+    addIssue(context, path, 'одно свойство нельзя одновременно требовать и исключать');
+  }
+  const required = new Set(rule.hasAppliedActions ?? []);
+  if (rule.missingAppliedActions?.some((id) => required.has(id))) {
+    addIssue(context, path, 'одно действие нельзя одновременно требовать и исключать');
+  }
+  validateUnique(
+    rule.stageStates?.map(({ stage }) => stage) ?? [],
+    path,
+    'этап в stageStates',
+    context,
+  );
+  validateUnique(
+    rule.stageActionCounts?.map(({ stage }) => stage) ?? [],
+    path,
+    'этап в stageActionCounts',
+    context,
+  );
+}
+
+function validateRuleReferences(
+  scenario: ScenarioCandidate,
+  round: ScenarioCandidate['rounds'][number],
+  rule: ScenarioCandidate['rounds'][number]['eventRules'][number],
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const roundIds = new Set(round.stageChoices.flatMap(({ actionIds }) => actionIds));
+  validateKnown(rule.actionIds, roundIds, [...path, 'actionIds'], context);
+  const catalogIds = new Set(Object.keys(scenario.stageActions));
+  validateKnown(rule.hasAppliedActions, catalogIds, [...path, 'hasAppliedActions'], context);
+  validateKnown(
+    rule.missingAppliedActions,
+    catalogIds,
+    [...path, 'missingAppliedActions'],
+    context,
+  );
+}
+
+function validateKnown(
+  values: string[] | undefined,
+  known: Set<string>,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  for (const value of values ?? []) {
+    if (!known.has(value)) addIssue(context, path, `неизвестный ${value}`);
   }
 }
 
@@ -252,7 +349,21 @@ function validateUnique(
 }
 
 function hasCondition(rule: ScenarioCandidate['rounds'][number]['eventRules'][number]) {
-  return Boolean(rule.hasProperty || rule.missingProperty || rule.optionIds);
+  return Boolean(
+    rule.actionIds ||
+      rule.appliedActionCount ||
+      rule.hasAppliedActions ||
+      rule.hasProperty ||
+      rule.missingAppliedActions ||
+      rule.missingProperty ||
+      rule.stageActionCounts ||
+      rule.stageStates,
+  );
+}
+
+function isValidRange(range: { maximum?: number; minimum?: number }) {
+  if (range.maximum === undefined || range.minimum === undefined) return true;
+  return range.minimum <= range.maximum;
 }
 
 function addIssue(context: IssueContext, path: (string | number)[], message: string) {

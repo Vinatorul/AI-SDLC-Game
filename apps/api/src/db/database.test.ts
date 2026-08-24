@@ -15,12 +15,20 @@ afterEach(() => {
 it('добавляет снимок механики в старую базу', () => {
   const filename = legacyDatabase();
   const database = openDatabase(filename);
-  const row = database.prepare('SELECT mechanics_json, scenario_id FROM games').get() as {
+  const row = database
+    .prepare('SELECT mechanics_json, scenario_id, decision_model FROM games')
+    .get() as {
+    decision_model: string;
     mechanics_json: string;
     scenario_id: string;
   };
   expect(JSON.parse(row.mechanics_json).initialMetrics.quality).toBe(60);
   expect(row.scenario_id).toBe('technical-mvp');
+  expect(row.decision_model).toBe('SINGLE_OPTION_V1');
+  expect(database.prepare('PRAGMA user_version').get()?.user_version).toBe(3);
+  expect(
+    database.prepare("SELECT name FROM sqlite_master WHERE name = 'ballots'").get(),
+  ).toBeDefined();
   database.close();
 });
 

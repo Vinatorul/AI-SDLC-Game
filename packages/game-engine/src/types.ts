@@ -17,24 +17,50 @@ export type EngineOption = RoundOption & {
   stageChanges: StageMutation[];
 };
 
+export type StageAction = Omit<RoundOption, 'id'> & {
+  addProperties: ProcessProperty[];
+  availableInStates: StageState[];
+  effect: MetricDelta;
+  repeatable: boolean;
+  resultingStageState: StageState;
+};
+
+export type EngineAction = StageAction & { id: string };
+export type StageActionCatalog = Record<string, StageAction>;
+
 export type EngineEvent = GameEvent & {
   effect: MetricDelta;
   stageChanges: StageMutation[];
 };
 
 export type EventRule = {
+  actionIds?: string[];
+  appliedActionCount?: CountRange;
   event: EngineEvent;
+  hasAppliedActions?: string[];
   hasProperty?: ProcessProperty;
+  missingAppliedActions?: string[];
   missingProperty?: ProcessProperty;
-  optionIds?: string[];
+  stageActionCounts?: StageActionCountCondition[];
+  stageStates?: StageMutation[];
+};
+
+export type CountRange = { maximum?: number; minimum?: number };
+export type StageActionCountCondition = CountRange & { stage: StageKey };
+
+export type ScenarioStageChoice = {
+  actionIds: string[];
+  description: string;
+  stage: StageKey;
+  title: string;
 };
 
 export type ScenarioRound = {
   eventRules: EventRule[];
   id: string;
   number: number;
-  options: EngineOption[];
   situation: string;
+  stageChoices: ScenarioStageChoice[];
   title: string;
 };
 
@@ -51,21 +77,31 @@ export type ScenarioMechanics = {
 
 export type Scenario = {
   contentStatus: 'READY' | 'TECHNICAL_DRAFT';
+  decisionModel: 'STAGE_ACTION_V2';
   id: string;
   mechanics: ScenarioMechanics;
   rounds: ScenarioRound[];
   rules: GameRules;
-  schemaVersion: 1;
+  schemaVersion: 2;
+  stageActions: StageActionCatalog;
   version: number;
 };
 
+export type AppliedAction = {
+  actionId: string;
+  roundNumber: number;
+  stage: StageKey;
+};
+
 export type EngineSnapshot = {
+  appliedActions: AppliedAction[];
   metrics: MetricValues;
   properties: ProcessProperty[];
   stages: Record<StageKey, StageState>;
 };
 
 export type ResolutionPlan = {
+  appliedActions: AppliedAction[];
   breakdown: EffectBreakdown;
   event: EngineEvent;
   metrics: MetricValues;

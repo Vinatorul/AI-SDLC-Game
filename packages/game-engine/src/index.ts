@@ -2,11 +2,17 @@ export {
   createInitialMetrics,
   createInitialStages,
   evaluateOutcome,
+  getAvailableActions,
+  getAvailableStageChoices,
+  getStageAction,
   resolveRound,
 } from './resolve';
 export { defaultRules, defaultScenario } from './scenario';
 export { parseScenario } from './scenario-schema';
 export type {
+  AppliedAction,
+  CountRange,
+  EngineAction,
   EngineEvent,
   EngineOption,
   EngineSnapshot,
@@ -16,4 +22,8 @@ export type {
   Scenario,
   ScenarioMechanics,
   ScenarioRound,
+  ScenarioStageChoice,
+  StageAction,
+  StageActionCatalog,
+  StageActionCountCondition,
 } from './types';

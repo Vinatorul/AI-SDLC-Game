@@ -11,11 +11,22 @@ import { GameHub } from './realtime/game-hub';
 
 const codeParams = z.object({ code: z.string().min(4).max(12) });
 const joinBody = z.object({ name: z.string().trim().min(1).max(40) });
-const voteBody = z.object({ optionId: z.string().min(1).max(80) });
+const voteBody = z.union([
+  z.object({ ballotId: z.string().min(1).max(80), choiceId: z.string().min(1).max(80) }),
+  z.object({ optionId: z.string().min(1).max(80) }),
+]);
 const commandBody = z.object({
+  choiceId: z.string().min(1).max(80).optional(),
   expectedTransitionVersion: z.number().int().nonnegative(),
   optionId: z.string().min(1).max(80).optional(),
-  type: z.enum(['OPEN_VOTING', 'CLOSE_VOTING', 'RESOLVE_TIE', 'SHOW_EVENT', 'APPLY_CONSEQUENCES']),
+  type: z.enum([
+    'OPEN_VOTING',
+    'OPEN_NEXT_BALLOT',
+    'CLOSE_VOTING',
+    'RESOLVE_TIE',
+    'SHOW_EVENT',
+    'APPLY_CONSEQUENCES',
+  ]),
 });
 
 export type AppOptions = {
@@ -57,8 +68,8 @@ function registerHttpRoutes(app: FastifyInstance, service: GameService) {
   });
   app.put('/api/games/:code/vote', async (request) => {
     const { code } = codeParams.parse(request.params);
-    const { optionId } = voteBody.parse(request.body);
-    return service.vote(normalizeCode(code), bearer(request), optionId);
+    const vote = voteBody.parse(request.body);
+    return service.vote(normalizeCode(code), bearer(request), vote);
   });
   app.post('/api/games/:code/admin/commands', async (request) => {
     const { code } = codeParams.parse(request.params);
