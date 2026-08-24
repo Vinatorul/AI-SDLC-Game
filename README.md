@@ -58,4 +58,6 @@ node dist/backup.js /data/game.sqlite /backup/game.sqlite
 
 Workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) собирает только статический фронтенд и публикует его после push в `main`. Его также можно запустить вручную.
 
-В настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API. Без неё страница откроется, но создать игру или проголосовать через опубликованный фронтенд не получится. Для API нужно разрешить origin `https://vinatorul.github.io` в `CORS_ORIGINS`.
+Опубликованный фронтенд: [kuvaev.me/AI-SDLC-Game](https://kuvaev.me/AI-SDLC-Game/).
+
+В настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API. Без неё страница откроется, но создать игру или проголосовать через опубликованный фронтенд не получится. Для API нужно разрешить origin `https://kuvaev.me` в `CORS_ORIGINS`.
