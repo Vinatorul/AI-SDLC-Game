@@ -1,0 +1,24 @@
+{
+  "name": "@ai-sdlc/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdlc/contracts": "workspace:*",
+    "qrcode.react": "4.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-router-dom": "7.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.2",
+    "vite": "7.2.7"
+  }
+}

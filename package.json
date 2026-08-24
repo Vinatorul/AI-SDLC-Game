@@ -1,0 +1,27 @@
+{
+  "name": "ai-sdlc-rpg",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm --filter @ai-sdlc/web build && pnpm --filter @ai-sdlc/api build",
+    "check": "biome check . && pnpm typecheck",
+    "dev": "pnpm --parallel --filter @ai-sdlc/web --filter @ai-sdlc/api dev",
+    "dev:api": "pnpm --filter @ai-sdlc/api dev",
+    "dev:web": "pnpm --filter @ai-sdlc/web dev",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.8",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.0.15"
+  }
+}
