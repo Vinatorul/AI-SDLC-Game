@@ -218,9 +218,9 @@ files. Preserve unrelated user changes in a dirty worktree.
 The frontend is a static Vite site using HashRouter, configurable VITE_BASE_PATH, and public
 VITE_API_BASE_URL. Production API and WebSocket endpoints must use HTTPS and WSS.
 
-The Pages workflow is manual. Do not deploy the site, change cloud infrastructure, or enable
-automatic publishing without explicit user permission. Do not commit, push, create a remote, or
-change repository settings unless the user has explicitly authorized that action.
+The Pages workflow deploys after a push to main and can also be started manually. Do not change
+cloud infrastructure, the deployment target, or repository settings unless the user has explicitly
+authorized that action. Do not commit or push unrelated changes.
 
 ## Out of scope for the MVP
 

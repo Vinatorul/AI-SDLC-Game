@@ -56,6 +56,6 @@ node dist/backup.js /data/game.sqlite /backup/game.sqlite
 
 ## GitHub Pages
 
-Workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) собирает только статический фронтенд. Перед публикацией в настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API и включить GitHub Pages через Actions.
+Workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) собирает только статический фронтенд и публикует его после push в `main`. Его также можно запустить вручную.
 
-Локальный репозиторий не содержит remote. В этой работе не выполняются push, создание GitHub-репозитория или публикация.
+В настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API. Без неё страница откроется, но создать игру или проголосовать через опубликованный фронтенд не получится. Для API нужно разрешить origin `https://vinatorul.github.io` в `CORS_ORIGINS`.
