@@ -109,6 +109,21 @@ it('восстанавливает личный голос только по т�
   expect(publicState.myVoteOptionId).toBeNull();
 });
 
+it('разрешает CORS preflight для смены голоса', async () => {
+  const app = await testApp();
+  const response = await app.inject({
+    headers: {
+      'access-control-request-headers': 'authorization,content-type',
+      'access-control-request-method': 'PUT',
+      origin: 'http://127.0.0.1:5173',
+    },
+    method: 'OPTIONS',
+    url: '/api/games/ABC234/vote',
+  });
+  expect(response.statusCode).toBe(204);
+  expect(response.headers['access-control-allow-methods']).toContain('PUT');
+});
+
 describe('восстановление SQLite', () => {
   it('возвращает игру после повторного открытия базы', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ai-sdlc-game-'));

@@ -31,7 +31,10 @@ export async function createApp(options: AppOptions) {
   const service = new GameService(database, hub, options.scenario);
   const app = Fastify({ logger: options.logger ?? false });
   const origins = options.allowedOrigins ?? defaultOrigins();
-  await app.register(cors, { origin: corsOrigin(origins) });
+  await app.register(cors, {
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'OPTIONS'],
+    origin: corsOrigin(origins),
+  });
   await app.register(websocket);
   registerHttpRoutes(app, service);
   registerWebSocketRoute(app, service, hub, origins);
