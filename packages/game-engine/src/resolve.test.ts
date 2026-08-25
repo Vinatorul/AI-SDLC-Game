@@ -1,4 +1,4 @@
-import { type GameRules, stageKeys } from '@ai-sdlc/contracts';
+import { type GameRules, type MetricDelta, stageKeys } from '@ai-sdlc/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   createInitialMetrics,
@@ -110,6 +110,35 @@ describe('resolveRound', () => {
     ]);
   });
 
+  it('штрафует TTM за каждый сломанный этап после события', () => {
+    const configured = withBrokenStageEffect({ deliverySpeed: -1 });
+    const snapshot = createSnapshot();
+    snapshot.stages.testing = 'BROKEN';
+    const plan = resolveRound(snapshot, round, action, configured);
+    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
+    expect(plan.metrics.deliverySpeed).toBe(1);
+  });
+
+  it('перестаёт штрафовать за этап в тот же ход, когда его починили', () => {
+    const configured = withBrokenStageEffect({ deliverySpeed: -1 });
+    const snapshot = createSnapshot();
+    snapshot.stages.coding = 'BROKEN';
+    const fallbackRound = {
+      ...round,
+      eventRules: [round.eventRules[1] as (typeof round.eventRules)[number]],
+    };
+    const plan = resolveRound(snapshot, fallbackRound, action, configured);
+    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
+    expect(plan.metrics.deliverySpeed).toBe(3);
+  });
+
+  it('берёт показатель штрафа из сценария, а не предполагает TTM', () => {
+    const configured = withBrokenStageEffect({ quality: -2 });
+    const plan = resolveRound(createSnapshot(), round, action, configured);
+    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0, quality: -2 });
+    expect(plan.metrics).toMatchObject({ deliverySpeed: 3, quality: -3 });
+  });
+
   it('берёт границы и эффекты свойств из сценария', () => {
     const configured = {
       ...mechanics,
@@ -169,7 +198,47 @@ describe('resolveRound', () => {
     }
     expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
   });
+
+  it('снижает TTM, когда новый код ломает ревью и тестирование', () => {
+    const riskyAction = getStageAction(
+      defaultScenario.stageActions,
+      'coding.guided-implementation',
+    );
+    const scenarioRound = defaultScenario.rounds[0] as ScenarioRound;
+    const plan = resolveRound(
+      createScenarioSnapshot(),
+      scenarioRound,
+      riskyAction,
+      defaultScenario.mechanics,
+    );
+    expect(plan.event.id).toBe('event-code-outpaces-checks');
+    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
+    expect(plan.metrics.deliverySpeed).toBe(-2);
+  });
+
+  it('не ускоряет TTM ни одним решением, которое сразу ломает процесс', () => {
+    const template = defaultScenario.rounds[0] as ScenarioRound;
+    for (const actionId of Object.keys(defaultScenario.stageActions)) {
+      const selected = getStageAction(defaultScenario.stageActions, actionId);
+      const plan = resolveRound(
+        createScenarioSnapshot(),
+        template,
+        selected,
+        defaultScenario.mechanics,
+      );
+      if (Object.values(plan.stages).includes('BROKEN')) {
+        expect(plan.breakdown.total.deliverySpeed ?? 0, actionId).toBeLessThanOrEqual(0);
+      }
+    }
+  });
 });
+
+function withBrokenStageEffect(effect: MetricDelta) {
+  return {
+    ...mechanics,
+    stageStateEffects: { AI_ENABLED: {}, AS_IS: {}, BROKEN: effect },
+  } as ScenarioMechanics;
+}
 
 describe('getAvailableActions', () => {
   it('не даёт повторно фармить действие, но позволяет вернуться и починить этап', () => {

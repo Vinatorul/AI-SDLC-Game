@@ -55,7 +55,7 @@ examples are in **packages/game-engine/content/README.md**.
 - the bundled turn template exposes all eight SDLC stages on every move;
 - **rules** contains thresholds, round mode, template count, feedback share, and win conditions;
 - **mechanics** contains metric labels, scale help, endpoint labels and descriptions, initial
-  values, bounds, and process-property effects;
+  values, bounds, process-property effects, and effects of each final stage state;
 - top-level metadata defines the schema version, scenario id, content version, and status.
 
 **packages/game-engine/src/scenario.ts** only imports and validates the bundled JSON. Do not put
@@ -128,9 +128,9 @@ There are three configuration layers:
 - web build settings in environment variables documented by **apps/web/.env.example**.
 
 Never repeat configurable values as magic literals. Round mode, template count, metric
-definitions, initial values, limits, property bonuses, critical thresholds, and win conditions
-must have one typed configuration source rather than copies of the current scenario defaults
-across the codebase.
+definitions, initial values, limits, property bonuses, stage-state effects, critical thresholds,
+and win conditions must have one typed configuration source rather than copies of the current
+scenario defaults across the codebase.
 
 The metric keys are stable internal identifiers kept for persisted-room compatibility. Their
 player-facing meaning comes from `mechanics.metricDefinitions`. The bundled scenario uses a

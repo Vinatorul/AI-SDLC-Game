@@ -131,6 +131,7 @@ export type StageProgress = {
 export type EffectBreakdown = {
   decision: MetricDelta;
   event: MetricDelta;
+  pipeline?: MetricDelta;
   properties: MetricDelta;
   total: MetricDelta;
 };

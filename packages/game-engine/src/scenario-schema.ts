@@ -151,6 +151,14 @@ const mechanicsSchema = z
         rollback: metricDeltaSchema,
       })
       .strict(),
+    stageStateEffects: z
+      .object({
+        AI_ENABLED: metricDeltaSchema,
+        AS_IS: metricDeltaSchema,
+        BROKEN: metricDeltaSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

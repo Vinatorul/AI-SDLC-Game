@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "id": "technical-mvp",
-  "version": 7,
+  "version": 8,
   "contentStatus": "TECHNICAL_DRAFT",
   "decisionModel": "STAGE_ACTION_V2",
   "rules": {
@@ -66,12 +66,10 @@
         "teamCapacity": -1
       },
       "automatedTests": {
-        "deliverySpeed": 1,
         "quality": 1,
         "controllability": 1
       },
       "currentContext": {
-        "deliverySpeed": 1,
         "controllability": 1
       },
       "observability": {
@@ -81,6 +79,13 @@
       "rollback": {
         "quality": 1,
         "teamCapacity": 1
+      }
+    },
+    "stageStateEffects": {
+      "AS_IS": {},
+      "AI_ENABLED": {},
+      "BROKEN": {
+        "deliverySpeed": -1
       }
     }
   },
@@ -125,7 +130,6 @@
       "evidence": "SCENARIO",
       "shortFeedback": "Код появляется быстрее. Если не усилить ревью и тесты, очередь просто переедет туда.",
       "effect": {
-        "deliverySpeed": 3,
         "teamCapacity": 1
       },
       "addProperties": ["humanReview"],
@@ -205,7 +209,6 @@
       "evidence": "SCENARIO",
       "shortFeedback": "Быстро, но если описание устарело, результат придётся переделывать.",
       "effect": {
-        "deliverySpeed": 3,
         "quality": -1
       },
       "addProperties": [],
@@ -269,7 +272,6 @@
       "evidence": "SCENARIO",
       "shortFeedback": "Работа идёт параллельно, но свести, проверить и протестировать результат всё равно должна команда.",
       "effect": {
-        "deliverySpeed": 3,
         "teamCapacity": -2
       },
       "addProperties": [],

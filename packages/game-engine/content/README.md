@@ -76,6 +76,8 @@ pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json
   значений;
 - `mechanics.metricScaleDescription` — общая подсказка над показателями;
 - `mechanics.propertyEffects` — постоянные поправки приобретённых свойств процесса;
+- `mechanics.stageStateEffects` — поправки за итоговое состояние каждого этапа после текущего
+  решения и события;
 - `rounds[].title` и `rounds[].situation` — заголовок и вопрос хода;
 - `event.effect` и `event.stageChanges` — последствия выбранного события.
 
@@ -95,6 +97,10 @@ pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json
 эффектов используйте целые баллы: 1 — небольшой эффект, 2 — заметный, 3 — сильный. Допустимые
 свойства: `humanReview`, `automatedTests`, `currentContext`, `observability`, `rollback`. Допустимые
 состояния этапа: `AS_IS`, `AI_ENABLED`, `BROKEN`.
+
+В основном сценарии каждый `BROKEN`-этап уменьшает TTM на 1 балл за ход, пока этап не починят.
+Этот штраф задаётся в `mechanics.stageStateEffects`, а не в движке. Сначала движок получает
+итоговую карту этапов, поэтому новый сломанный этап влияет на тот же ход, а починенный — уже нет.
 
 `evidence: "FACT"` используйте только для проверенного наблюдения. Игровые допущения и
 непроверенные последствия помечайте как `"SCENARIO"`.

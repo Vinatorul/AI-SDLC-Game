@@ -85,4 +85,20 @@ describe('parseScenario', () => {
     source.mechanics.metricDefinitions.teamCapacity.minimumDescription = '';
     expect(() => parseScenario(source)).toThrow(/metricDefinitions\.teamCapacity/);
   });
+
+  it('не допускает неизвестное состояние в эффектах этапов', () => {
+    const source = structuredClone(defaultScenario);
+    const effects = source.mechanics.stageStateEffects as Record<string, unknown>;
+    effects.PAUSED = {};
+    expect(() => parseScenario(source)).toThrow(/stageStateEffects/);
+  });
+
+  it('не превращает скорость написания кода в ускорение TTM', () => {
+    expect(defaultScenario.mechanics.propertyEffects.automatedTests.deliverySpeed).toBeUndefined();
+    expect(defaultScenario.mechanics.propertyEffects.currentContext.deliverySpeed).toBeUndefined();
+    const codingActions = Object.values(defaultScenario.stageActions).filter(
+      ({ stage }) => stage === 'coding',
+    );
+    expect(codingActions.every(({ effect }) => effect.deliverySpeed === undefined)).toBe(true);
+  });
 });

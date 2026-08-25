@@ -331,7 +331,7 @@ it('после перезапуска использует сохранённу�
   await closeTrackedApp(first);
   const second = await testApp(databasePath);
   const player = await joinGame(second, game.state.code, 'Ира');
-  const state = await playRound(
+  let state = await playRound(
     second,
     game,
     player,
@@ -341,6 +341,9 @@ it('после перезапуска использует сохранённу�
   );
   expect(state.metrics.quality).toBe(4);
   expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
+  state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 6);
+  expect(state.currentRound?.effectBreakdown?.pipeline?.deliverySpeed).toBe(-4);
+  expect(state.metrics.deliverySpeed).toBe(-3);
   await closeTrackedApp(second);
   rmSync(directory, { force: true, recursive: true });
 });
@@ -539,6 +542,7 @@ function scenarioWithContextQuality(quality: number): Scenario {
         ...defaultScenario.mechanics.propertyEffects,
         currentContext: { quality },
       },
+      stageStateEffects: { AI_ENABLED: {}, AS_IS: {}, BROKEN: { deliverySpeed: -2 } },
     },
   };
 }

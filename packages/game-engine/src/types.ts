@@ -72,6 +72,7 @@ export type GameMechanics = {
   initialMetrics: MetricValues;
   metricBounds: MetricBounds;
   propertyEffects: Record<ProcessProperty, MetricDelta>;
+  stageStateEffects?: Partial<Record<StageState, MetricDelta>>;
 };
 
 export type ScenarioMechanics = GameMechanics & {

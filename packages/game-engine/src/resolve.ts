@@ -37,11 +37,12 @@ export function resolveRound(
 ): ResolutionPlan {
   const event = selectEvent(round.eventRules, action, snapshot);
   const properties = mergeProperties(snapshot.properties, action.addProperties);
-  const propertyDelta = collectPropertyEffects(properties, mechanics);
-  const breakdown = createBreakdown(action.effect, event.effect, propertyDelta);
-  const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
   const decisionStages = applyStageChanges(snapshot.stages, [actionStageMutation(action)]);
   const stages = applyStageChanges(decisionStages, event.stageChanges);
+  const propertyDelta = collectPropertyEffects(properties, mechanics);
+  const pipelineDelta = collectStageStateEffects(stages, mechanics);
+  const breakdown = createBreakdown(action.effect, event.effect, propertyDelta, pipelineDelta);
+  const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
   const appliedActions = appendAppliedAction(snapshot, action, round.number);
   return { appliedActions, breakdown, event, metrics, properties, stages };
 }
@@ -179,8 +180,26 @@ function collectPropertyEffects(
   return sumDeltas(properties.map((property) => mechanics.propertyEffects[property]));
 }
 
-function createBreakdown(decision: MetricDelta, event: MetricDelta, properties: MetricDelta) {
-  return { decision, event, properties, total: sumDeltas([decision, event, properties]) };
+function collectStageStateEffects(
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+): MetricDelta {
+  return sumDeltas(stageKeys.map((stage) => mechanics.stageStateEffects?.[stages[stage]] ?? {}));
+}
+
+function createBreakdown(
+  decision: MetricDelta,
+  event: MetricDelta,
+  properties: MetricDelta,
+  pipeline: MetricDelta,
+) {
+  return {
+    decision,
+    event,
+    pipeline,
+    properties,
+    total: sumDeltas([decision, event, properties, pipeline]),
+  };
 }
 
 function sumDeltas(deltas: MetricDelta[]): MetricDelta {
