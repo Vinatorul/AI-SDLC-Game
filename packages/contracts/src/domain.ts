@@ -1,4 +1,4 @@
-export const metricKeys = ['deliverySpeed', 'quality', 'controllability', 'teamCapacity'] as const;
+export const metricKeys = ['deliverySpeed', 'controllability', 'teamCapacity', 'quality'] as const;
 
 export const stageKeys = [
   'businessRequest',
@@ -22,6 +22,19 @@ export const processProperties = [
 export type MetricKey = (typeof metricKeys)[number];
 export type MetricValues = Record<MetricKey, number>;
 export type MetricDelta = Partial<MetricValues>;
+export type MetricBounds = {
+  maximum: number;
+  minimum: number;
+};
+export type MetricDefinition = {
+  description: string;
+  label: string;
+  maximumDescription: string;
+  maximumLabel: string;
+  minimumDescription: string;
+  minimumLabel: string;
+};
+export type MetricDefinitions = Record<MetricKey, MetricDefinition>;
 export type StageKey = (typeof stageKeys)[number];
 export type ProcessProperty = (typeof processProperties)[number];
 export type StageState = 'AS_IS' | 'AI_ENABLED' | 'BROKEN';
@@ -37,6 +50,7 @@ export type GameRules = {
   notableVoteShare: number;
   requireNoBrokenStages: boolean;
   roundLimit: number;
+  roundMode?: 'CYCLIC' | 'FINITE';
 };
 
 export type StageMutation = {
@@ -140,6 +154,9 @@ export type GameState = {
   currentBallot: BallotView | null;
   currentRound: RoundView | null;
   decisionModel: DecisionModel;
+  metricBounds: MetricBounds;
+  metricDefinitions: MetricDefinitions;
+  metricScaleDescription: string;
   metrics: MetricValues;
   myVoteChoiceId: string | null;
   myVoteOptionId: string | null;

@@ -5,8 +5,8 @@
 AI SDLC RPG is a web application for an interactive talk. A host controls the game, players vote
 from their phones, and a shared screen shows how each decision changes the SDLC.
 
-The current priority is a reliable technical MVP. The five-round scenario and its balance are
-still a technical draft and will be refined separately.
+The current priority is a reliable technical MVP. The bundled scenario has one reusable turn
+template; its copy and balance are still a technical draft.
 
 ## Repository map
 
@@ -36,6 +36,8 @@ still a technical draft and will be refined separately.
   has a valid player token.
 - A new game snapshots its scenario and rules in SQLite. Later content edits must not alter an
   existing room.
+- In CYCLIC mode, every turn is a new persisted round instance. Never reuse a prior round row or
+  its ballots; clone immutable content from that room's saved turn templates.
 - A stage may be selected again in a later round. Its current AS_IS/AI_ENABLED/BROKEN value is a
   summary; applied actions are stored as separate history records.
 - Applying another eligible action may extend an AI-enabled stage or repair a broken stage. Do not
@@ -48,18 +50,22 @@ The bundled MVP scenario is the JSON file
 examples are in **packages/game-engine/content/README.md**.
 
 - **stageActions** is the reusable catalog of actions, effects, availability, and repeatability;
-- **rounds** contains situations, stage choices, action references, and event-selection rules;
-- every round in the bundled technical scenario exposes all eight SDLC stages;
-- **rules** contains thresholds, round count, feedback share, and win conditions;
-- **mechanics** contains initial metrics, metric bounds, and process-property effects;
+- **rounds** contains persisted turn templates, stage choices, action references, and
+  event-selection rules;
+- the bundled turn template exposes all eight SDLC stages on every move;
+- **rules** contains thresholds, round mode, template count, feedback share, and win conditions;
+- **mechanics** contains metric labels, scale help, endpoint labels and descriptions, initial
+  values, bounds, and process-property effects;
 - top-level metadata defines the schema version, scenario id, content version, and status.
 
 **packages/game-engine/src/scenario.ts** only imports and validates the bundled JSON. Do not put
 scenario copy or tuning values back into that TypeScript file. The Zod boundary and semantic checks
 live in **packages/game-engine/src/scenario-schema.ts**.
 
-Do not copy scenario text or balance values into React components, HTTP handlers, or SQL. The
-frontend should render the scenario and rules received from the API.
+Do not copy scenario text, metric labels, endpoint descriptions, or balance values into React
+components, HTTP handlers, or SQL. The frontend should render the scenario and rules received from
+the API. Hardcoded metric copy is allowed only in an explicitly named compatibility fallback for
+rooms or API responses created before scenario schema version 3.
 
 ## Adding or changing content
 
@@ -93,7 +99,8 @@ useful individual shortFeedback before treating the content as final.
 
 After a content change:
 
-1. Keep rules.roundLimit equal to the number of rounds.
+1. Keep rules.roundLimit equal to the number of round templates. Set rules.roundMode to FINITE for
+   one pass or CYCLIC to repeat the saved templates until the win condition is met.
 2. Increment the top-level version.
 3. Run `pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json`.
 4. Add or update focused tests for eligibility, event selection, history, and effect calculation.
@@ -120,9 +127,18 @@ There are three configuration layers:
 - API runtime settings in environment variables documented by **apps/api/.env.example**;
 - web build settings in environment variables documented by **apps/web/.env.example**.
 
-Never repeat configurable values as magic literals. Round count, initial metrics, metric limits,
-property bonuses, critical thresholds, and win conditions must have one typed configuration source
-rather than copies such as 5, 60, 100, 15, or 3 across the codebase.
+Never repeat configurable values as magic literals. Round mode, template count, metric
+definitions, initial values, limits, property bonuses, critical thresholds, and win conditions
+must have one typed configuration source rather than copies of the current scenario defaults
+across the codebase.
+
+The metric keys are stable internal identifiers kept for persisted-room compatibility. Their
+player-facing meaning comes from `mechanics.metricDefinitions`. The bundled scenario uses a
+high-is-good score from -10 to +10, starts at 0, enters danger at -5, and breaks at -8. Treat those
+numbers as scenario defaults, not engine constants. Keep action, event, and property effects in
+small integer points; the current content uses 1 for a small effect, 2 for a noticeable effect, and
+3 for a strong effect. Version 3 metric bounds must span zero because the web gauge uses zero as
+the neutral origin; initial values may still be configured independently inside those bounds.
 
 When adding a tunable setting:
 

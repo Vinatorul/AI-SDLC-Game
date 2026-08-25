@@ -54,7 +54,9 @@ function AppliedHistory({ state }: { state: GameState }) {
       <ul className="applied-history-list">
         {actions.map((action) => (
           <li key={`${action.roundNumber}:${action.actionId}`}>
-            <span>Раунд {action.roundNumber}</span>
+            <span>
+              {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
+            </span>
             <strong>
               {stageLabels[action.stage]} · {action.title}
             </strong>

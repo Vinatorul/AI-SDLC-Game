@@ -9,6 +9,7 @@ describe('parseScenario', () => {
   });
 
   it('даёт выбрать любой из восьми этапов в каждом раунде', () => {
+    expect(defaultScenario.rounds).toHaveLength(1);
     for (const round of defaultScenario.rounds) {
       expect(round.stageChoices).toHaveLength(stageKeys.length);
       expect(round.stageChoices.map(({ stage }) => stage).sort()).toEqual([...stageKeys].sort());
@@ -16,10 +17,22 @@ describe('parseScenario', () => {
     }
   });
 
-  it('проверяет соответствие числа раундов правилу', () => {
+  it('задаёт обычное событие для каждого действия', () => {
+    const round = defaultScenario.rounds[0];
+    if (!round) throw new Error('Нет шаблона хода');
+    const expected = round.stageChoices.flatMap(({ actionIds }) => actionIds).sort();
+    const covered = round.eventRules
+      .flatMap(({ actionIds, event: _, ...conditions }) =>
+        actionIds && Object.keys(conditions).length === 0 ? actionIds : [],
+      )
+      .sort();
+    expect(covered).toEqual(expected);
+  });
+
+  it('проверяет соответствие числа шаблонов правилу', () => {
     const source = structuredClone(defaultScenario);
     source.rules.roundLimit = 4;
-    expect(() => parseScenario(source)).toThrow(/rules\.roundLimit.*числом раундов/);
+    expect(() => parseScenario(source)).toThrow(/rules\.roundLimit.*числом шаблонов раундов/);
   });
 
   it('показывает путь до неизвестной ссылки на действие', () => {
@@ -57,7 +70,19 @@ describe('parseScenario', () => {
 
   it('проверяет границы начальных показателей', () => {
     const source = structuredClone(defaultScenario);
-    source.mechanics.initialMetrics.quality = 101;
+    source.mechanics.initialMetrics.quality = 11;
     expect(() => parseScenario(source)).toThrow(/mechanics\.initialMetrics\.quality/);
+  });
+
+  it('требует, чтобы шкала проходила через ноль', () => {
+    const source = structuredClone(defaultScenario);
+    source.mechanics.metricBounds = { maximum: 20, minimum: 0 };
+    expect(() => parseScenario(source)).toThrow(/metricBounds.*0/);
+  });
+
+  it('не принимает пустое описание показателя', () => {
+    const source = structuredClone(defaultScenario);
+    source.mechanics.metricDefinitions.teamCapacity.minimumDescription = '';
+    expect(() => parseScenario(source)).toThrow(/metricDefinitions\.teamCapacity/);
   });
 });

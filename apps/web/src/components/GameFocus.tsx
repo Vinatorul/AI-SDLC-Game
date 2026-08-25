@@ -13,7 +13,9 @@ export function GameFocus({ selectedChoiceId, state }: GameFocusProps) {
   return (
     <section className="round-focus">
       <div className="round-question">
-        <p className="eyebrow">Раунд {round.number}</p>
+        <p className="eyebrow">
+          {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {round.number}
+        </p>
         <h2>{round.title}</h2>
         <p>{round.situation}</p>
       </div>
@@ -63,11 +65,21 @@ function FinalState({ state }: { state: GameState }) {
     <section className={won ? 'final-state final-won' : 'final-state final-broken'}>
       <p className="eyebrow">Финал</p>
       <h2>{won ? 'SDLC выдержал перестройку' : 'Процесс не выдержал'}</h2>
-      <p>
-        {state.outcomeReason
-          ? outcomeLabels[state.outcomeReason]
-          : 'AI встроен в несколько этапов, критических показателей нет.'}
-      </p>
+      <p>{state.outcomeReason ? outcomeLabels[state.outcomeReason] : victoryText(state)}</p>
     </section>
   );
+}
+
+function victoryText(state: GameState) {
+  if (state.rules.minAiStagesToWin === 8) {
+    return 'AI встроен во все восемь этапов, критических показателей нет.';
+  }
+  const count = state.rules.minAiStagesToWin;
+  return `AI встроен минимум в ${count} ${stageWord(count)}, критических показателей нет.`;
+}
+
+function stageWord(count: number) {
+  if (count % 10 === 1 && count % 100 !== 11) return 'этап';
+  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'этапа';
+  return 'этапов';
 }

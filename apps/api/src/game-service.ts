@@ -21,11 +21,11 @@ import {
   type EngineOption,
   type EngineSnapshot,
   evaluateOutcome,
+  type GameMechanics,
   getAvailableActions,
   getAvailableStageChoices,
   resolveRound,
   type Scenario,
-  type ScenarioMechanics,
   type ScenarioRound,
   type StageActionCatalog,
 } from '@ai-sdlc/game-engine';
@@ -59,6 +59,7 @@ import {
   insertAction,
   insertGame,
   insertPlayer,
+  insertRoundCopy,
   insertScenario,
   listOptions,
   listVoteCounts,
@@ -451,12 +452,11 @@ export class GameService {
       'Сейчас нельзя открыть голосование',
     );
     const next = game.phase === 'LOBBY' ? 0 : game.current_round + 1;
-    assertCondition(
-      next < parseRules(game).roundLimit,
-      409,
-      'NO_MORE_ROUNDS',
-      'Раунды закончились',
-    );
+    const rules = parseRules(game);
+    if (rules.roundMode !== 'CYCLIC') {
+      assertCondition(next < rules.roundLimit, 409, 'NO_MORE_ROUNDS', 'Раунды закончились');
+    }
+    ensureRoundInstance(this.database, game, next, rules);
     return next;
   }
 
@@ -483,6 +483,19 @@ export class GameService {
       buildGameState(this.database, game),
     );
   }
+}
+
+function ensureRoundInstance(
+  database: GameDatabase,
+  game: GameRow,
+  roundIndex: number,
+  rules: GameRules,
+) {
+  if (findRound(database, game.id, roundIndex)) return;
+  assertCondition(rules.roundMode === 'CYCLIC', 409, 'NO_MORE_ROUNDS', 'Раунды закончились');
+  const template = assertFound(findRound(database, game.id, roundIndex % rules.roundLimit));
+  const decision = assertFound(findRoundDecision(database, template.id));
+  insertRoundCopy(database, game.id, template, roundIndex + 1, decision.stageChoices);
 }
 
 function availableStageChoices(database: GameDatabase, game: GameRow, round: RoundRow) {
@@ -603,8 +616,8 @@ function parseRules(game: GameRow): GameRules {
   return JSON.parse(game.rules_json) as GameRules;
 }
 
-function parseMechanics(game: GameRow): ScenarioMechanics {
-  return JSON.parse(game.mechanics_json) as ScenarioMechanics;
+function parseMechanics(game: GameRow): GameMechanics {
+  return JSON.parse(game.mechanics_json) as GameMechanics;
 }
 
 function parseIds(value: string) {

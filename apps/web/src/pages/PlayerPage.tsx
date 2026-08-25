@@ -16,30 +16,55 @@ import { useGameState } from '../realtime/useGameState';
 export function PlayerPage() {
   const navigate = useNavigate();
   const { code } = useParams();
-  const token = code ? localStorage.getItem(playerTokenKey(code)) : null;
+  const [joinedSession, setJoinedSession] = useState<PlayerSession | null>(null);
+  const token = playerToken(code, joinedSession);
   const game = useGameState(code, token ?? undefined);
-  if (!code) {
+  if (!code) return <PlayerCodeEntry onSubmit={(value) => navigate(`/play/${value}`)} />;
+  if (!token) {
     return (
-      <Layout>
-        <main className="single-page">
-          <CodeEntry
-            action="Войти"
-            description="Код покажет ведущий или общий экран."
-            onSubmit={(value) => navigate(`/play/${value}`)}
-            title="Войти в игру"
-          />
-        </main>
-      </Layout>
+      <JoinForm
+        code={code}
+        game={game}
+        onJoined={(nextToken) => setJoinedSession({ code, token: nextToken })}
+      />
     );
   }
-  if (!token) return <JoinForm code={code} game={game} />;
   if (game.error) return <PlayerError message={game.error} />;
   if (!game.state) return <PlayerLoading />;
   return <PlayerGame code={code} game={game} state={game.state} token={token} />;
 }
 
-function JoinForm({ code, game }: { code: string; game: ReturnType<typeof useGameState> }) {
-  const join = useJoinGame(code, game);
+function PlayerCodeEntry({ onSubmit }: { onSubmit: (code: string) => void }) {
+  return (
+    <Layout>
+      <main className="single-page">
+        <CodeEntry
+          action="Войти"
+          description="Код покажет ведущий или общий экран."
+          onSubmit={onSubmit}
+          title="Войти в игру"
+        />
+      </main>
+    </Layout>
+  );
+}
+
+type PlayerSession = { code: string; token: string };
+
+function playerToken(code: string | undefined, joinedSession: PlayerSession | null) {
+  if (!code) return null;
+  if (joinedSession?.code === code) return joinedSession.token;
+  return localStorage.getItem(playerTokenKey(code));
+}
+
+type JoinFormProps = {
+  code: string;
+  game: ReturnType<typeof useGameState>;
+  onJoined: (token: string) => void;
+};
+
+function JoinForm({ code, game, onJoined }: JoinFormProps) {
+  const join = useJoinGame(code, game, onJoined);
   return (
     <Layout>
       <main className="single-page">
@@ -49,7 +74,11 @@ function JoinForm({ code, game }: { code: string; game: ReturnType<typeof useGam
   );
 }
 
-function useJoinGame(code: string, game: ReturnType<typeof useGameState>) {
+function useJoinGame(
+  code: string,
+  game: ReturnType<typeof useGameState>,
+  onJoined: (token: string) => void,
+) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +89,7 @@ function useJoinGame(code: string, game: ReturnType<typeof useGameState>) {
     try {
       const result = await api.join(code, name.trim());
       localStorage.setItem(playerTokenKey(code), result.playerToken);
+      onJoined(result.playerToken);
       game.setState(result.state);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось войти');

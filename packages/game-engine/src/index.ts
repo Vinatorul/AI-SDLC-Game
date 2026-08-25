@@ -17,6 +17,7 @@ export type {
   EngineOption,
   EngineSnapshot,
   EventRule,
+  GameMechanics,
   OutcomeEvaluation,
   ResolutionPlan,
   Scenario,

@@ -8,6 +8,7 @@ import {
   type GameEvent,
   type GameRules,
   type GameState,
+  type MetricDefinitions,
   type MetricValues,
   type ProcessProperty,
   type RoundOption,
@@ -18,7 +19,14 @@ import {
   stageKeys,
   type VoteTally,
 } from '@ai-sdlc/contracts';
-import type { EngineAction, EngineEvent, EngineOption, ResolutionPlan } from '@ai-sdlc/game-engine';
+import type {
+  EngineAction,
+  EngineEvent,
+  EngineOption,
+  GameMechanics,
+  ResolutionPlan,
+  ScenarioMechanics,
+} from '@ai-sdlc/game-engine';
 import type { GameDatabase } from './db/database';
 import {
   type BallotRow,
@@ -46,6 +54,7 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
   const round = currentRound(database, game);
   const ballot = round ? buildBallot(database, game, round) : null;
   const roundView = round ? buildRoundView(database, game, round, ballot) : null;
+  const mechanics = JSON.parse(game.mechanics_json) as StoredScenarioMechanics;
   const stages = JSON.parse(game.stages_json) as Record<StageKey, StageState>;
   return {
     allowedCommands: allowedCommands(game, round, ballot),
@@ -53,6 +62,7 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
     currentBallot: ballot,
     currentRound: roundView,
     decisionModel: game.decision_model,
+    ...publicMetricConfig(mechanics),
     metrics: JSON.parse(game.metrics_json) as MetricValues,
     myVoteChoiceId: null,
     myVoteOptionId: null,
@@ -69,6 +79,53 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
     voteCount: ballot?.voteTallies.reduce((sum, item) => sum + item.count, 0) ?? 0,
   };
 }
+
+type StoredScenarioMechanics = GameMechanics &
+  Partial<Pick<ScenarioMechanics, 'metricDefinitions' | 'metricScaleDescription'>>;
+
+function publicMetricConfig(mechanics: StoredScenarioMechanics) {
+  return {
+    metricBounds: mechanics.metricBounds,
+    metricDefinitions: mechanics.metricDefinitions ?? legacyMetricDefinitions,
+    metricScaleDescription:
+      mechanics.metricScaleDescription ?? 'Чем выше значение, тем лучше состояние процесса',
+  };
+}
+
+const legacyMetricDefinitions: MetricDefinitions = {
+  controllability: {
+    description: 'Насколько процесс остаётся понятным и управляемым.',
+    label: 'Управляемость',
+    maximumDescription: 'Процесс полностью управляем.',
+    maximumLabel: 'Максимум',
+    minimumDescription: 'Процесс потерял управляемость.',
+    minimumLabel: 'Минимум',
+  },
+  deliverySpeed: {
+    description: 'Как быстро изменения доходят до пользователей.',
+    label: 'Скорость поставки',
+    maximumDescription: 'Изменения доходят максимально быстро.',
+    maximumLabel: 'Максимум',
+    minimumDescription: 'Изменения практически остановились.',
+    minimumLabel: 'Минимум',
+  },
+  quality: {
+    description: 'Насколько надёжно работают выпущенные изменения.',
+    label: 'Качество',
+    maximumDescription: 'Изменения работают надёжно.',
+    maximumLabel: 'Максимум',
+    minimumDescription: 'Изменения постоянно ломаются.',
+    minimumLabel: 'Минимум',
+  },
+  teamCapacity: {
+    description: 'Сколько рабочего ресурса осталось у команды.',
+    label: 'Ресурс команды',
+    maximumDescription: 'У команды достаточно ресурса.',
+    maximumLabel: 'Максимум',
+    minimumDescription: 'Ресурс команды исчерпан.',
+    minimumLabel: 'Минимум',
+  },
+};
 
 function currentRound(database: GameDatabase, game: GameRow) {
   if (game.phase === 'LOBBY') return null;

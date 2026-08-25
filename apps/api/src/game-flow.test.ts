@@ -181,6 +181,19 @@ it('чинит сломанный этап следующим решением �
   );
 });
 
+it('продолжает игру, пока все восемь этапов не станут зелёными', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = game.state;
+  for (const [index, [stage, actionId]] of winningActions.entries()) {
+    state = await playRound(app, game, player, stage, actionId, index * 6);
+    expect(state.phase).toBe(index === winningActions.length - 1 ? 'WON' : 'FEEDBACK');
+  }
+  expect(state.currentRound?.number).toBe(8);
+  expect(stageKeys.every((stage) => state.stages[stage] === 'AI_ENABLED')).toBe(true);
+});
+
 it('разрешает CORS preflight для смены голоса', async () => {
   const app = await testApp();
   const response = await app.inject({
@@ -237,6 +250,33 @@ describe('восстановление SQLite', () => {
     await closeTrackedApp(second);
     rmSync(directory, { force: true, recursive: true });
   });
+
+  it('создаёт отдельный следующий ход при любом id шаблона и восстанавливает его', async () => {
+    const { databasePath, directory } = temporaryDatabase('ai-sdlc-cycle-');
+    const first = await testApp(databasePath, scenarioWithTemplateId('round-2'));
+    const game = await createGame(first);
+    const player = await joinGame(first, game.state.code, 'Ира');
+    const firstState = await playRound(
+      first,
+      game,
+      player,
+      'businessRequest',
+      'businessRequest.incident-feedback',
+      0,
+    );
+    const secondState = await command(first, game, 'OPEN_VOTING', 6);
+    expect(secondState.currentRound?.number).toBe(2);
+    expect(secondState.currentRound?.title).toBe(firstState.currentRound?.title);
+    expect(secondState.currentRound?.id).not.toBe(firstState.currentRound?.id);
+    const ballotId = requiredBallot(secondState).id;
+    await closeTrackedApp(first);
+    const second = await testApp(databasePath);
+    const restored = await getState(second, game.state.code);
+    expect(restored.currentRound?.id).toBe(secondState.currentRound?.id);
+    expect(restored.currentBallot?.id).toBe(ballotId);
+    await closeTrackedApp(second);
+    rmSync(directory, { force: true, recursive: true });
+  });
 });
 
 it('после перезапуска использует сохранённые правила игры', async () => {
@@ -252,10 +292,42 @@ it('после перезапуска использует сохранённы�
   rmSync(directory, { force: true, recursive: true });
 });
 
-it('после перезапуска использует сохранённую механику', async () => {
+it('сохраняет порядок старой комнаты с несколькими шаблонами', async () => {
+  const { databasePath, directory } = temporaryDatabase('ai-sdlc-old-cycle-');
+  const oldApp = await testApp(databasePath, scenarioWithTwoTemplates());
+  const game = await createGame(oldApp);
+  const player = await joinGame(oldApp, game.state.code, 'Ира');
+  const first = await playRound(
+    oldApp,
+    game,
+    player,
+    'businessRequest',
+    'businessRequest.incident-feedback',
+    0,
+  );
+  await closeTrackedApp(oldApp);
+  const currentApp = await testApp(databasePath);
+  const second = await playRound(
+    currentApp,
+    game,
+    player,
+    'productDiscovery',
+    'productDiscovery.requirement-draft',
+    6,
+  );
+  const third = await command(currentApp, game, 'OPEN_VOTING', 12);
+  expectOldCycleOrder(first, second, third);
+  expect(third.currentRound?.number).toBe(3);
+  await closeTrackedApp(currentApp);
+  rmSync(directory, { force: true, recursive: true });
+});
+
+it('после перезапуска использует сохранённую механику и шкалу', async () => {
   const { databasePath, directory } = temporaryDatabase('ai-sdlc-mechanics-');
-  const first = await testApp(databasePath, scenarioWithContextQuality(20));
+  const first = await testApp(databasePath, scenarioWithContextQuality(2));
   const game = await createGame(first);
+  expect(game.state.metricBounds).toEqual({ maximum: 10, minimum: -10 });
+  expect(game.state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
   await closeTrackedApp(first);
   const second = await testApp(databasePath);
   const player = await joinGame(second, game.state.code, 'Ира');
@@ -267,7 +339,8 @@ it('после перезапуска использует сохранённу�
     'technicalDiscovery.code-research',
     0,
   );
-  expect(state.metrics.quality).toBe(83);
+  expect(state.metrics.quality).toBe(4);
+  expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
   await closeTrackedApp(second);
   rmSync(directory, { force: true, recursive: true });
 });
@@ -279,6 +352,8 @@ it('продолжает старую игру из активного голо�
   const player = await joinGame(app, 'OLD234', 'Ира');
   let state = await getState(app, 'OLD234');
   expect(state.currentBallot?.kind).toBe('LEGACY_OPTION');
+  expect(state.metricBounds).toEqual({ maximum: 100, minimum: 0 });
+  expect(state.metricDefinitions.deliverySpeed.label).toBe('Скорость поставки');
   const optionId = state.currentRound?.options[0]?.id ?? '';
   await vote(app, 'OLD234', player.playerToken, { optionId });
   state = await legacyCommand(app, 'CLOSE_VOTING', 0);
@@ -438,8 +513,22 @@ function tally(state: GameState, choiceId: string) {
 }
 
 function noRoundsScenario(): Scenario {
-  return { ...defaultScenario, rules: { ...defaultScenario.rules, roundLimit: 0 } };
+  return {
+    ...defaultScenario,
+    rules: { ...defaultScenario.rules, roundLimit: 0, roundMode: 'FINITE' },
+  };
 }
+
+const winningActions: [StageKey, string][] = [
+  ['businessRequest', 'businessRequest.incident-feedback'],
+  ['testing', 'testing.ai-checks-with-qa'],
+  ['productDiscovery', 'productDiscovery.requirement-draft'],
+  ['technicalDiscovery', 'technicalDiscovery.code-research'],
+  ['coding', 'coding.guided-implementation'],
+  ['review', 'review.context-and-human-risk'],
+  ['deployment', 'deployment.human-approved-plan'],
+  ['support', 'support.change-linked-signals'],
+];
 
 function scenarioWithContextQuality(quality: number): Scenario {
   return {
@@ -461,6 +550,32 @@ function scenarioWithOneStage(): Scenario {
     ...defaultScenario,
     rounds: [{ ...first, stageChoices: first.stageChoices.slice(0, 1) }, ...rest],
   };
+}
+
+function scenarioWithTwoTemplates(): Scenario {
+  const first = defaultScenario.rounds[0];
+  if (!first) throw new Error('Нет шаблона хода');
+  const second = { ...structuredClone(first), id: 'old-turn-2', number: 2 };
+  second.title = 'Старый второй шаблон';
+  return {
+    ...defaultScenario,
+    rounds: [first, second],
+    rules: { ...defaultScenario.rules, roundLimit: 2 },
+  };
+}
+
+function scenarioWithTemplateId(id: string): Scenario {
+  const first = defaultScenario.rounds[0];
+  if (!first) throw new Error('Нет шаблона хода');
+  return { ...defaultScenario, rounds: [{ ...first, id }] };
+}
+
+function expectOldCycleOrder(...states: GameState[]) {
+  expect(states.map((state) => state.currentRound?.title)).toEqual([
+    'Какой этап меняем?',
+    'Старый второй шаблон',
+    'Какой этап меняем?',
+  ]);
 }
 
 async function closeTrackedApp(app: FastifyInstance) {
@@ -486,6 +601,7 @@ function seedLegacyGame(databasePath: string, phase: 'VOTING' | 'RESULT' | 'EVEN
       minAiStagesToWin: 1,
       requireNoBrokenStages: false,
       roundLimit: 1,
+      roundMode: 'FINITE',
     }),
     hashToken('legacy-admin'),
     now,

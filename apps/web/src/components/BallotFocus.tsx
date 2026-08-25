@@ -35,17 +35,11 @@ export function BallotFocus(props: BallotFocusProps) {
 function StageBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotView }) {
   const choices = ballot.choices.filter(isStageChoice);
   return (
-    <>
-      <BallotHeading
-        description="Выберите участок процесса, в который команда сделает следующий ход."
-        title="Какой этап меняем сейчас?"
-      />
-      <div className="stage-grid stage-ballot-grid">
-        {choices.map((choice) => (
-          <StageChoiceCard choice={choice} key={choice.id} {...props} />
-        ))}
-      </div>
-    </>
+    <div className="stage-grid stage-ballot-grid">
+      {choices.map((choice) => (
+        <StageChoiceCard choice={choice} key={choice.id} {...props} />
+      ))}
+    </div>
   );
 }
 
@@ -129,7 +123,7 @@ function BallotRoundContext({ state }: { state: GameState }) {
   if (!round) return null;
   return (
     <div className="ballot-round-context">
-      <p className="eyebrow">Раунд {round.number}</p>
+      <p className="eyebrow">Ход {round.number}</p>
       <h2>{round.title}</h2>
       <p>{round.situation}</p>
     </div>

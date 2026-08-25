@@ -20,6 +20,26 @@ const metricValuesSchema = z
   })
   .strict();
 
+const metricDefinitionSchema = z
+  .object({
+    description: z.string().min(1),
+    label: z.string().min(1),
+    maximumDescription: z.string().min(1),
+    maximumLabel: z.string().min(1),
+    minimumDescription: z.string().min(1),
+    minimumLabel: z.string().min(1),
+  })
+  .strict();
+
+const metricDefinitionsSchema = z
+  .object({
+    controllability: metricDefinitionSchema,
+    deliverySpeed: metricDefinitionSchema,
+    quality: metricDefinitionSchema,
+    teamCapacity: metricDefinitionSchema,
+  })
+  .strict();
+
 const propertySchema = z.enum(processProperties);
 const stageSchema = z.enum(stageKeys);
 const stageStateSchema = z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']);
@@ -59,8 +79,10 @@ const eventRuleSchema = z
     event: eventSchema,
     hasAppliedActions: z.array(z.string().min(1)).min(1).optional(),
     hasProperty: propertySchema.optional(),
+    hasResultingProperty: propertySchema.optional(),
     missingAppliedActions: z.array(z.string().min(1)).min(1).optional(),
     missingProperty: propertySchema.optional(),
+    missingResultingProperty: propertySchema.optional(),
     stageActionCounts: z.array(stageActionCountSchema).min(1).optional(),
     stageStates: z.array(stageMutationSchema).min(1).optional(),
   })
@@ -110,6 +132,7 @@ const rulesSchema = z
     notableVoteShare: z.number().min(0).max(1),
     requireNoBrokenStages: z.boolean(),
     roundLimit: z.number().int().positive(),
+    roundMode: z.enum(['CYCLIC', 'FINITE']),
   })
   .strict();
 
@@ -117,6 +140,8 @@ const mechanicsSchema = z
   .object({
     initialMetrics: metricValuesSchema,
     metricBounds: z.object({ maximum: z.number(), minimum: z.number() }).strict(),
+    metricDefinitions: metricDefinitionsSchema,
+    metricScaleDescription: z.string().min(1),
     propertyEffects: z
       .object({
         automatedTests: metricDeltaSchema,
@@ -137,7 +162,7 @@ const scenarioSchema = z
     mechanics: mechanicsSchema,
     rounds: z.array(roundSchema).min(1),
     rules: rulesSchema,
-    schemaVersion: z.literal(2),
+    schemaVersion: z.literal(3),
     stageActions: z.record(z.string().min(1), stageActionSchema),
     version: z.number().int().positive(),
   })
@@ -173,7 +198,7 @@ function validateScenario(scenario: ScenarioCandidate, context: IssueContext) {
 
 function validateRoundNumbers(scenario: ScenarioCandidate, context: IssueContext) {
   if (scenario.rules.roundLimit !== scenario.rounds.length) {
-    addIssue(context, ['rules', 'roundLimit'], 'должен совпадать с числом раундов');
+    addIssue(context, ['rules', 'roundLimit'], 'должен совпадать с числом шаблонов раундов');
   }
   scenario.rounds.forEach((round, index) => {
     if (round.number !== index + 1) {
@@ -186,6 +211,13 @@ function validateMechanics(scenario: ScenarioCandidate, context: IssueContext) {
   const { maximum, minimum } = scenario.mechanics.metricBounds;
   if (minimum >= maximum) {
     addIssue(context, ['mechanics', 'metricBounds'], 'minimum должен быть меньше maximum');
+  }
+  if (minimum >= 0 || maximum <= 0) {
+    addIssue(
+      context,
+      ['mechanics', 'metricBounds'],
+      'границы должны находиться по обе стороны от 0',
+    );
   }
   for (const key of metricKeys) {
     const value = scenario.mechanics.initialMetrics[key];
@@ -290,6 +322,9 @@ function validateRuleConditions(
   if (rule.hasProperty && rule.hasProperty === rule.missingProperty) {
     addIssue(context, path, 'одно свойство нельзя одновременно требовать и исключать');
   }
+  if (rule.hasResultingProperty && rule.hasResultingProperty === rule.missingResultingProperty) {
+    addIssue(context, path, 'одно итоговое свойство нельзя одновременно требовать и исключать');
+  }
   const required = new Set(rule.hasAppliedActions ?? []);
   if (rule.missingAppliedActions?.some((id) => required.has(id))) {
     addIssue(context, path, 'одно действие нельзя одновременно требовать и исключать');
@@ -354,8 +389,10 @@ function hasCondition(rule: ScenarioCandidate['rounds'][number]['eventRules'][nu
       rule.appliedActionCount ||
       rule.hasAppliedActions ||
       rule.hasProperty ||
+      rule.hasResultingProperty ||
       rule.missingAppliedActions ||
       rule.missingProperty ||
+      rule.missingResultingProperty ||
       rule.stageActionCounts ||
       rule.stageStates,
   );

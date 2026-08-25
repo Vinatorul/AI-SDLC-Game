@@ -41,7 +41,7 @@ export function LandingPage() {
 function LandingHero() {
   return (
     <header className="landing-hero">
-      <p className="eyebrow">Интерактивный доклад · 5 раундов</p>
+      <p className="eyebrow">Интерактивный доклад · 8 этапов SDLC</p>
       <h1>Строим AI SDLC вместе с залом</h1>
       <p className="lede">
         Одно решение может ускорить поток, перенести узкое место или сломать процесс.
@@ -54,7 +54,7 @@ function StagePreview() {
   return (
     <section className="stage-preview" aria-labelledby="map-title">
       <p className="eyebrow">Исходная карта</p>
-      <h2 id="map-title">Восемь этапов. Пять решений.</h2>
+      <h2 id="map-title">Победа — когда все восемь этапов зелёные</h2>
       <div className="stage-grid">
         {stages.map((stage, index) => (
           <article className="stage-card" key={stage}>

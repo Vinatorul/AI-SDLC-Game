@@ -2,6 +2,8 @@ import type {
   EffectBreakdown,
   GameEvent,
   GameRules,
+  MetricBounds,
+  MetricDefinitions,
   MetricDelta,
   MetricValues,
   ProcessProperty,
@@ -39,8 +41,10 @@ export type EventRule = {
   event: EngineEvent;
   hasAppliedActions?: string[];
   hasProperty?: ProcessProperty;
+  hasResultingProperty?: ProcessProperty;
   missingAppliedActions?: string[];
   missingProperty?: ProcessProperty;
+  missingResultingProperty?: ProcessProperty;
   stageActionCounts?: StageActionCountCondition[];
   stageStates?: StageMutation[];
 };
@@ -64,15 +68,15 @@ export type ScenarioRound = {
   title: string;
 };
 
-export type MetricBounds = {
-  maximum: number;
-  minimum: number;
-};
-
-export type ScenarioMechanics = {
+export type GameMechanics = {
   initialMetrics: MetricValues;
   metricBounds: MetricBounds;
   propertyEffects: Record<ProcessProperty, MetricDelta>;
+};
+
+export type ScenarioMechanics = GameMechanics & {
+  metricDefinitions: MetricDefinitions;
+  metricScaleDescription: string;
 };
 
 export type Scenario = {
@@ -82,7 +86,7 @@ export type Scenario = {
   mechanics: ScenarioMechanics;
   rounds: ScenarioRound[];
   rules: GameRules;
-  schemaVersion: 2;
+  schemaVersion: 3;
   stageActions: StageActionCatalog;
   version: number;
 };

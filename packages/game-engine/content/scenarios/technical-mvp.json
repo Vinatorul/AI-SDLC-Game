@@ -1,64 +1,100 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "technical-mvp",
-  "version": 4,
+  "version": 7,
   "contentStatus": "TECHNICAL_DRAFT",
   "decisionModel": "STAGE_ACTION_V2",
   "rules": {
-    "roundLimit": 5,
-    "criticalThreshold": 15,
-    "dangerThreshold": 30,
-    "minAiStagesToWin": 3,
-    "requireNoBrokenStages": false,
+    "roundLimit": 1,
+    "roundMode": "CYCLIC",
+    "criticalThreshold": -8,
+    "dangerThreshold": -5,
+    "minAiStagesToWin": 8,
+    "requireNoBrokenStages": true,
     "notableVoteShare": 0.15
   },
   "mechanics": {
     "initialMetrics": {
-      "deliverySpeed": 60,
-      "quality": 60,
-      "controllability": 60,
-      "teamCapacity": 60
+      "deliverySpeed": 0,
+      "quality": 0,
+      "controllability": 0,
+      "teamCapacity": 0
     },
     "metricBounds": {
-      "minimum": 0,
-      "maximum": 100
+      "minimum": -10,
+      "maximum": 10
+    },
+    "metricScaleDescription": "0 — исходный процесс · минус — хуже · плюс — лучше",
+    "metricDefinitions": {
+      "deliverySpeed": {
+        "label": "TTM",
+        "description": "Насколько быстро решение превращается в результат у пользователя: чем выше балл, тем короче TTM.",
+        "minimumLabel": "Слишком долго",
+        "maximumLabel": "Почти сразу",
+        "minimumDescription": "Изменения добираются до пользователей так долго, что успевают потерять смысл.",
+        "maximumDescription": "Нужное изменение доходит до пользователей почти сразу после решения, без очередей и долгого ожидания."
+      },
+      "controllability": {
+        "label": "Предсказуемость результата",
+        "description": "Насколько обещания команды совпадают с тем, что и когда получает пользователь.",
+        "minimumLabel": "Каждый релиз — сюрприз",
+        "maximumLabel": "Риски видны заранее",
+        "minimumDescription": "Никто не знает, что и когда получится. Обещания не сходятся с фактом, каждый релиз — сюрприз.",
+        "maximumDescription": "Команда заранее понимает, что и когда получит пользователь, выполняет обещания, а риски замечает заранее."
+      },
+      "teamCapacity": {
+        "label": "Баланс Run / Change",
+        "description": "Сколько ресурса остаётся на новое после поддержки, переделок и сбоев.",
+        "minimumLabel": "Run съел Change",
+        "maximumLabel": "Ресурс на новое",
+        "minimumDescription": "Команда утонула в поддержке: на новое времени нет, а баги прилетают быстрее, чем их успевают закрывать.",
+        "maximumDescription": "Команда победила рутину поддержки: проблемы редки или решаются автоматически, почти весь ресурс уходит на новое."
+      },
+      "quality": {
+        "label": "Качество и стабильность",
+        "description": "Насколько изменения работают ожидаемо и не создают проблем пользователям.",
+        "minimumLabel": "Баги и сбои",
+        "maximumLabel": "Работает как задумано",
+        "minimumDescription": "Каждое изменение приносит новые баги и сбои, пользователи постоянно сталкиваются с проблемами.",
+        "maximumDescription": "Изменения работают как задумано, не ломают существующее, а технические проблемы почти не доходят до пользователей."
+      }
     },
     "propertyEffects": {
       "humanReview": {
-        "quality": 2,
+        "quality": 1,
         "controllability": 1,
         "teamCapacity": -1
       },
       "automatedTests": {
         "deliverySpeed": 1,
-        "quality": 3,
+        "quality": 1,
         "controllability": 1
       },
       "currentContext": {
         "deliverySpeed": 1,
-        "quality": 2
+        "controllability": 1
       },
       "observability": {
-        "controllability": 3,
+        "controllability": 1,
         "teamCapacity": 1
       },
       "rollback": {
-        "deliverySpeed": 1,
-        "controllability": 2
+        "quality": 1,
+        "teamCapacity": 1
       }
     }
   },
   "stageActions": {
     "productDiscovery.requirement-draft": {
       "key": "A",
-      "title": "Продуктовая проработка",
-      "description": "AI готовит черновик задачи, продукт проверяет.",
+      "title": "Черновик задачи с AI",
+      "description": "AI собирает черновик задачи и критерии готовности, продакт проверяет и правит.",
       "stage": "productDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Постановка готовится быстрее, но цель и критерии всё равно проверяет продакт.",
       "effect": {
-        "controllability": 5,
-        "deliverySpeed": 2
+        "controllability": 2,
+        "deliverySpeed": 1
       },
       "addProperties": ["currentContext"],
       "repeatable": true,
@@ -67,14 +103,14 @@
     },
     "technicalDiscovery.code-research": {
       "key": "A",
-      "title": "Техническая проработка",
-      "description": "AI исследует код, инженер принимает план.",
+      "title": "AI разбирается в коде",
+      "description": "AI ищет связанные модули и зависимости, инженер проверяет выводы и выбирает план.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "На поиск связей уходит меньше времени, но найденное нужно перепроверить по коду.",
       "effect": {
-        "quality": 3,
-        "deliverySpeed": 3
+        "quality": 1,
+        "deliverySpeed": 1
       },
       "addProperties": ["currentContext"],
       "repeatable": false,
@@ -83,14 +119,14 @@
     },
     "coding.guided-implementation": {
       "key": "A",
-      "title": "Написание кода",
-      "description": "AI готовит реализацию и тесты, разработчик проверяет.",
+      "title": "AI пишет, разработчик проверяет",
+      "description": "AI пишет код по готовому плану, разработчик проверяет решение перед ревью.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Код появляется быстрее. Если не усилить ревью и тесты, очередь просто переедет туда.",
       "effect": {
-        "deliverySpeed": 12,
-        "teamCapacity": 4
+        "deliverySpeed": 3,
+        "teamCapacity": 1
       },
       "addProperties": ["humanReview"],
       "repeatable": true,
@@ -99,14 +135,14 @@
     },
     "testing.ai-checks-with-qa": {
       "key": "A",
-      "title": "Тестирование",
-      "description": "AI готовит проверки, QA определяет достаточность.",
+      "title": "AI готовит тесты, QA решает",
+      "description": "AI предлагает проверки, QA решает, какие риски закрыть и достаточно ли тестов.",
       "stage": "testing",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Подготовка тестов ускоряется, но какие риски можно принять, всё равно решает QA.",
       "effect": {
-        "quality": 8,
-        "deliverySpeed": 2
+        "quality": 2,
+        "deliverySpeed": 1
       },
       "addProperties": ["automatedTests"],
       "repeatable": false,
@@ -115,14 +151,14 @@
     },
     "technicalDiscovery.sync-docs-and-contract": {
       "key": "B",
-      "title": "Актуальный контекст",
-      "description": "AI сверяет документацию с кодом, инженер фиксирует контракт.",
+      "title": "Сверить документацию с кодом",
+      "description": "AI находит расхождения между описанием и реализацией, инженер проверяет их и обновляет контракт.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Меньше риска строить решение на старом описании, если расхождения проверит инженер.",
       "effect": {
-        "quality": 5,
-        "controllability": 4
+        "quality": 2,
+        "controllability": 1
       },
       "addProperties": ["currentContext"],
       "repeatable": true,
@@ -131,14 +167,14 @@
     },
     "review.context-and-human-risk": {
       "key": "A",
-      "title": "Ревью",
-      "description": "AI собирает контекст изменения, человек принимает риск.",
+      "title": "Собрать контекст для ревью",
+      "description": "AI объясняет, что изменилось и где риск, ревьюер проверяет выводы и решает, можно ли сливать.",
       "stage": "review",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Ревьюеру проще начать проверку, но решение о слиянии остаётся за ним.",
       "effect": {
-        "quality": 6,
-        "teamCapacity": -2
+        "quality": 2,
+        "teamCapacity": -1
       },
       "addProperties": ["humanReview"],
       "repeatable": true,
@@ -147,14 +183,14 @@
     },
     "testing.behavior-checks": {
       "key": "B",
-      "title": "Автоматические тесты",
-      "description": "AI готовит проверки фактического поведения.",
+      "title": "Проверять поведение, а не код",
+      "description": "AI предлагает тесты на поведение системы, а не на детали реализации.",
       "stage": "testing",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Такие тесты реже ломаются при рефакторинге, но ожидаемое поведение нужно описать заранее.",
       "effect": {
-        "quality": 7,
-        "controllability": 2
+        "quality": 2,
+        "controllability": 1
       },
       "addProperties": ["automatedTests"],
       "repeatable": true,
@@ -163,14 +199,14 @@
     },
     "coding.change-from-description": {
       "key": "B",
-      "title": "Ещё больше генерации",
-      "description": "AI сразу меняет незнакомый сервис по доступному описанию.",
+      "title": "Поменять сервис по описанию",
+      "description": "AI сразу правит незнакомый сервис, опираясь на доступную документацию.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Быстро, но если описание устарело, результат придётся переделывать.",
       "effect": {
-        "deliverySpeed": 10,
-        "quality": -4
+        "deliverySpeed": 3,
+        "quality": -1
       },
       "addProperties": [],
       "repeatable": false,
@@ -179,14 +215,14 @@
     },
     "review.risk-based-evidence": {
       "key": "B",
-      "title": "Ревью по риску",
-      "description": "AI собирает доказательства, человек проверяет рискованные места.",
+      "title": "Начать ревью с рискованных мест",
+      "description": "AI отмечает рискованные места и собирает подтверждения, ревьюер проверяет самое важное.",
       "stage": "review",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "На очевидное уходит меньше времени, если команда заранее договорилась, что считать риском.",
       "effect": {
-        "quality": 7,
-        "controllability": 4
+        "quality": 2,
+        "controllability": 1
       },
       "addProperties": ["humanReview"],
       "repeatable": false,
@@ -195,14 +231,14 @@
     },
     "testing.regression-maintenance": {
       "key": "C",
-      "title": "Регрессионные тесты",
-      "description": "AI поддерживает автоматические проверки изменений.",
+      "title": "Поддерживать регрессионные тесты",
+      "description": "AI обновляет тесты вместе с изменением поведения, команда проверяет новые ожидания.",
       "stage": "testing",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Ручной работы меньше, но автоматическое обновление тестов может закрепить ошибку.",
       "effect": {
-        "quality": 9,
-        "deliverySpeed": 2
+        "quality": 3,
+        "deliverySpeed": 1
       },
       "addProperties": ["automatedTests"],
       "repeatable": false,
@@ -211,14 +247,14 @@
     },
     "technicalDiscovery.dependency-map": {
       "key": "C",
-      "title": "Технический контекст",
-      "description": "AI обновляет карту зависимостей перед работой.",
+      "title": "Проверить зависимости до разработки",
+      "description": "AI находит затронутые сервисы, контракты и команды до начала изменений.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Соседние системы видны раньше, но найденные связи всё равно нужно подтвердить.",
       "effect": {
-        "controllability": 6,
-        "teamCapacity": 2
+        "controllability": 2,
+        "teamCapacity": 1
       },
       "addProperties": ["currentContext"],
       "repeatable": false,
@@ -227,14 +263,14 @@
     },
     "coding.parallel-agents": {
       "key": "C",
-      "title": "Параллельные агенты",
-      "description": "Команда запускает больше изменений одновременно.",
+      "title": "Запустить несколько AI-агентов",
+      "description": "Несколько AI-агентов одновременно готовят разные части изменения.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Работа идёт параллельно, но свести, проверить и протестировать результат всё равно должна команда.",
       "effect": {
-        "deliverySpeed": 12,
-        "teamCapacity": -7
+        "deliverySpeed": 3,
+        "teamCapacity": -2
       },
       "addProperties": [],
       "repeatable": false,
@@ -243,14 +279,14 @@
     },
     "deployment.human-approved-plan": {
       "key": "A",
-      "title": "Управляемый деплой",
-      "description": "AI готовит план выпуска, человек подтверждает шаги.",
+      "title": "Подготовить релиз и откат",
+      "description": "AI готовит шаги выпуска и отката, человек проверяет план и запускает релиз.",
       "stage": "deployment",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Подготовка быстрее, а решение о выпуске остаётся за человеком.",
       "effect": {
-        "deliverySpeed": 4,
-        "controllability": 7
+        "deliverySpeed": 1,
+        "controllability": 2
       },
       "addProperties": ["rollback"],
       "repeatable": true,
@@ -259,14 +295,14 @@
     },
     "support.change-linked-signals": {
       "key": "A",
-      "title": "Наблюдаемость",
-      "description": "AI готовит сигналы и связывает их с изменением.",
+      "title": "Связать ошибки с релизом",
+      "description": "AI добавляет нужные метрики и связывает ошибки с конкретным изменением.",
       "stage": "support",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "После релиза проще понять, что сломалось и какое изменение это вызвало.",
       "effect": {
-        "controllability": 8,
-        "teamCapacity": 2
+        "controllability": 2,
+        "teamCapacity": 1
       },
       "addProperties": ["observability"],
       "repeatable": true,
@@ -275,13 +311,13 @@
     },
     "testing.release-checks": {
       "key": "D",
-      "title": "Проверка перед выпуском",
-      "description": "AI собирает набор проверок для релизного решения.",
+      "title": "Собрать и дополнить проверки перед релизом",
+      "description": "AI собирает результаты тестов, добавляет недостающие проверки и показывает риски перед выпуском.",
       "stage": "testing",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Команда видит результаты в одном месте, но пропущенный тест так и останется пропущенным.",
       "effect": {
-        "quality": 7,
+        "quality": 2,
         "deliverySpeed": -1
       },
       "addProperties": ["automatedTests"],
@@ -291,14 +327,14 @@
     },
     "deployment.autonomous-after-tests": {
       "key": "B",
-      "title": "Автономный выпуск",
-      "description": "AI выкатывает изменение сразу после зелёных тестов.",
+      "title": "Выкатывать после зелёных тестов",
+      "description": "AI выпускает изменение автоматически, как только все проверки прошли.",
       "stage": "deployment",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Релиз не ждёт человека, но зелёные тесты не гарантируют, что учтён каждый риск.",
       "effect": {
-        "deliverySpeed": 11,
-        "controllability": -5
+        "deliverySpeed": 3,
+        "controllability": -2
       },
       "addProperties": [],
       "repeatable": false,
@@ -307,14 +343,14 @@
     },
     "support.incident-diagnostics": {
       "key": "B",
-      "title": "Диагностика поддержки",
-      "description": "AI собирает сигнал, контекст и шаги воспроизведения.",
+      "title": "Собрать картину инцидента",
+      "description": "AI связывает ошибки, логи, недавние изменения и шаги воспроизведения.",
       "stage": "support",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Факты собираются быстрее, но причину проблемы всё равно нужно подтвердить.",
       "effect": {
-        "controllability": 8,
-        "teamCapacity": 4
+        "controllability": 2,
+        "teamCapacity": 1
       },
       "addProperties": ["observability"],
       "repeatable": false,
@@ -323,14 +359,14 @@
     },
     "deployment.fix-with-rollback-plan": {
       "key": "C",
-      "title": "Безопасное восстановление",
-      "description": "AI готовит исправление и план отката, человек выпускает.",
+      "title": "Подготовить фикс и откат",
+      "description": "AI предлагает исправление и план возврата, человек выбирает безопасный вариант и выпускает.",
       "stage": "deployment",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "У команды есть два пути: исправить проблему или быстро вернуться на рабочую версию.",
       "effect": {
-        "deliverySpeed": 4,
-        "quality": 5
+        "deliverySpeed": 1,
+        "quality": 2
       },
       "addProperties": ["rollback"],
       "repeatable": false,
@@ -339,14 +375,14 @@
     },
     "businessRequest.incident-feedback": {
       "key": "A",
-      "title": "Обратная связь в постановку",
-      "description": "AI возвращает выводы инцидента в критерии следующей задачи.",
+      "title": "Учесть инцидент в следующей задаче",
+      "description": "AI переносит причину и контекст инцидента в критерии следующей задачи.",
       "stage": "businessRequest",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "После закрытия инцидента его причина не теряется и влияет на следующую версию.",
       "effect": {
-        "quality": 4,
-        "controllability": 6
+        "quality": 1,
+        "controllability": 2
       },
       "addProperties": ["currentContext"],
       "repeatable": true,
@@ -355,15 +391,15 @@
     },
     "support.autonomous-fix": {
       "key": "C",
-      "title": "Автономный фикс",
-      "description": "AI диагностирует, исправляет и выкатывает без остановки.",
+      "title": "Отдать исправление AI целиком",
+      "description": "AI сам находит причину, меняет код и выкатывает исправление.",
       "stage": "support",
       "evidence": "SCENARIO",
-      "shortFeedback": "Технический черновик: условия и риски уточним после прогона.",
+      "shortFeedback": "Самый быстрый и самый рискованный вариант: ошибка AI может дойти до прода без независимой проверки.",
       "effect": {
-        "deliverySpeed": 12,
-        "controllability": -8,
-        "quality": -5
+        "deliverySpeed": 3,
+        "controllability": -2,
+        "quality": -2
       },
       "addProperties": [],
       "repeatable": false,
@@ -373,22 +409,69 @@
   },
   "rounds": [
     {
-      "id": "round-1",
+      "id": "turn",
       "number": 1,
-      "title": "Первое ускорение",
-      "situation": "Выберите один этап, с которого команда начнёт встраивать AI.",
+      "title": "Какой этап меняем?",
+      "situation": "Выберите этап SDLC, который будем менять на этом ходу.",
       "eventRules": [
         {
-          "actionIds": ["coding.guided-implementation"],
+          "actionIds": ["coding.change-from-description"],
+          "missingResultingProperty": "currentContext",
           "event": {
-            "id": "event-1-code",
-            "title": "Поток изменений вырос",
-            "description": "Код появился быстрее, а ревью и тестирование стали следующим ограничением.",
+            "id": "event-stale-description",
+            "title": "Документация подвела",
+            "description": "AI изменил сервис по старому описанию. Часть работы придётся переделать.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": -8,
-              "controllability": -5,
-              "teamCapacity": -6
+              "deliverySpeed": -1,
+              "quality": -3,
+              "controllability": -2,
+              "teamCapacity": -1
+            },
+            "stageChanges": [
+              {
+                "stage": "technicalDiscovery",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["businessRequest.incident-feedback"],
+          "missingResultingProperty": "observability",
+          "event": {
+            "id": "event-incident-without-signals",
+            "title": "В задачу попали только симптомы",
+            "description": "Команда записала ошибки, но связать их с конкретным изменением не смогла.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": -2,
+              "teamCapacity": -1
+            },
+            "stageChanges": [
+              {
+                "stage": "support",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "missingResultingProperty": "automatedTests",
+          "event": {
+            "id": "event-code-outpaces-checks",
+            "title": "Проверки не успевают",
+            "description": "Кода стало больше, а ревью и автоматические проверки не приняли новый поток.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": -2,
+              "controllability": -2,
+              "teamCapacity": -2
             },
             "stageChanges": [
               {
@@ -403,219 +486,16 @@
           }
         },
         {
+          "actionIds": ["coding.parallel-agents"],
+          "missingResultingProperty": "humanReview",
           "event": {
-            "id": "event-1-default",
-            "title": "Появился новый разрыв",
-            "description": "Ускоренный этап упёрся в соседний ручной этап.",
+            "id": "event-parallel-work-without-review",
+            "title": "Никто не проверил изменение целиком",
+            "description": "Каждая часть выглядела готовой отдельно, но противоречие на стыке осталось незамеченным.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -3,
-              "controllability": -3
-            },
-            "stageChanges": []
-          }
-        }
-      ],
-      "stageChoices": [
-        {
-          "stage": "businessRequest",
-          "title": "Бизнес-заказ",
-          "description": "Изменить постановку задачи и связь с обратной связью.",
-          "actionIds": ["businessRequest.incident-feedback"]
-        },
-        {
-          "stage": "productDiscovery",
-          "title": "Продуктовая проработка",
-          "description": "Изменить уточнение требований и критериев результата.",
-          "actionIds": ["productDiscovery.requirement-draft"]
-        },
-        {
-          "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
-          "description": "Изменить исследование системы и план решения.",
-          "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract",
-            "technicalDiscovery.dependency-map"
-          ]
-        },
-        {
-          "stage": "coding",
-          "title": "Написание кода",
-          "description": "Изменить способ подготовки реализации.",
-          "actionIds": [
-            "coding.guided-implementation",
-            "coding.change-from-description",
-            "coding.parallel-agents"
-          ]
-        },
-        {
-          "stage": "review",
-          "title": "Ревью",
-          "description": "Изменить проверку решения перед слиянием.",
-          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"]
-        },
-        {
-          "stage": "testing",
-          "title": "Тестирование",
-          "description": "Изменить набор и способ выполнения проверок.",
-          "actionIds": [
-            "testing.ai-checks-with-qa",
-            "testing.behavior-checks",
-            "testing.regression-maintenance",
-            "testing.release-checks"
-          ]
-        },
-        {
-          "stage": "deployment",
-          "title": "Деплой",
-          "description": "Изменить выпуск и восстановление версии.",
-          "actionIds": [
-            "deployment.human-approved-plan",
-            "deployment.autonomous-after-tests",
-            "deployment.fix-with-rollback-plan"
-          ]
-        },
-        {
-          "stage": "support",
-          "title": "Поддержка",
-          "description": "Изменить диагностику и работу с сигналами из прода.",
-          "actionIds": [
-            "support.change-linked-signals",
-            "support.incident-diagnostics",
-            "support.autonomous-fix"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "round-2",
-      "number": 2,
-      "title": "Незнакомый сервис",
-      "situation": "Следующая задача пересекла границу команды. Какой участок укрепить?",
-      "eventRules": [
-        {
-          "missingProperty": "currentContext",
-          "event": {
-            "id": "event-2-risk",
-            "title": "Описание устарело",
-            "description": "Решение опиралось на непроверенный контекст.",
-            "evidence": "SCENARIO",
-            "effect": {
-              "quality": -11,
-              "controllability": -7,
-              "teamCapacity": -4
-            },
-            "stageChanges": [
-              {
-                "stage": "technicalDiscovery",
-                "state": "BROKEN"
-              }
-            ]
-          }
-        },
-        {
-          "event": {
-            "id": "event-2-safe",
-            "title": "Контракт удалось проверить",
-            "description": "Актуальный контекст сократил область неопределённости.",
-            "evidence": "SCENARIO",
-            "effect": {
-              "quality": 2,
-              "controllability": 2
-            },
-            "stageChanges": []
-          }
-        }
-      ],
-      "stageChoices": [
-        {
-          "stage": "businessRequest",
-          "title": "Бизнес-заказ",
-          "description": "Изменить постановку задачи и связь с обратной связью.",
-          "actionIds": ["businessRequest.incident-feedback"]
-        },
-        {
-          "stage": "productDiscovery",
-          "title": "Продуктовая проработка",
-          "description": "Изменить уточнение требований и критериев результата.",
-          "actionIds": ["productDiscovery.requirement-draft"]
-        },
-        {
-          "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
-          "description": "Изменить исследование системы и план решения.",
-          "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract",
-            "technicalDiscovery.dependency-map"
-          ]
-        },
-        {
-          "stage": "review",
-          "title": "Ревью",
-          "description": "Изменить проверку решения перед слиянием.",
-          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"]
-        },
-        {
-          "stage": "testing",
-          "title": "Тестирование",
-          "description": "Изменить набор и способ выполнения проверок.",
-          "actionIds": [
-            "testing.ai-checks-with-qa",
-            "testing.behavior-checks",
-            "testing.regression-maintenance",
-            "testing.release-checks"
-          ]
-        },
-        {
-          "stage": "coding",
-          "title": "Написание кода",
-          "description": "Изменить способ подготовки реализации.",
-          "actionIds": [
-            "coding.guided-implementation",
-            "coding.change-from-description",
-            "coding.parallel-agents"
-          ]
-        },
-        {
-          "stage": "deployment",
-          "title": "Деплой",
-          "description": "Изменить выпуск и восстановление версии.",
-          "actionIds": [
-            "deployment.human-approved-plan",
-            "deployment.autonomous-after-tests",
-            "deployment.fix-with-rollback-plan"
-          ]
-        },
-        {
-          "stage": "support",
-          "title": "Поддержка",
-          "description": "Изменить диагностику и работу с сигналами из прода.",
-          "actionIds": [
-            "support.change-linked-signals",
-            "support.incident-diagnostics",
-            "support.autonomous-fix"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "round-3",
-      "number": 3,
-      "title": "Проверки не успевают",
-      "situation": "Изменений стало больше. Куда направить следующий ход?",
-      "eventRules": [
-        {
-          "missingProperty": "automatedTests",
-          "event": {
-            "id": "event-3-overload",
-            "title": "Очередь проверок выросла",
-            "description": "Без автоматических тестов поток снова сошёлся к людям.",
-            "evidence": "SCENARIO",
-            "effect": {
-              "quality": -9,
-              "teamCapacity": -10
+              "quality": -2,
+              "controllability": -2
             },
             "stageChanges": [
               {
@@ -626,108 +506,59 @@
           }
         },
         {
+          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"],
+          "missingResultingProperty": "automatedTests",
           "event": {
-            "id": "event-3-covered",
-            "title": "Регрессия поймана автоматически",
-            "description": "Проверка остановила ошибку до ручного разбора.",
+            "id": "event-manual-review-queue",
+            "title": "Всё приходится проверять вручную",
+            "description": "Автоматических тестов нет, поэтому ревьюер разбирает изменение целиком.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 3,
-              "teamCapacity": 2
+              "deliverySpeed": -2,
+              "quality": -2
             },
             "stageChanges": []
           }
-        }
-      ],
-      "stageChoices": [
-        {
-          "stage": "businessRequest",
-          "title": "Бизнес-заказ",
-          "description": "Изменить постановку задачи и связь с обратной связью.",
-          "actionIds": ["businessRequest.incident-feedback"]
         },
         {
-          "stage": "productDiscovery",
-          "title": "Продуктовая проработка",
-          "description": "Изменить уточнение требований и критериев результата.",
-          "actionIds": ["productDiscovery.requirement-draft"]
-        },
-        {
-          "stage": "review",
-          "title": "Ревью",
-          "description": "Изменить проверку решения перед слиянием.",
-          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"]
-        },
-        {
-          "stage": "testing",
-          "title": "Тестирование",
-          "description": "Изменить набор и способ выполнения проверок.",
           "actionIds": [
             "testing.ai-checks-with-qa",
             "testing.behavior-checks",
             "testing.regression-maintenance",
             "testing.release-checks"
-          ]
-        },
-        {
-          "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
-          "description": "Изменить исследование системы и план решения.",
-          "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract",
-            "technicalDiscovery.dependency-map"
-          ]
-        },
-        {
-          "stage": "coding",
-          "title": "Написание кода",
-          "description": "Изменить способ подготовки реализации.",
-          "actionIds": [
-            "coding.guided-implementation",
-            "coding.change-from-description",
-            "coding.parallel-agents"
-          ]
-        },
-        {
-          "stage": "deployment",
-          "title": "Деплой",
-          "description": "Изменить выпуск и восстановление версии.",
-          "actionIds": [
-            "deployment.human-approved-plan",
-            "deployment.autonomous-after-tests",
-            "deployment.fix-with-rollback-plan"
-          ]
-        },
-        {
-          "stage": "support",
-          "title": "Поддержка",
-          "description": "Изменить диагностику и работу с сигналами из прода.",
-          "actionIds": [
-            "support.change-linked-signals",
-            "support.incident-diagnostics",
-            "support.autonomous-fix"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "round-4",
-      "number": 4,
-      "title": "Рискованный релиз",
-      "situation": "Изменение готово к проду. Как встроить безопасность в следующий этап?",
-      "eventRules": [
-        {
-          "missingProperty": "rollback",
+          ],
+          "missingResultingProperty": "currentContext",
           "event": {
-            "id": "event-4-no-rollback",
-            "title": "После релиза выросли ошибки",
-            "description": "Без готового отката восстановление заняло больше внимания.",
+            "id": "event-tests-use-old-context",
+            "title": "Команда спорит с тестом",
+            "description": "AI добавил проверки, но продукт и разработка по-разному понимают, что должно работать.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": -10,
-              "controllability": -10,
-              "teamCapacity": -7
+              "quality": -2,
+              "controllability": -2,
+              "teamCapacity": -1
+            },
+            "stageChanges": [
+              {
+                "stage": "testing",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["deployment.autonomous-after-tests"],
+          "missingResultingProperty": "rollback",
+          "event": {
+            "id": "event-no-rollback",
+            "title": "Откат не был готов",
+            "description": "После релиза пошли ошибки, а быстро вернуть рабочую версию не получилось.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": -2,
+              "quality": -3,
+              "controllability": -3,
+              "teamCapacity": -2
             },
             "stageChanges": [
               {
@@ -738,108 +569,18 @@
           }
         },
         {
+          "actionIds": ["support.autonomous-fix"],
+          "missingResultingProperty": "observability",
           "event": {
-            "id": "event-4-rollback",
-            "title": "Откат сработал",
-            "description": "Команда быстро вернула стабильную версию.",
+            "id": "event-no-observability",
+            "title": "Непонятно, что сломал релиз",
+            "description": "Ошибки видны, но связать их с конкретным изменением не получается.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": 4,
-              "teamCapacity": 2
-            },
-            "stageChanges": []
-          }
-        }
-      ],
-      "stageChoices": [
-        {
-          "stage": "businessRequest",
-          "title": "Бизнес-заказ",
-          "description": "Изменить постановку задачи и связь с обратной связью.",
-          "actionIds": ["businessRequest.incident-feedback"]
-        },
-        {
-          "stage": "productDiscovery",
-          "title": "Продуктовая проработка",
-          "description": "Изменить уточнение требований и критериев результата.",
-          "actionIds": ["productDiscovery.requirement-draft"]
-        },
-        {
-          "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
-          "description": "Изменить исследование системы и план решения.",
-          "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract",
-            "technicalDiscovery.dependency-map"
-          ]
-        },
-        {
-          "stage": "coding",
-          "title": "Написание кода",
-          "description": "Изменить способ подготовки реализации.",
-          "actionIds": [
-            "coding.guided-implementation",
-            "coding.change-from-description",
-            "coding.parallel-agents"
-          ]
-        },
-        {
-          "stage": "review",
-          "title": "Ревью",
-          "description": "Изменить проверку решения перед слиянием.",
-          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"]
-        },
-        {
-          "stage": "deployment",
-          "title": "Деплой",
-          "description": "Изменить выпуск и восстановление версии.",
-          "actionIds": [
-            "deployment.human-approved-plan",
-            "deployment.autonomous-after-tests",
-            "deployment.fix-with-rollback-plan"
-          ]
-        },
-        {
-          "stage": "support",
-          "title": "Поддержка",
-          "description": "Изменить диагностику и работу с сигналами из прода.",
-          "actionIds": [
-            "support.change-linked-signals",
-            "support.incident-diagnostics",
-            "support.autonomous-fix"
-          ]
-        },
-        {
-          "stage": "testing",
-          "title": "Тестирование",
-          "description": "Изменить набор и способ выполнения проверок.",
-          "actionIds": [
-            "testing.ai-checks-with-qa",
-            "testing.behavior-checks",
-            "testing.regression-maintenance",
-            "testing.release-checks"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "round-5",
-      "number": 5,
-      "title": "Замыкаем цикл",
-      "situation": "Последний ход должен связать разработку с обратной связью из прода.",
-      "eventRules": [
-        {
-          "missingProperty": "observability",
-          "event": {
-            "id": "event-5-blind",
-            "title": "Сигнала недостаточно",
-            "description": "Без наблюдаемости нельзя надёжно проверить гипотезу.",
-            "evidence": "SCENARIO",
-            "effect": {
-              "quality": -8,
-              "controllability": -12,
-              "teamCapacity": -6
+              "deliverySpeed": -2,
+              "quality": -2,
+              "controllability": -3,
+              "teamCapacity": -2
             },
             "stageChanges": [
               {
@@ -850,15 +591,190 @@
           }
         },
         {
+          "actionIds": ["businessRequest.incident-feedback"],
           "event": {
-            "id": "event-5-loop",
-            "title": "Контекст инцидента сохранён",
-            "description": "Сигнал вернулся в проверки и следующий цикл работы.",
+            "id": "event-incident-added-to-request",
+            "title": "Причину инцидента добавили в задачу",
+            "description": "Команда связала проблему с изменением и добавила нужную проверку в критерии следующей задачи.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 4,
-              "controllability": 5
+              "quality": 1,
+              "controllability": 1
             },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["productDiscovery.requirement-draft"],
+          "event": {
+            "id": "event-requirement-agreed",
+            "title": "Черновик задачи согласовали",
+            "description": "Продакт проверил цель и критерии до передачи задачи в разработку.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "controllability": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": [
+            "technicalDiscovery.code-research",
+            "technicalDiscovery.sync-docs-and-contract",
+            "technicalDiscovery.dependency-map"
+          ],
+          "event": {
+            "id": "event-plan-checked-against-code",
+            "title": "План сверили с кодом",
+            "description": "Инженер проверил найденные связи и убрал из плана неподтверждённые предположения.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "controllability": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "event": {
+            "id": "event-code-ready",
+            "title": "Код передали на проверку",
+            "description": "Изменение готово; дальше его должны проверить ревью и тесты.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": 1,
+              "quality": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"],
+          "event": {
+            "id": "event-risk-found-in-review",
+            "title": "Риск нашли до слияния",
+            "description": "Ревьюер проверил рискованное место до того, как изменение попало в основную ветку.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "controllability": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": [
+            "testing.ai-checks-with-qa",
+            "testing.behavior-checks",
+            "testing.regression-maintenance",
+            "testing.release-checks"
+          ],
+          "event": {
+            "id": "event-test-found-error",
+            "title": "Проверки дали ответ",
+            "description": "Команда увидела результат автоматических проверок до решения о выпуске.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "teamCapacity": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["deployment.human-approved-plan"],
+          "event": {
+            "id": "event-release-plan-checked",
+            "title": "План релиза проверили",
+            "description": "Перед запуском команда сверила шаги выпуска и готовый откат.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": 1,
+              "teamCapacity": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["deployment.autonomous-after-tests"],
+          "event": {
+            "id": "event-auto-release-completed",
+            "title": "Автовыпуск отработал",
+            "description": "Настроенные проверки прошли, и изменение вышло без ручной паузы.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": 1,
+              "teamCapacity": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["deployment.fix-with-rollback-plan"],
+          "event": {
+            "id": "event-rollback-ready",
+            "title": "Быстро вернули рабочую версию",
+            "description": "Готовый откат сработал: команда вернула рабочую версию.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": 1,
+              "teamCapacity": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["support.change-linked-signals"],
+          "event": {
+            "id": "event-release-linked-to-errors",
+            "title": "Ошибку связали с релизом",
+            "description": "Команда увидела, после какого изменения начались ошибки.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "controllability": 2
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["support.incident-diagnostics"],
+          "event": {
+            "id": "event-incident-diagnosed",
+            "title": "Причину инцидента нашли",
+            "description": "Логи, ошибки и недавние изменения указали на источник сбоя.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1,
+              "controllability": 2
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["support.autonomous-fix"],
+          "event": {
+            "id": "event-autonomous-fix-unreviewed",
+            "title": "Сервис восстановился, но код никто не проверил",
+            "description": "Симптом исчез, однако независимой проверки изменения не было.",
+            "evidence": "SCENARIO",
+            "effect": {},
+            "stageChanges": []
+          }
+        },
+        {
+          "event": {
+            "id": "event-fallback",
+            "title": "Без дополнительных последствий",
+            "description": "Сработал только эффект выбранного варианта.",
+            "evidence": "SCENARIO",
+            "effect": {},
             "stageChanges": []
           }
         }
@@ -867,19 +783,29 @@
         {
           "stage": "businessRequest",
           "title": "Бизнес-заказ",
-          "description": "Изменить постановку задачи и связь с обратной связью.",
+          "description": "Учесть сигналы из прода в следующей задаче.",
           "actionIds": ["businessRequest.incident-feedback"]
         },
         {
           "stage": "productDiscovery",
           "title": "Продуктовая проработка",
-          "description": "Изменить уточнение требований и критериев результата.",
+          "description": "Быстрее уточнить задачу и договориться, что считать готовым результатом.",
           "actionIds": ["productDiscovery.requirement-draft"]
+        },
+        {
+          "stage": "technicalDiscovery",
+          "title": "Техническая проработка",
+          "description": "Разобраться в системе и проверить план до начала разработки.",
+          "actionIds": [
+            "technicalDiscovery.code-research",
+            "technicalDiscovery.sync-docs-and-contract",
+            "technicalDiscovery.dependency-map"
+          ]
         },
         {
           "stage": "coding",
           "title": "Написание кода",
-          "description": "Изменить способ подготовки реализации.",
+          "description": "Поручить AI часть написания кода.",
           "actionIds": [
             "coding.guided-implementation",
             "coding.change-from-description",
@@ -889,33 +815,13 @@
         {
           "stage": "review",
           "title": "Ревью",
-          "description": "Изменить проверку решения перед слиянием.",
+          "description": "Помочь ревьюеру быстрее увидеть контекст и риски изменения.",
           "actionIds": ["review.context-and-human-risk", "review.risk-based-evidence"]
-        },
-        {
-          "stage": "support",
-          "title": "Поддержка",
-          "description": "Изменить диагностику и работу с сигналами из прода.",
-          "actionIds": [
-            "support.change-linked-signals",
-            "support.incident-diagnostics",
-            "support.autonomous-fix"
-          ]
-        },
-        {
-          "stage": "deployment",
-          "title": "Деплой",
-          "description": "Изменить выпуск и восстановление версии.",
-          "actionIds": [
-            "deployment.human-approved-plan",
-            "deployment.autonomous-after-tests",
-            "deployment.fix-with-rollback-plan"
-          ]
         },
         {
           "stage": "testing",
           "title": "Тестирование",
-          "description": "Изменить набор и способ выполнения проверок.",
+          "description": "Добавить проверки, которые успевают за потоком изменений.",
           "actionIds": [
             "testing.ai-checks-with-qa",
             "testing.behavior-checks",
@@ -924,13 +830,23 @@
           ]
         },
         {
-          "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
-          "description": "Изменить исследование системы и план решения.",
+          "stage": "deployment",
+          "title": "Деплой",
+          "description": "Ускорить релиз и заранее подготовиться к откату.",
           "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract",
-            "technicalDiscovery.dependency-map"
+            "deployment.human-approved-plan",
+            "deployment.autonomous-after-tests",
+            "deployment.fix-with-rollback-plan"
+          ]
+        },
+        {
+          "stage": "support",
+          "title": "Поддержка",
+          "description": "Быстрее понять, что сломалось и какое изменение к этому привело.",
+          "actionIds": [
+            "support.change-linked-signals",
+            "support.incident-diagnostics",
+            "support.autonomous-fix"
           ]
         }
       ]

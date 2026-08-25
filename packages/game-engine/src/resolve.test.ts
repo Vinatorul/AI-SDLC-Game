@@ -6,6 +6,7 @@ import {
   evaluateOutcome,
   getAvailableActions,
   getAvailableStageChoices,
+  getStageAction,
   resolveRound,
 } from './resolve';
 import { defaultScenario } from './scenario';
@@ -18,31 +19,34 @@ import type {
 } from './types';
 
 const mechanics: ScenarioMechanics = {
-  initialMetrics: { controllability: 60, deliverySpeed: 60, quality: 60, teamCapacity: 60 },
-  metricBounds: { maximum: 100, minimum: 0 },
+  initialMetrics: { controllability: 0, deliverySpeed: 0, quality: 0, teamCapacity: 0 },
+  metricBounds: { maximum: 10, minimum: -10 },
+  metricDefinitions: defaultScenario.mechanics.metricDefinitions,
+  metricScaleDescription: 'Тестовая шкала',
   propertyEffects: {
     automatedTests: {},
     currentContext: {},
-    humanReview: { quality: 2 },
+    humanReview: { quality: 1 },
     observability: {},
     rollback: {},
   },
 };
 
 const rules: GameRules = {
-  criticalThreshold: 15,
-  dangerThreshold: 30,
+  criticalThreshold: -8,
+  dangerThreshold: -5,
   minAiStagesToWin: 3,
   notableVoteShare: 0.15,
   requireNoBrokenStages: false,
   roundLimit: 5,
+  roundMode: 'FINITE',
 };
 
 const action: EngineAction = {
   addProperties: ['humanReview'],
   availableInStates: ['AS_IS', 'AI_ENABLED', 'BROKEN'],
   description: 'Описание решения',
-  effect: { deliverySpeed: 12 },
+  effect: { deliverySpeed: 3 },
   evidence: 'SCENARIO',
   id: 'action-a',
   key: 'A',
@@ -59,7 +63,7 @@ const round: ScenarioRound = {
       actionIds: ['action-a'],
       event: {
         description: 'Описание события',
-        effect: { quality: -8 },
+        effect: { quality: -2 },
         evidence: 'SCENARIO',
         id: 'event-selected',
         stageChanges: [{ stage: 'review', state: 'BROKEN' }],
@@ -98,7 +102,7 @@ function createSnapshot(): EngineSnapshot {
 describe('resolveRound', () => {
   it('складывает эффекты, меняет карту и сохраняет действие', () => {
     const plan = resolveRound(createSnapshot(), round, action, mechanics);
-    expect(plan.metrics).toMatchObject({ deliverySpeed: 72, quality: 54 });
+    expect(plan.metrics).toMatchObject({ deliverySpeed: 3, quality: -1 });
     expect(plan.stages.coding).toBe('AI_ENABLED');
     expect(plan.stages.review).toBe('BROKEN');
     expect(plan.appliedActions).toEqual([
@@ -109,11 +113,11 @@ describe('resolveRound', () => {
   it('берёт границы и эффекты свойств из сценария', () => {
     const configured = {
       ...mechanics,
-      metricBounds: { maximum: 65, minimum: 10 },
-      propertyEffects: { ...mechanics.propertyEffects, humanReview: { quality: 20 } },
+      metricBounds: { maximum: 2, minimum: -2 },
+      propertyEffects: { ...mechanics.propertyEffects, humanReview: { quality: 5 } },
     };
     const plan = resolveRound(createSnapshot(), round, action, configured);
-    expect(plan.metrics).toMatchObject({ deliverySpeed: 65, quality: 65 });
+    expect(plan.metrics).toMatchObject({ deliverySpeed: 2, quality: 2 });
   });
 
   it('проверяет условия события по состоянию до нового действия', () => {
@@ -123,6 +127,15 @@ describe('resolveRound', () => {
     firstRule.hasProperty = 'humanReview';
     const plan = resolveRound(createSnapshot(), conditional, action, mechanics);
     expect(plan.event.id).toBe('event-fallback');
+  });
+
+  it('может учитывать свойство, которое добавляет текущее действие', () => {
+    const conditional = structuredClone(round);
+    const firstRule = conditional.eventRules[0];
+    if (!firstRule) throw new Error('Нет тестового правила');
+    firstRule.hasResultingProperty = 'humanReview';
+    const plan = resolveRound(createSnapshot(), conditional, action, mechanics);
+    expect(plan.event.id).toBe('event-selected');
   });
 
   it('учитывает историю, состояния и число ходов по этапу', () => {
@@ -136,6 +149,25 @@ describe('resolveRound', () => {
     const snapshot = createSnapshot();
     snapshot.appliedActions = [{ actionId: 'test-baseline', roundNumber: 1, stage: 'testing' }];
     expect(resolveRound(snapshot, conditional, action, mechanics).event.id).toBe('event-selected');
+  });
+
+  it('позволяет TTM дойти до критического порога на рискованной ветке', () => {
+    let snapshot = createScenarioSnapshot();
+    const actionIds = [
+      'review.risk-based-evidence',
+      'review.context-and-human-risk',
+      'review.context-and-human-risk',
+      'review.context-and-human-risk',
+    ];
+    for (const [index, actionId] of actionIds.entries()) {
+      const template = defaultScenario.rounds[0] as ScenarioRound;
+      const current = { ...template, number: index + 1 };
+      const action = getStageAction(defaultScenario.stageActions, actionId);
+      snapshot = snapshotFromPlan(
+        resolveRound(snapshot, current, action, defaultScenario.mechanics),
+      );
+    }
+    expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
   });
 });
 
@@ -196,10 +228,10 @@ function exhaustedScenarioSnapshot(
 }
 
 describe('evaluateOutcome', () => {
-  it('считает 15 критическим, а 16 рабочим значением', () => {
+  it('считает −8 критическим, а −7 рабочим значением', () => {
     const stages = createInitialStages();
-    const critical = { ...createInitialMetrics(mechanics), quality: 15 };
-    const safe = { ...createInitialMetrics(mechanics), quality: 16 };
+    const critical = { ...createInitialMetrics(mechanics), quality: -8 };
+    const safe = { ...createInitialMetrics(mechanics), quality: -7 };
     expect(evaluateOutcome(critical, stages, 1, rules).reason).toBe('CRITICAL_METRIC');
     expect(evaluateOutcome(safe, stages, 1, rules).phase).toBe('FEEDBACK');
   });
@@ -214,4 +246,74 @@ describe('evaluateOutcome', () => {
       reason: null,
     });
   });
+
+  it('считает старые правила без roundMode конечными', () => {
+    const stages = createInitialStages();
+    stages.coding = 'AI_ENABLED';
+    stages.review = 'AI_ENABLED';
+    stages.testing = 'AI_ENABLED';
+    expect(
+      evaluateOutcome(createInitialMetrics(mechanics), stages, 5, {
+        ...rules,
+        roundMode: undefined,
+      }).phase,
+    ).toBe('WON');
+  });
+
+  it('в циклической игре ждёт, пока позеленеют все восемь этапов', () => {
+    const stages = createInitialStages();
+    for (const stage of stageKeys.slice(0, -1)) stages[stage] = 'AI_ENABLED';
+    const cyclic = { ...rules, minAiStagesToWin: 8, roundMode: 'CYCLIC' as const };
+    expect(evaluateOutcome(createInitialMetrics(mechanics), stages, 20, cyclic).phase).toBe(
+      'FEEDBACK',
+    );
+    stages.support = 'AI_ENABLED';
+    expect(evaluateOutcome(createInitialMetrics(mechanics), stages, 21, cyclic).phase).toBe('WON');
+  });
+
+  it('считает критический показатель поражением, даже если все этапы зелёные', () => {
+    const stages = createInitialStages();
+    for (const stage of stageKeys) stages[stage] = 'AI_ENABLED';
+    const cyclic = { ...rules, minAiStagesToWin: 8, roundMode: 'CYCLIC' as const };
+    const metrics = { ...createInitialMetrics(mechanics), quality: rules.criticalThreshold };
+    expect(evaluateOutcome(metrics, stages, 8, cyclic)).toEqual({
+      phase: 'BROKEN',
+      reason: 'CRITICAL_METRIC',
+    });
+  });
+
+  it('позволяет позеленить все восемь этапов за восемь ходов', () => {
+    const actionIds = [
+      'businessRequest.incident-feedback',
+      'testing.ai-checks-with-qa',
+      'productDiscovery.requirement-draft',
+      'technicalDiscovery.code-research',
+      'coding.guided-implementation',
+      'review.context-and-human-risk',
+      'deployment.human-approved-plan',
+      'support.change-linked-signals',
+    ];
+    let snapshot = createScenarioSnapshot();
+    actionIds.forEach((actionId, index) => {
+      const template = defaultScenario.rounds[index % defaultScenario.rounds.length];
+      const scenarioRound = { ...template, number: index + 1 } as ScenarioRound;
+      const action = getStageAction(defaultScenario.stageActions, actionId);
+      snapshot = snapshotFromPlan(
+        resolveRound(snapshot, scenarioRound, action, defaultScenario.mechanics),
+      );
+    });
+    expect(Object.values(snapshot.stages)).toEqual(stageKeys.map(() => 'AI_ENABLED'));
+    expect(evaluateOutcome(snapshot.metrics, snapshot.stages, 8, defaultScenario.rules).phase).toBe(
+      'WON',
+    );
+  });
 });
+
+function snapshotFromPlan(plan: ReturnType<typeof resolveRound>): EngineSnapshot {
+  return {
+    appliedActions: plan.appliedActions,
+    metrics: plan.metrics,
+    properties: plan.properties,
+    stages: plan.stages,
+  };
+}

@@ -13,15 +13,15 @@ import type {
   EngineAction,
   EngineSnapshot,
   EventRule,
+  GameMechanics,
   OutcomeEvaluation,
   ResolutionPlan,
-  ScenarioMechanics,
   ScenarioRound,
   ScenarioStageChoice,
   StageActionCatalog,
 } from './types';
 
-export function createInitialMetrics(mechanics: ScenarioMechanics): MetricValues {
+export function createInitialMetrics(mechanics: GameMechanics): MetricValues {
   return { ...mechanics.initialMetrics };
 }
 
@@ -33,9 +33,9 @@ export function resolveRound(
   snapshot: EngineSnapshot,
   round: ScenarioRound,
   action: EngineAction,
-  mechanics: ScenarioMechanics,
+  mechanics: GameMechanics,
 ): ResolutionPlan {
-  const event = selectEvent(round.eventRules, action.id, snapshot);
+  const event = selectEvent(round.eventRules, action, snapshot);
   const properties = mergeProperties(snapshot.properties, action.addProperties);
   const propertyDelta = collectPropertyEffects(properties, mechanics);
   const breakdown = createBreakdown(action.effect, event.effect, propertyDelta);
@@ -83,8 +83,11 @@ export function evaluateOutcome(
   if (metricKeys.some((key) => metrics[key] <= rules.criticalThreshold)) {
     return { phase: 'BROKEN', reason: 'CRITICAL_METRIC' };
   }
-  if (completedRounds < rules.roundLimit) return { phase: 'FEEDBACK', reason: null };
   const aiStages = stageKeys.filter((key) => stages[key] === 'AI_ENABLED').length;
+  if (rules.roundMode === 'CYCLIC') {
+    return cyclicOutcome(stages, aiStages, rules);
+  }
+  if (completedRounds < rules.roundLimit) return { phase: 'FEEDBACK', reason: null };
   if (aiStages < rules.minAiStagesToWin) return { phase: 'BROKEN', reason: 'AI_NOT_EMBEDDED' };
   const hasBrokenStage = stageKeys.some((key) => stages[key] === 'BROKEN');
   if (rules.requireNoBrokenStages && hasBrokenStage) {
@@ -93,17 +96,35 @@ export function evaluateOutcome(
   return { phase: 'WON', reason: null };
 }
 
-function selectEvent(rules: EventRule[], actionId: string, snapshot: EngineSnapshot) {
-  const matched = rules.find((rule) => eventRuleMatches(rule, actionId, snapshot));
+function cyclicOutcome(
+  stages: EngineSnapshot['stages'],
+  aiStages: number,
+  rules: GameRules,
+): OutcomeEvaluation {
+  if (aiStages < rules.minAiStagesToWin) return { phase: 'FEEDBACK', reason: null };
+  const hasBrokenStage = stageKeys.some((key) => stages[key] === 'BROKEN');
+  if (rules.requireNoBrokenStages && hasBrokenStage) {
+    return { phase: 'FEEDBACK', reason: null };
+  }
+  return { phase: 'WON', reason: null };
+}
+
+function selectEvent(rules: EventRule[], action: EngineAction, snapshot: EngineSnapshot) {
+  const matched = rules.find((rule) => eventRuleMatches(rule, action, snapshot));
   const fallback = rules.at(-1);
   if (!matched && !fallback) throw new Error('У раунда нет события');
   return (matched ?? fallback)?.event as NonNullable<typeof fallback>['event'];
 }
 
-function eventRuleMatches(rule: EventRule, actionId: string, snapshot: EngineSnapshot) {
-  if (rule.actionIds && !rule.actionIds.includes(actionId)) return false;
+function eventRuleMatches(rule: EventRule, action: EngineAction, snapshot: EngineSnapshot) {
+  if (rule.actionIds && !rule.actionIds.includes(action.id)) return false;
   if (rule.hasProperty && !snapshot.properties.includes(rule.hasProperty)) return false;
   if (rule.missingProperty && snapshot.properties.includes(rule.missingProperty)) return false;
+  const resulting = mergeProperties(snapshot.properties, action.addProperties);
+  if (rule.hasResultingProperty && !resulting.includes(rule.hasResultingProperty)) return false;
+  if (rule.missingResultingProperty && resulting.includes(rule.missingResultingProperty)) {
+    return false;
+  }
   if (!matchesActionHistory(rule, snapshot)) return false;
   if (!matchesStageStates(rule, snapshot)) return false;
   if (!countInRange(snapshot.appliedActions.length, rule.appliedActionCount)) return false;
@@ -153,7 +174,7 @@ function mergeProperties(current: ProcessProperty[], added: ProcessProperty[]) {
 
 function collectPropertyEffects(
   properties: EngineSnapshot['properties'],
-  mechanics: ScenarioMechanics,
+  mechanics: GameMechanics,
 ): MetricDelta {
   return sumDeltas(properties.map((property) => mechanics.propertyEffects[property]));
 }
@@ -171,14 +192,14 @@ function sumDeltas(deltas: MetricDelta[]): MetricDelta {
 function applyMetricDelta(
   metrics: MetricValues,
   delta: MetricDelta,
-  mechanics: ScenarioMechanics,
+  mechanics: GameMechanics,
 ): MetricValues {
   return Object.fromEntries(
     metricKeys.map((key) => [key, clamp(metrics[key] + (delta[key] ?? 0), mechanics)]),
   ) as MetricValues;
 }
 
-function clamp(value: number, mechanics: ScenarioMechanics) {
+function clamp(value: number, mechanics: GameMechanics) {
   return Math.max(mechanics.metricBounds.minimum, Math.min(mechanics.metricBounds.maximum, value));
 }
 

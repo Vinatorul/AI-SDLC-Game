@@ -1,18 +1,10 @@
 import type {
   GamePhase,
-  MetricKey,
   OutcomeReason,
   ProcessProperty,
   StageKey,
   StageState,
 } from '@ai-sdlc/contracts';
-
-export const metricLabels: Record<MetricKey, string> = {
-  controllability: 'Управляемость',
-  deliverySpeed: 'Скорость поставки',
-  quality: 'Качество',
-  teamCapacity: 'Ресурс команды',
-};
 
 export const stageLabels: Record<StageKey, string> = {
   businessRequest: 'Бизнес-заказ',

@@ -218,6 +218,13 @@ h1 {
   margin: 24px 0 38px;
 }
 
+.metric-legend {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #747981;
+  font-size: 12px;
+}
+
 .metric-card {
   padding: 18px;
   border: 1px solid #dfe2e7;
@@ -237,22 +244,74 @@ h1 {
   font-weight: 800;
 }
 
+.metric-label .metric-delta-negative {
+  color: #b34040;
+}
+
 .metric-card > strong {
   display: block;
-  margin: 20px 0 12px;
+  margin: 16px 0 6px;
   font-size: 38px;
 }
 
+.metric-description {
+  min-height: 34px;
+  margin: 0 0 14px;
+  color: #747981;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .metric-track {
+  position: relative;
   height: 5px;
   background: #e7e9ed;
 }
 
 .metric-track i {
-  display: block;
+  position: absolute;
+  top: 0;
   height: 100%;
   background: #3d82f6;
-  transition: width 240ms ease;
+  transition:
+    left 240ms ease,
+    width 240ms ease;
+}
+
+.metric-track b {
+  position: absolute;
+  top: -2px;
+  width: 1px;
+  height: 9px;
+  background: #979ca4;
+  transform: translateX(-0.5px);
+}
+
+.metric-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  color: #979ca4;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-scale span {
+  max-width: 48%;
+}
+
+.metric-scale span:last-child {
+  text-align: right;
+}
+
+.metric-scale b {
+  display: block;
+  color: #747981;
+  font-size: 11px;
+}
+
+.metric-negative .metric-track i {
+  background: #b45b5b;
 }
 
 .metric-danger {
@@ -844,6 +903,12 @@ button.stage-card:not(:disabled):focus-visible,
 .screen-stage-ballot .metric-card > strong {
   margin: 10px 0 8px;
   font-size: 30px;
+}
+
+.screen-stage-ballot .metric-description,
+.screen-stage-ballot .metric-legend,
+.screen-stage-ballot .metric-scale {
+  display: none;
 }
 
 .screen-stage-ballot .screen-qr {

@@ -19,12 +19,16 @@ export function GameHeader({ connected, state, title }: GameHeaderProps) {
           {connected ? 'В сети' : 'Переподключение'}
         </span>
         <strong>{state.code}</strong>
-        <span>
-          Раунд {Math.min(state.roundIndex + 1, state.rules.roundLimit)}/{state.rules.roundLimit}
-        </span>
+        <span>{roundLabel(state)}</span>
       </div>
     </header>
   );
+}
+
+function roundLabel(state: GameState) {
+  const current = state.roundIndex + 1;
+  if (state.rules.roundMode === 'CYCLIC') return `Ход ${current}`;
+  return `Раунд ${Math.min(current, state.rules.roundLimit)}/${state.rules.roundLimit}`;
 }
 
 function stateTitle(state: GameState) {

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { DecisionModel, GamePhase, OutcomeReason } from '@ai-sdlc/contracts';
-import type { EngineOption, EventRule, ResolutionPlan, Scenario } from '@ai-sdlc/game-engine';
+import type {
+  EngineOption,
+  EventRule,
+  ResolutionPlan,
+  Scenario,
+  ScenarioStageChoice,
+} from '@ai-sdlc/game-engine';
 import type { GameDatabase } from './database';
 import { insertActionCatalog, insertRoundDecision } from './decision-store';
 
@@ -138,6 +144,26 @@ export function findGameById(database: GameDatabase, id: string) {
 export function findRound(database: GameDatabase, gameId: string, roundIndex: number) {
   const sql = 'SELECT * FROM game_rounds WHERE game_id = ? AND round_number = ?';
   return database.prepare(sql).get(gameId, roundIndex + 1) as RoundRow | undefined;
+}
+
+export function insertRoundCopy(
+  database: GameDatabase,
+  gameId: string,
+  source: RoundRow,
+  roundNumber: number,
+  stageChoices: ScenarioStageChoice[],
+) {
+  const round = {
+    eventRules: parseEventRules(source),
+    id: `round-${roundNumber}-${randomUUID()}`,
+    number: roundNumber,
+    situation: source.situation,
+    stageChoices,
+    title: source.title,
+  };
+  const roundId = `${gameId}:${round.id}`;
+  insertRound(database, gameId, roundId, round);
+  insertRoundDecision(database, roundId, stageChoices);
 }
 
 export function listOptions(database: GameDatabase, roundId: string) {
