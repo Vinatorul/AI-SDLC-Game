@@ -34,7 +34,7 @@ function ActiveScreen({
         <GameHeader connected={connected} state={state} title="Экран зала" />
         <div className="screen-topline">
           <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
-          <JoinQr code={code} />
+          {state.phase !== 'WON' && state.phase !== 'BROKEN' && <JoinQr code={code} />}
         </div>
         <GameFocus state={state} />
         {!stageBallot && <StageMap state={state} />}

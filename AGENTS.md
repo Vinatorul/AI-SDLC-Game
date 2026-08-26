@@ -97,6 +97,15 @@ the history of previously applied actions. Keep the last rule unconditional. Mar
 only when it has a verified basis; mark simulations and hypotheses as SCENARIO. Give every action
 useful individual shortFeedback before treating the content as final.
 
+The bundled scenario treats process properties as guards against specific bad events, not as
+recurring score income: its propertyEffects are deliberately empty. Keep ordinary successful event
+rewards to at most one positive point in total unless a playtest justifies a stronger conditional
+result.
+
+Every action title must make the AI role clear. When a person remains in the loop, state their
+decision or check in the same title; when an action is autonomous, make the missing human boundary
+equally explicit. The final stage map reuses these titles to explain the resulting division of work.
+
 After a content change:
 
 1. Keep rules.roundLimit equal to the number of round templates. Set rules.roundMode to FINITE for

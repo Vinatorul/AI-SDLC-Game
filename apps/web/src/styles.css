@@ -704,6 +704,7 @@ h1 {
 }
 
 .final-won {
+  min-height: 0;
   background: #ebf7f0;
 }
 
@@ -968,6 +969,21 @@ button.stage-card:not(:disabled):focus-visible,
 
 .stage-actions small {
   line-height: 1.25;
+}
+
+.victory-map {
+  margin-top: 32px;
+}
+
+.victory-map .stage-card {
+  min-height: 150px;
+  border: 1px solid #c9dfd2;
+  background: #f2faf5;
+}
+
+.victory-map .stage-actions b {
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .stage-votes {

@@ -64,7 +64,7 @@ function FinalState({ state }: { state: GameState }) {
   return (
     <section className={won ? 'final-state final-won' : 'final-state final-broken'}>
       <p className="eyebrow">Финал</p>
-      <h2>{won ? 'SDLC выдержал перестройку' : 'Процесс не выдержал'}</h2>
+      <h2>{won ? 'AI встроен во весь SDLC' : 'Процесс не выдержал'}</h2>
       <p>{state.outcomeReason ? outcomeLabels[state.outcomeReason] : victoryText(state)}</p>
     </section>
   );
@@ -72,7 +72,7 @@ function FinalState({ state }: { state: GameState }) {
 
 function victoryText(state: GameState) {
   if (state.rules.minAiStagesToWin === 8) {
-    return 'AI встроен во все восемь этапов, критических показателей нет.';
+    return 'Все восемь этапов работают с AI, а процесс не развалился. Ниже — новая граница ответственности.';
   }
   const count = state.rules.minAiStagesToWin;
   return `AI встроен минимум в ${count} ${stageWord(count)}, критических показателей нет.`;

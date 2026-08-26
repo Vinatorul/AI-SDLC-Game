@@ -261,7 +261,7 @@ describe('восстановление SQLite', () => {
       game,
       player,
       'businessRequest',
-      'businessRequest.incident-feedback',
+      'businessRequest.expected-outcome',
       0,
     );
     const secondState = await command(first, game, 'OPEN_VOTING', 6);
@@ -302,7 +302,7 @@ it('сохраняет порядок старой комнаты с неско�
     game,
     player,
     'businessRequest',
-    'businessRequest.incident-feedback',
+    'businessRequest.expected-outcome',
     0,
   );
   await closeTrackedApp(oldApp);
@@ -523,7 +523,7 @@ function noRoundsScenario(): Scenario {
 }
 
 const winningActions: [StageKey, string][] = [
-  ['businessRequest', 'businessRequest.incident-feedback'],
+  ['businessRequest', 'businessRequest.expected-outcome'],
   ['testing', 'testing.ai-checks-with-qa'],
   ['productDiscovery', 'productDiscovery.requirement-draft'],
   ['technicalDiscovery', 'technicalDiscovery.code-research'],

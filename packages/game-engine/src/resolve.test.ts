@@ -180,6 +180,30 @@ describe('resolveRound', () => {
     expect(resolveRound(snapshot, conditional, action, mechanics).event.id).toBe('event-selected');
   });
 
+  it('добавляет позднее последствие только после перекоса в кодинг', () => {
+    const template = defaultScenario.rounds[0] as ScenarioRound;
+    const selected = getStageAction(defaultScenario.stageActions, 'coding.guided-implementation');
+    const plan = resolveRound(
+      lateCodingSnapshot(1),
+      { ...template, number: 7 },
+      selected,
+      defaultScenario.mechanics,
+    );
+    expect(plan.event.id).toBe('event-code-without-technical-context');
+  });
+
+  it('не добавляет позднее последствие после возврата в техническую проработку', () => {
+    const template = defaultScenario.rounds[0] as ScenarioRound;
+    const selected = getStageAction(defaultScenario.stageActions, 'coding.guided-implementation');
+    const plan = resolveRound(
+      lateCodingSnapshot(2),
+      { ...template, number: 7 },
+      selected,
+      defaultScenario.mechanics,
+    );
+    expect(plan.event.id).toBe('event-code-ready');
+  });
+
   it('позволяет TTM дойти до критического порога на рискованной ветке', () => {
     let snapshot = createScenarioSnapshot();
     const actionIds = [
@@ -353,7 +377,7 @@ describe('evaluateOutcome', () => {
 
   it('позволяет позеленить все восемь этапов за восемь ходов', () => {
     const actionIds = [
-      'businessRequest.incident-feedback',
+      'businessRequest.expected-outcome',
       'testing.ai-checks-with-qa',
       'productDiscovery.requirement-draft',
       'technicalDiscovery.code-research',
@@ -362,19 +386,16 @@ describe('evaluateOutcome', () => {
       'deployment.human-approved-plan',
       'support.change-linked-signals',
     ];
-    let snapshot = createScenarioSnapshot();
-    actionIds.forEach((actionId, index) => {
-      const template = defaultScenario.rounds[index % defaultScenario.rounds.length];
-      const scenarioRound = { ...template, number: index + 1 } as ScenarioRound;
-      const action = getStageAction(defaultScenario.stageActions, actionId);
-      snapshot = snapshotFromPlan(
-        resolveRound(snapshot, scenarioRound, action, defaultScenario.mechanics),
-      );
-    });
+    const { phases, snapshot } = playScenarioActions(actionIds);
+    expect(phases).toEqual([...actionIds.slice(0, -1).map(() => 'FEEDBACK'), 'WON']);
     expect(Object.values(snapshot.stages)).toEqual(stageKeys.map(() => 'AI_ENABLED'));
     expect(evaluateOutcome(snapshot.metrics, snapshot.stages, 8, defaultScenario.rules).phase).toBe(
       'WON',
     );
+  });
+
+  it('не завершает игру поражением в первые два хода', () => {
+    expect(findEarlyLosses(2)).toEqual([]);
   });
 });
 
@@ -385,4 +406,76 @@ function snapshotFromPlan(plan: ReturnType<typeof resolveRound>): EngineSnapshot
     properties: plan.properties,
     stages: plan.stages,
   };
+}
+
+function lateCodingSnapshot(technicalDiscoveryCount: number) {
+  const snapshot = createScenarioSnapshot();
+  const stages: EngineAction['stage'][] = ['coding', 'coding'];
+  for (let index = 0; index < technicalDiscoveryCount; index += 1) {
+    stages.push('technicalDiscovery');
+  }
+  while (stages.length < 6) stages.push('businessRequest');
+  snapshot.appliedActions = stages.map((stage, index) => ({
+    actionId: `previous-${index}`,
+    roundNumber: index + 1,
+    stage,
+  }));
+  snapshot.properties = ['automatedTests', 'currentContext', 'humanReview'];
+  return snapshot;
+}
+
+function playScenarioActions(actionIds: string[]) {
+  let snapshot = createScenarioSnapshot();
+  const phases: string[] = [];
+  actionIds.forEach((actionId, index) => {
+    const template = defaultScenario.rounds[index % defaultScenario.rounds.length];
+    const round = { ...template, number: index + 1 } as ScenarioRound;
+    const action = getStageAction(defaultScenario.stageActions, actionId);
+    snapshot = snapshotFromPlan(resolveRound(snapshot, round, action, defaultScenario.mechanics));
+    const outcome = evaluateOutcome(
+      snapshot.metrics,
+      snapshot.stages,
+      round.number,
+      defaultScenario.rules,
+    );
+    phases.push(outcome.phase);
+  });
+  return { phases, snapshot };
+}
+
+function findEarlyLosses(maxTurns: number) {
+  const losses: string[] = [];
+  const visit = (snapshot: EngineSnapshot, path: string[]) => {
+    if (path.length >= maxTurns) return;
+    const template = defaultScenario.rounds[path.length % defaultScenario.rounds.length];
+    if (!template) throw new Error('Нет шаблона хода');
+    const current = { ...template, number: path.length + 1 } as ScenarioRound;
+    const choices = getAvailableStageChoices(
+      defaultScenario.stageActions,
+      current.stageChoices,
+      snapshot,
+    );
+    for (const choice of choices) visitChoice(snapshot, current, choice, path, losses, visit);
+  };
+  visit(createScenarioSnapshot(), []);
+  return losses;
+}
+
+function visitChoice(
+  snapshot: EngineSnapshot,
+  round: ScenarioRound,
+  choice: ScenarioRound['stageChoices'][number],
+  path: string[],
+  losses: string[],
+  visit: (snapshot: EngineSnapshot, path: string[]) => void,
+) {
+  const actions = getAvailableActions(defaultScenario.stageActions, choice, snapshot);
+  for (const selected of actions) {
+    const plan = resolveRound(snapshot, round, selected, defaultScenario.mechanics);
+    const next = snapshotFromPlan(plan);
+    const nextPath = [...path, selected.id];
+    const outcome = evaluateOutcome(next.metrics, next.stages, round.number, defaultScenario.rules);
+    if (outcome.phase === 'BROKEN') losses.push(nextPath.join(' → '));
+    else if (outcome.phase === 'FEEDBACK') visit(next, nextPath);
+  }
 }

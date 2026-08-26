@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "id": "technical-mvp",
-  "version": 8,
+  "version": 10,
   "contentStatus": "TECHNICAL_DRAFT",
   "decisionModel": "STAGE_ACTION_V2",
   "rules": {
@@ -60,26 +60,11 @@
       }
     },
     "propertyEffects": {
-      "humanReview": {
-        "quality": 1,
-        "controllability": 1,
-        "teamCapacity": -1
-      },
-      "automatedTests": {
-        "quality": 1,
-        "controllability": 1
-      },
-      "currentContext": {
-        "controllability": 1
-      },
-      "observability": {
-        "controllability": 1,
-        "teamCapacity": 1
-      },
-      "rollback": {
-        "quality": 1,
-        "teamCapacity": 1
-      }
+      "humanReview": {},
+      "automatedTests": {},
+      "currentContext": {},
+      "observability": {},
+      "rollback": {}
     },
     "stageStateEffects": {
       "AS_IS": {},
@@ -92,11 +77,11 @@
   "stageActions": {
     "productDiscovery.requirement-draft": {
       "key": "A",
-      "title": "Черновик задачи с AI",
-      "description": "AI собирает черновик задачи и критерии готовности, продакт проверяет и правит.",
+      "title": "AI готовит задачу — продакт проверяет",
+      "description": "AI готовит черновик задачи и критерии готовности. Продакт проверяет цель, правит условия и решает, можно ли отдавать задачу в разработку.",
       "stage": "productDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Постановка готовится быстрее, но цель и критерии всё равно проверяет продакт.",
+      "shortFeedback": "Задача оформляется быстрее, но за цель и критерии по-прежнему отвечает продакт.",
       "effect": {
         "controllability": 2,
         "deliverySpeed": 1
@@ -106,10 +91,26 @@
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
     },
+    "productDiscovery.prototype-check": {
+      "key": "B",
+      "title": "AI собирает прототип — продакт проверяет",
+      "description": "AI собирает быстрый прототип спорного сценария, а команда проверяет его с пользователями или экспертами.",
+      "stage": "productDiscovery",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Прототип помогает заметить неверное понимание до разработки, но не заменяет проверку на реальном продукте.",
+      "effect": {
+        "quality": 1,
+        "teamCapacity": -1
+      },
+      "addProperties": ["currentContext"],
+      "repeatable": false,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "resultingStageState": "AI_ENABLED"
+    },
     "technicalDiscovery.code-research": {
       "key": "A",
-      "title": "AI разбирается в коде",
-      "description": "AI ищет связанные модули и зависимости, инженер проверяет выводы и выбирает план.",
+      "title": "AI ищет связи — инженер выбирает план",
+      "description": "AI находит связанные модули и зависимости. Инженер проверяет связи и выбирает план изменений.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
       "shortFeedback": "На поиск связей уходит меньше времени, но найденное нужно перепроверить по коду.",
@@ -124,8 +125,8 @@
     },
     "coding.guided-implementation": {
       "key": "A",
-      "title": "AI пишет, разработчик проверяет",
-      "description": "AI пишет код по готовому плану, разработчик проверяет решение перед ревью.",
+      "title": "AI пишет код — разработчик проверяет",
+      "description": "AI пишет код по согласованному плану. Разработчик проверяет решение и решает, можно ли отправлять его на ревью.",
       "stage": "coding",
       "evidence": "SCENARIO",
       "shortFeedback": "Код появляется быстрее. Если не усилить ревью и тесты, очередь просто переедет туда.",
@@ -139,8 +140,8 @@
     },
     "testing.ai-checks-with-qa": {
       "key": "A",
-      "title": "AI готовит тесты, QA решает",
-      "description": "AI предлагает проверки, QA решает, какие риски закрыть и достаточно ли тестов.",
+      "title": "AI предлагает тесты — QA выбирает проверки",
+      "description": "AI предлагает набор проверок. QA выбирает, какие риски нужно закрыть, и решает, достаточно ли тестов.",
       "stage": "testing",
       "evidence": "SCENARIO",
       "shortFeedback": "Подготовка тестов ускоряется, но какие риски можно принять, всё равно решает QA.",
@@ -155,7 +156,7 @@
     },
     "technicalDiscovery.sync-docs-and-contract": {
       "key": "B",
-      "title": "Сверить документацию с кодом",
+      "title": "AI ищет расхождения — инженер обновляет контракт",
       "description": "AI находит расхождения между описанием и реализацией, инженер проверяет их и обновляет контракт.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
@@ -171,8 +172,8 @@
     },
     "review.context-and-human-risk": {
       "key": "A",
-      "title": "Собрать контекст для ревью",
-      "description": "AI объясняет, что изменилось и где риск, ревьюер проверяет выводы и решает, можно ли сливать.",
+      "title": "AI показывает риски — ревьюер решает о слиянии",
+      "description": "AI собирает контекст изменения и отмечает рискованные места. Ревьюер проверяет выводы и решает, можно ли сливать.",
       "stage": "review",
       "evidence": "SCENARIO",
       "shortFeedback": "Ревьюеру проще начать проверку, но решение о слиянии остаётся за ним.",
@@ -187,8 +188,8 @@
     },
     "testing.behavior-checks": {
       "key": "B",
-      "title": "Проверять поведение, а не код",
-      "description": "AI предлагает тесты на поведение системы, а не на детали реализации.",
+      "title": "AI предлагает сценарии — команда задаёт поведение",
+      "description": "Команда описывает ожидаемое поведение системы, а AI предлагает проверки без привязки к деталям реализации.",
       "stage": "testing",
       "evidence": "SCENARIO",
       "shortFeedback": "Такие тесты реже ломаются при рефакторинге, но ожидаемое поведение нужно описать заранее.",
@@ -203,7 +204,7 @@
     },
     "coding.change-from-description": {
       "key": "B",
-      "title": "Поменять сервис по описанию",
+      "title": "AI меняет сервис только по описанию",
       "description": "AI сразу правит незнакомый сервис, опираясь на доступную документацию.",
       "stage": "coding",
       "evidence": "SCENARIO",
@@ -218,7 +219,7 @@
     },
     "review.risk-based-evidence": {
       "key": "B",
-      "title": "Начать ревью с рискованных мест",
+      "title": "AI отмечает риски — ревьюер проверяет",
       "description": "AI отмечает рискованные места и собирает подтверждения, ревьюер проверяет самое важное.",
       "stage": "review",
       "evidence": "SCENARIO",
@@ -234,7 +235,7 @@
     },
     "testing.regression-maintenance": {
       "key": "C",
-      "title": "Поддерживать регрессионные тесты",
+      "title": "AI обновляет тесты — команда проверяет ожидания",
       "description": "AI обновляет тесты вместе с изменением поведения, команда проверяет новые ожидания.",
       "stage": "testing",
       "evidence": "SCENARIO",
@@ -250,8 +251,8 @@
     },
     "technicalDiscovery.dependency-map": {
       "key": "C",
-      "title": "Проверить зависимости до разработки",
-      "description": "AI находит затронутые сервисы, контракты и команды до начала изменений.",
+      "title": "AI строит карту — инженер подтверждает связи",
+      "description": "AI находит затронутые сервисы, контракты и команды. Инженер подтверждает связи до начала изменений.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
       "shortFeedback": "Соседние системы видны раньше, но найденные связи всё равно нужно подтвердить.",
@@ -266,7 +267,7 @@
     },
     "coding.parallel-agents": {
       "key": "C",
-      "title": "Запустить несколько AI-агентов",
+      "title": "AI-агенты пишут параллельно",
       "description": "Несколько AI-агентов одновременно готовят разные части изменения.",
       "stage": "coding",
       "evidence": "SCENARIO",
@@ -281,8 +282,8 @@
     },
     "deployment.human-approved-plan": {
       "key": "A",
-      "title": "Подготовить релиз и откат",
-      "description": "AI готовит шаги выпуска и отката, человек проверяет план и запускает релиз.",
+      "title": "AI готовит релиз — инженер запускает",
+      "description": "AI готовит шаги выпуска и отката. Инженер проверяет план и решает, запускать ли релиз.",
       "stage": "deployment",
       "evidence": "SCENARIO",
       "shortFeedback": "Подготовка быстрее, а решение о выпуске остаётся за человеком.",
@@ -297,11 +298,11 @@
     },
     "support.change-linked-signals": {
       "key": "A",
-      "title": "Связать ошибки с релизом",
-      "description": "AI добавляет нужные метрики и связывает ошибки с конкретным изменением.",
+      "title": "AI связывает ошибки — инженер проверяет причину",
+      "description": "AI связывает ошибки, логи и метрики с конкретным релизом. Инженер проверяет связь и решает, какое изменение разбирать.",
       "stage": "support",
       "evidence": "SCENARIO",
-      "shortFeedback": "После релиза проще понять, что сломалось и какое изменение это вызвало.",
+      "shortFeedback": "Команда быстрее видит, после какого изменения началась проблема.",
       "effect": {
         "controllability": 2,
         "teamCapacity": 1
@@ -313,8 +314,8 @@
     },
     "testing.release-checks": {
       "key": "D",
-      "title": "Собрать и дополнить проверки перед релизом",
-      "description": "AI собирает результаты тестов, добавляет недостающие проверки и показывает риски перед выпуском.",
+      "title": "AI собирает проверки — команда решает о выпуске",
+      "description": "AI собирает результаты тестов, добавляет недостающие проверки и показывает риски. Команда решает, можно ли выпускать изменение.",
       "stage": "testing",
       "evidence": "SCENARIO",
       "shortFeedback": "Команда видит результаты в одном месте, но пропущенный тест так и останется пропущенным.",
@@ -329,7 +330,7 @@
     },
     "deployment.autonomous-after-tests": {
       "key": "B",
-      "title": "Выкатывать после зелёных тестов",
+      "title": "AI выпускает после зелёных тестов",
       "description": "AI выпускает изменение автоматически, как только все проверки прошли.",
       "stage": "deployment",
       "evidence": "SCENARIO",
@@ -340,13 +341,13 @@
       },
       "addProperties": [],
       "repeatable": false,
-      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "availableInStates": ["AS_IS", "AI_ENABLED"],
       "resultingStageState": "AI_ENABLED"
     },
     "support.incident-diagnostics": {
       "key": "B",
-      "title": "Собрать картину инцидента",
-      "description": "AI связывает ошибки, логи, недавние изменения и шаги воспроизведения.",
+      "title": "AI собирает картину — инженер подтверждает причину",
+      "description": "AI связывает ошибки, логи, недавние изменения и шаги воспроизведения. Инженер проверяет данные и подтверждает причину сбоя.",
       "stage": "support",
       "evidence": "SCENARIO",
       "shortFeedback": "Факты собираются быстрее, но причину проблемы всё равно нужно подтвердить.",
@@ -356,52 +357,67 @@
       },
       "addProperties": ["observability"],
       "repeatable": false,
-      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "availableInStates": ["BROKEN"],
       "resultingStageState": "AI_ENABLED"
     },
     "deployment.fix-with-rollback-plan": {
       "key": "C",
-      "title": "Подготовить фикс и откат",
-      "description": "AI предлагает исправление и план возврата, человек выбирает безопасный вариант и выпускает.",
+      "title": "AI готовит исправление — инженер выпускает с откатом",
+      "description": "AI предлагает исправление и план отката, а человек проверяет оба и запускает выпуск.",
       "stage": "deployment",
       "evidence": "SCENARIO",
-      "shortFeedback": "У команды есть два пути: исправить проблему или быстро вернуться на рабочую версию.",
+      "shortFeedback": "Команда выпускает исправление и может быстро откатиться, если оно не сработает.",
       "effect": {
         "deliverySpeed": 1,
         "quality": 2
       },
       "addProperties": ["rollback"],
       "repeatable": false,
-      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "availableInStates": ["BROKEN"],
       "resultingStageState": "AI_ENABLED"
     },
-    "businessRequest.incident-feedback": {
+    "businessRequest.production-signals": {
       "key": "A",
-      "title": "Учесть инцидент в следующей задаче",
-      "description": "AI переносит причину и контекст инцидента в критерии следующей задачи.",
+      "title": "AI собирает сигналы — команда выбирает проблему",
+      "description": "AI группирует обращения, отзывы и ошибки, а владелец продукта выбирает проблему для следующей задачи.",
       "stage": "businessRequest",
       "evidence": "SCENARIO",
-      "shortFeedback": "После закрытия инцидента его причина не теряется и влияет на следующую версию.",
+      "shortFeedback": "AI собирает сигналы из прода, но какую проблему решать дальше, выбирает команда.",
       "effect": {
         "quality": 1,
-        "controllability": 2
+        "controllability": 1
       },
       "addProperties": ["currentContext"],
       "repeatable": true,
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
     },
+    "businessRequest.expected-outcome": {
+      "key": "B",
+      "title": "AI разбирает запрос — заказчик утверждает цель",
+      "description": "AI раскладывает запрос на ожидаемый результат, ограничения и признаки успеха. Заказчик проверяет смысл и утверждает цель.",
+      "stage": "businessRequest",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Команда понимает, что должно измениться для пользователя или бизнеса, а не только что нужно сделать.",
+      "effect": {
+        "controllability": 2
+      },
+      "addProperties": ["currentContext"],
+      "repeatable": false,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "resultingStageState": "AI_ENABLED"
+    },
     "support.autonomous-fix": {
       "key": "C",
-      "title": "Отдать исправление AI целиком",
+      "title": "AI сам чинит и выкатывает",
       "description": "AI сам находит причину, меняет код и выкатывает исправление.",
       "stage": "support",
       "evidence": "SCENARIO",
       "shortFeedback": "Самый быстрый и самый рискованный вариант: ошибка AI может дойти до прода без независимой проверки.",
       "effect": {
         "deliverySpeed": 3,
-        "controllability": -2,
-        "quality": -2
+        "controllability": -1,
+        "quality": -1
       },
       "addProperties": [],
       "repeatable": false,
@@ -439,12 +455,12 @@
           }
         },
         {
-          "actionIds": ["businessRequest.incident-feedback"],
+          "actionIds": ["businessRequest.production-signals"],
           "missingResultingProperty": "observability",
           "event": {
-            "id": "event-incident-without-signals",
-            "title": "В задачу попали только симптомы",
-            "description": "Команда записала ошибки, но связать их с конкретным изменением не смогла.",
+            "id": "event-production-feedback-without-signals",
+            "title": "Собрали только симптомы",
+            "description": "Обращения сгруппировали, но без наблюдаемости команда не поняла, какое изменение вызвало проблему.",
             "evidence": "SCENARIO",
             "effect": {
               "controllability": -2,
@@ -553,13 +569,13 @@
           "missingResultingProperty": "rollback",
           "event": {
             "id": "event-no-rollback",
-            "title": "Откат не был готов",
+            "title": "Откат не подготовили",
             "description": "После релиза пошли ошибки, а быстро вернуть рабочую версию не получилось.",
             "evidence": "SCENARIO",
             "effect": {
               "deliverySpeed": -2,
               "quality": -3,
-              "controllability": -3,
+              "controllability": -2,
               "teamCapacity": -2
             },
             "stageChanges": [
@@ -581,7 +597,7 @@
             "effect": {
               "deliverySpeed": -2,
               "quality": -2,
-              "controllability": -3,
+              "controllability": -2,
               "teamCapacity": -2
             },
             "stageChanges": [
@@ -593,14 +609,57 @@
           }
         },
         {
-          "actionIds": ["businessRequest.incident-feedback"],
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "appliedActionCount": {
+            "minimum": 6
+          },
+          "stageActionCounts": [
+            {
+              "stage": "coding",
+              "minimum": 2
+            },
+            {
+              "stage": "technicalDiscovery",
+              "maximum": 1
+            }
+          ],
           "event": {
-            "id": "event-incident-added-to-request",
-            "title": "Причину инцидента добавили в задачу",
-            "description": "Команда связала проблему с изменением и добавила нужную проверку в критерии следующей задачи.",
+            "id": "event-code-without-technical-context",
+            "title": "В коде стало трудно разобраться",
+            "description": "Код уже меняли несколько раз, а к связям и зависимостям почти не возвращались. Теперь команде приходится заново разбираться в системе.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["businessRequest.production-signals"],
+          "event": {
+            "id": "event-production-signals-in-request",
+            "title": "Сигналы из прода попали в задачу",
+            "description": "Команда сгруппировала обращения и выбрала проблему, которую стоит решать следующей.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["businessRequest.expected-outcome"],
+          "event": {
+            "id": "event-expected-outcome-agreed",
+            "title": "Договорились об ожидаемом результате",
+            "description": "Заказчик и команда одинаково поняли, что должно измениться и как это проверить.",
+            "evidence": "SCENARIO",
+            "effect": {
               "controllability": 1
             },
             "stageChanges": []
@@ -614,8 +673,20 @@
             "description": "Продакт проверил цель и критерии до передачи задачи в разработку.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
               "controllability": 1
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["productDiscovery.prototype-check"],
+          "event": {
+            "id": "event-prototype-changed-plan",
+            "title": "Прототип изменил план",
+            "description": "До разработки команда увидела несостыковку и уточнила требования.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1
             },
             "stageChanges": []
           }
@@ -632,8 +703,7 @@
             "description": "Инженер проверил найденные связи и убрал из плана неподтверждённые предположения.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
-              "controllability": 1
+              "quality": 1
             },
             "stageChanges": []
           }
@@ -649,10 +719,7 @@
             "title": "Код передали на проверку",
             "description": "Изменение готово; дальше его должны проверить ревью и тесты.",
             "evidence": "SCENARIO",
-            "effect": {
-              "deliverySpeed": 1,
-              "quality": 1
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -664,8 +731,7 @@
             "description": "Ревьюер проверил рискованное место до того, как изменение попало в основную ветку.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
-              "controllability": 1
+              "quality": 1
             },
             "stageChanges": []
           }
@@ -683,8 +749,7 @@
             "description": "Команда увидела результат автоматических проверок до решения о выпуске.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
-              "teamCapacity": 1
+              "quality": 1
             },
             "stageChanges": []
           }
@@ -697,8 +762,7 @@
             "description": "Перед запуском команда сверила шаги выпуска и готовый откат.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": 1,
-              "teamCapacity": 1
+              "controllability": 1
             },
             "stageChanges": []
           }
@@ -707,12 +771,11 @@
           "actionIds": ["deployment.autonomous-after-tests"],
           "event": {
             "id": "event-auto-release-completed",
-            "title": "Автовыпуск отработал",
+            "title": "Релиз прошёл без ручной паузы",
             "description": "Настроенные проверки прошли, и изменение вышло без ручной паузы.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": 1,
-              "teamCapacity": 1
+              "deliverySpeed": 1
             },
             "stageChanges": []
           }
@@ -721,11 +784,10 @@
           "actionIds": ["deployment.fix-with-rollback-plan"],
           "event": {
             "id": "event-rollback-ready",
-            "title": "Быстро вернули рабочую версию",
-            "description": "Готовый откат сработал: команда вернула рабочую версию.",
+            "title": "Исправление выпустили с готовым откатом",
+            "description": "Команда проверила исправление и сохранила возможность быстро вернуть прошлую версию.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": 1,
               "teamCapacity": 1
             },
             "stageChanges": []
@@ -739,8 +801,7 @@
             "description": "Команда увидела, после какого изменения начались ошибки.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
-              "controllability": 2
+              "controllability": 1
             },
             "stageChanges": []
           }
@@ -749,12 +810,11 @@
           "actionIds": ["support.incident-diagnostics"],
           "event": {
             "id": "event-incident-diagnosed",
-            "title": "Причину инцидента нашли",
+            "title": "Причину сбоя нашли",
             "description": "Логи, ошибки и недавние изменения указали на источник сбоя.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": 1,
-              "controllability": 2
+              "teamCapacity": 1
             },
             "stageChanges": []
           }
@@ -763,7 +823,7 @@
           "actionIds": ["support.autonomous-fix"],
           "event": {
             "id": "event-autonomous-fix-unreviewed",
-            "title": "Сервис восстановился, но код никто не проверил",
+            "title": "Сервис снова работает, но код не проверили",
             "description": "Симптом исчез, однако независимой проверки изменения не было.",
             "evidence": "SCENARIO",
             "effect": {},
@@ -785,14 +845,14 @@
         {
           "stage": "businessRequest",
           "title": "Бизнес-заказ",
-          "description": "Учесть сигналы из прода в следующей задаче.",
-          "actionIds": ["businessRequest.incident-feedback"]
+          "description": "Понять, какую проблему решаем, и вернуть сигналы из прода в новые задачи.",
+          "actionIds": ["businessRequest.production-signals", "businessRequest.expected-outcome"]
         },
         {
           "stage": "productDiscovery",
           "title": "Продуктовая проработка",
-          "description": "Быстрее уточнить задачу и договориться, что считать готовым результатом.",
-          "actionIds": ["productDiscovery.requirement-draft"]
+          "description": "Уточнить задачу и проверить спорные места до начала разработки.",
+          "actionIds": ["productDiscovery.requirement-draft", "productDiscovery.prototype-check"]
         },
         {
           "stage": "technicalDiscovery",
@@ -807,7 +867,7 @@
         {
           "stage": "coding",
           "title": "Написание кода",
-          "description": "Поручить AI часть написания кода.",
+          "description": "Поручить AI часть написания кода и не потерять понимание системы.",
           "actionIds": [
             "coding.guided-implementation",
             "coding.change-from-description",

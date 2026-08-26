@@ -29,6 +29,59 @@ describe('parseScenario', () => {
     expect(covered).toEqual(expected);
   });
 
+  it('использует свойства как защиту, а не как постоянный доход', () => {
+    for (const [property, effect] of Object.entries(defaultScenario.mechanics.propertyEffects)) {
+      expect(effect, property).toEqual({});
+    }
+  });
+
+  it('ограничивает обычную награду события одним положительным баллом', () => {
+    const round = defaultScenario.rounds[0];
+    if (!round) throw new Error('Нет шаблона хода');
+    const ordinaryRules = round.eventRules.filter(
+      ({ actionIds, event: _, ...conditions }) => actionIds && Object.keys(conditions).length === 0,
+    );
+    for (const rule of ordinaryRules) {
+      const reward = Object.values(rule.event.effect).reduce(
+        (sum, value) => sum + Math.max(0, value ?? 0),
+        0,
+      );
+      expect(reward, rule.event.id).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('даёт реальный выбор в бизнес-заказе и продуктовой проработке', () => {
+    const choices = defaultScenario.rounds[0]?.stageChoices;
+    expect(choices?.find(({ stage }) => stage === 'businessRequest')?.actionIds).toHaveLength(2);
+    expect(choices?.find(({ stage }) => stage === 'productDiscovery')?.actionIds).toHaveLength(2);
+  });
+
+  it('показывает в заголовке роль AI и человеческую границу', () => {
+    const autonomous = new Set([
+      'coding.change-from-description',
+      'coding.parallel-agents',
+      'deployment.autonomous-after-tests',
+      'support.autonomous-fix',
+    ]);
+    for (const [id, action] of Object.entries(defaultScenario.stageActions)) {
+      expect(action.title, id).toContain('AI');
+      if (!autonomous.has(id)) expect(action.title, id).toContain('—');
+    }
+  });
+
+  it('связывает поздний долг с повторным кодингом без технической проработки', () => {
+    const rule = defaultScenario.rounds[0]?.eventRules.find(
+      ({ event }) => event.id === 'event-code-without-technical-context',
+    );
+    expect(rule?.appliedActionCount).toEqual({ minimum: 6 });
+    expect(rule?.stageActionCounts).toEqual(
+      expect.arrayContaining([
+        { minimum: 2, stage: 'coding' },
+        { maximum: 1, stage: 'technicalDiscovery' },
+      ]),
+    );
+  });
+
   it('проверяет соответствие числа шаблонов правилу', () => {
     const source = structuredClone(defaultScenario);
     source.rules.roundLimit = 4;
