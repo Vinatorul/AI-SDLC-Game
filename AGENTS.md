@@ -204,6 +204,21 @@ docker run --rm -p 8787:8787 \
 
 The container must run as a single API instance with a persistent volume mounted at /data.
 
+## Run both applications on one VM without Compose
+
+The bare-IP deployment uses two containers on the `ai-sdlc` Docker network. The web container
+serves the Vite build through Nginx on public port 80 and proxies `/api`, `/health`, and WebSocket
+upgrades to the container named `ai-sdlc-api`. The API container is not published on the host and
+stores SQLite in the `ai-sdlc-data` volume.
+
+Build the web image with `VITE_API_BASE_URL=http://<SERVER_IP>` and `VITE_BASE_PATH=/`. Start the API
+with the exact same origin in `CORS_ORIGINS`. Do not hardcode a server IP in source files or the
+Nginx configuration. The complete root-user commands are in **docs/deploy-single-vm.md**.
+
+This HTTP-only mode is for a temporary demonstration. It does not replace the HTTPS/WSS production
+requirements or the separate GitHub Pages deployment. Do not expose API port 8787 publicly, remove
+the persistent volume during container updates, or run multiple API containers against it.
+
 ## How to change code
 
 1. Read this file and the relevant document in **docs**.
