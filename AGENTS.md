@@ -78,10 +78,55 @@ top-level action catalog is reusable across rounds. Each round must have:
 - ordered eventRules: specific conditions first and one unconditional fallback event last.
 
 Action consequences belong in the reusable catalog entry. Its availability states decide whether
-it can extend or repair the current stage, **resultingStageState** defines the summary state after
-the decision, and **repeatable** controls whether the exact same action may be applied again.
-Different actions on the same stage remain valid in later rounds. Event consequences belong in
-event.effect and event.stageChanges.
+it can extend or repair the current stage, and **repeatable** controls whether the exact same action
+may be applied again. Each action must use exactly one form of stage transition:
+
+- **resultingStageState** when the action has the same result from every current state;
+- **stageTransitions** when the result depends on the current state. This table must contain
+  AS_IS, AI_ENABLED, and BROKEN, even when the action is unavailable in one of those states.
+
+Do not define both fields. Different actions on the same stage remain valid in later rounds. Event
+consequences belong in event.effect and event.stageChanges.
+
+Stage state describes the work happening in that SDLC stage, not the category of technology used:
+
+- use **AI_ENABLED** when AI performs a real task in the stage. A stage-specific MCP integration,
+  skill, knowledge assistant, or dependency-graph analysis may be enough if it creates a working AI
+  loop rather than merely installing infrastructure;
+- use **AS_IS** for a process improvement or an asset that AI does not yet use in that stage. Such
+  an action may be available in AS_IS and BROKEN, repair BROKEN to AS_IS, and still leave the cube
+  gray;
+- use **BROKEN** when the chosen setup makes the stage unreliable or unusable.
+
+Place infrastructure actions in the stage whose work they change. For example, an MCP integration
+that lets AI inspect a live deployment pipeline belongs to deployment, and a reusable test-
+generation skill belongs to testing. Do not collect every AI-infrastructure choice under technical
+discovery. Use properties and applied-action history to make foundations change later outcomes.
+
+Do not equate the presence of a skill, MCP server, knowledge base, or graph with a working AI loop.
+Use ordered event rules to check the foundations supplied by the same or neighboring stages. The
+action may propose AI_ENABLED, while a missing prerequisite event overrides that stage to AS_IS or
+BROKEN. Keep the action repeatable when players must be able to prepare the missing foundations and
+try again. A successful rule should be reachable and covered by a focused combination test.
+
+For a reusable process or foundation action, prefer a state-sensitive transition such as
+AS_IS -> AS_IS, AI_ENABLED -> AI_ENABLED, and BROKEN -> AS_IS, and make it available in all three
+states. This lets it prepare a gray stage, preserve an installed AI capability, or repair a broken
+stage without pretending that the foundation itself is AI adoption. If such an action is
+repeatable, keep both its action effect and its ordinary repeatable event numerically neutral. Its
+payoff should come from the repaired state, an acquired property, or safer later events. Gate a
+one-time score benefit with action history or make the action non-repeatable.
+
+Use a generic process property only when every way of acquiring that property is genuinely enough
+for the dependent outcome. When an outcome requires a concrete foundation, such as a particular
+dependency graph, test-generation skill, or deployment MCP integration, check that action through
+hasAppliedActions or missingAppliedActions instead of using a broad property as a proxy. If an AI
+capability may be installed before its foundations, list their stable action ids in the capability's
+**activationRequirements**. The engine activates it as soon as the current decision makes the full
+set complete, including when the last missing foundation is added later. Keep matching negative
+event rules for the failed early attempt so players see what was missing. Cover both orders with a
+focused combination test. Use event.stageChanges only for a consequence specific to that event,
+not as a second copy of the capability dependency graph.
 
 Keep at least one action for each bundled stage choice repeatable and available in AS_IS,
 AI_ENABLED, and BROKEN. This keeps all eight stages selectable after earlier actions have been
@@ -102,9 +147,11 @@ recurring score income: its propertyEffects are deliberately empty. Keep ordinar
 rewards to at most one positive point in total unless a playtest justifies a stronger conditional
 result.
 
-Every action title must make the AI role clear. When a person remains in the loop, state their
-decision or check in the same title; when an action is autonomous, make the missing human boundary
-equally explicit. The final stage map reuses these titles to explain the resulting division of work.
+For an AI_ENABLED action, make the concrete AI task clear in the title and state the human decision
+or check in the title or first sentence. Make autonomous scope equally explicit. For an AS_IS
+process action, name the practice the team adds and say that it is not yet an AI integration. The
+final stage map reuses these titles, so never mark generic infrastructure as AI_ENABLED unless the
+final event leaves AI doing useful work in that stage.
 
 After a content change:
 

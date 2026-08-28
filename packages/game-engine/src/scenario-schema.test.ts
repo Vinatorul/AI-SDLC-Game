@@ -3,6 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { defaultScenario } from './scenario';
 import { parseScenario } from './scenario-schema';
 
+const processActionIds = new Set([
+  'businessRequest.outcome-metrics',
+  'productDiscovery.knowledge-base',
+  'technicalDiscovery.dependency-map',
+  'coding.project-checks',
+  'review.risk-policy',
+  'testing.behavior-checks',
+  'deployment.rollback-drill',
+  'support.telemetry-baseline',
+]);
+
+const processStageTransitions = {
+  AI_ENABLED: 'AI_ENABLED',
+  AS_IS: 'AS_IS',
+  BROKEN: 'AS_IS',
+} as const;
+
 describe('parseScenario', () => {
   it('принимает встроенный JSON-сценарий', () => {
     expect(parseScenario(defaultScenario)).toEqual(defaultScenario);
@@ -50,22 +67,35 @@ describe('parseScenario', () => {
     }
   });
 
-  it('даёт реальный выбор в бизнес-заказе и продуктовой проработке', () => {
+  it('даёт реальный выбор в бизнесе, продукте и кодинге', () => {
     const choices = defaultScenario.rounds[0]?.stageChoices;
-    expect(choices?.find(({ stage }) => stage === 'businessRequest')?.actionIds).toHaveLength(2);
-    expect(choices?.find(({ stage }) => stage === 'productDiscovery')?.actionIds).toHaveLength(2);
+    expect(choices?.find(({ stage }) => stage === 'businessRequest')?.actionIds).toHaveLength(4);
+    expect(choices?.find(({ stage }) => stage === 'productDiscovery')?.actionIds).toHaveLength(4);
+    expect(choices?.find(({ stage }) => stage === 'coding')?.actionIds).toHaveLength(5);
   });
 
-  it('показывает в заголовке роль AI и человеческую границу', () => {
-    const autonomous = new Set([
-      'coding.change-from-description',
-      'coding.parallel-agents',
-      'deployment.autonomous-after-tests',
-      'support.autonomous-fix',
-    ]);
+  it('отличает укрепление процесса от работающего AI-внедрения', () => {
     for (const [id, action] of Object.entries(defaultScenario.stageActions)) {
+      if (processActionIds.has(id)) {
+        expect(action.stageTransitions, id).toEqual(processStageTransitions);
+        expect(action.availableInStates, id).toEqual(['AS_IS', 'AI_ENABLED', 'BROKEN']);
+        expect(action.effect, id).toEqual({});
+        continue;
+      }
+      expect(action.resultingStageState, id).toBe('AI_ENABLED');
+      expect(action.stageTransitions, id).toBeUndefined();
       expect(action.title, id).toContain('AI');
-      if (!autonomous.has(id)) expect(action.title, id).toContain('—');
+    }
+  });
+
+  it('объясняет событием каждую недостающую основу AI-инструмента', () => {
+    const rules = defaultScenario.rounds.flatMap(({ eventRules }) => eventRules);
+    for (const [id, action] of Object.entries(defaultScenario.stageActions)) {
+      if (!action.activationRequirements) continue;
+      const covered = rules
+        .filter(({ actionIds }) => actionIds?.includes(id))
+        .flatMap(({ missingAppliedActions }) => missingAppliedActions ?? []);
+      expect(new Set(covered), id).toEqual(new Set(action.activationRequirements));
     }
   });
 
@@ -119,6 +149,14 @@ describe('parseScenario', () => {
     if (!firstRule) throw new Error('Тестовый сценарий повреждён');
     firstRule.hasAppliedActions = ['missing-action'];
     expect(() => parseScenario(source)).toThrow(/hasAppliedActions.*missing-action/);
+  });
+
+  it('проверяет ссылки в требованиях активации', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['businessRequest.feedback-mcp'];
+    if (!action) throw new Error('Тестовый сценарий повреждён');
+    action.activationRequirements = ['missing-action'];
+    expect(() => parseScenario(source)).toThrow(/activationRequirements.*missing-action/);
   });
 
   it('проверяет границы начальных показателей', () => {

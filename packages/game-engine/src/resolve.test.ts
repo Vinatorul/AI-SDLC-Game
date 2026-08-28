@@ -57,6 +57,8 @@ const action: EngineAction = {
   title: 'Решение',
 };
 
+const testCatalog: StageActionCatalog = { [action.id]: action };
+
 const round: ScenarioRound = {
   eventRules: [
     {
@@ -90,6 +92,73 @@ const round: ScenarioRound = {
   title: 'Раунд',
 };
 
+const infrastructurePaths = [
+  {
+    actionId: 'businessRequest.feedback-mcp',
+    badEventId: 'event-feedback-mcp-without-metrics',
+    goodEventId: 'event-feedback-mcp-ready',
+    setupActionIds: ['businessRequest.outcome-metrics'],
+    stage: 'businessRequest',
+  },
+  {
+    actionId: 'productDiscovery.knowledge-skill',
+    badEventId: 'event-product-skill-without-base',
+    goodEventId: 'event-product-skill-ready',
+    setupActionIds: ['productDiscovery.knowledge-base'],
+    stage: 'productDiscovery',
+  },
+  {
+    actionId: 'technicalDiscovery.ai-impact-analysis',
+    badEventId: 'event-impact-graph-missing',
+    goodEventId: 'event-impact-graph-used',
+    setupActionIds: ['technicalDiscovery.dependency-map'],
+    stage: 'technicalDiscovery',
+  },
+  {
+    actionId: 'coding.repository-mcp',
+    badEventId: 'event-repository-mcp-without-context',
+    goodEventId: 'event-repository-mcp-ready',
+    setupActionIds: [
+      'productDiscovery.knowledge-base',
+      'testing.behavior-checks',
+      'coding.project-checks',
+    ],
+    stage: 'coding',
+  },
+  {
+    actionId: 'review.review-skill',
+    badEventId: 'event-review-skill-without-policy',
+    goodEventId: 'event-review-skill-ready',
+    setupActionIds: ['review.risk-policy', 'testing.behavior-checks'],
+    stage: 'review',
+  },
+  {
+    actionId: 'testing.test-generation-skill',
+    badEventId: 'event-test-skill-without-baseline',
+    goodEventId: 'event-test-generation-skill-ready',
+    setupActionIds: ['productDiscovery.knowledge-base', 'testing.behavior-checks'],
+    stage: 'testing',
+  },
+  {
+    actionId: 'deployment.mcp-tooling',
+    badEventId: 'event-deploy-mcp-without-tests',
+    goodEventId: 'event-deploy-mcp-ready',
+    setupActionIds: [
+      'testing.behavior-checks',
+      'deployment.rollback-drill',
+      'support.telemetry-baseline',
+    ],
+    stage: 'deployment',
+  },
+  {
+    actionId: 'support.incident-mcp',
+    badEventId: 'event-incident-mcp-without-signals',
+    goodEventId: 'event-incident-mcp-ready',
+    setupActionIds: ['support.telemetry-baseline'],
+    stage: 'support',
+  },
+] as const;
+
 function createSnapshot(): EngineSnapshot {
   return {
     appliedActions: [],
@@ -101,7 +170,7 @@ function createSnapshot(): EngineSnapshot {
 
 describe('resolveRound', () => {
   it('складывает эффекты, меняет карту и сохраняет действие', () => {
-    const plan = resolveRound(createSnapshot(), round, action, mechanics);
+    const plan = resolveRound(createSnapshot(), round, action, mechanics, testCatalog);
     expect(plan.metrics).toMatchObject({ deliverySpeed: 3, quality: -1 });
     expect(plan.stages.coding).toBe('AI_ENABLED');
     expect(plan.stages.review).toBe('BROKEN');
@@ -114,7 +183,7 @@ describe('resolveRound', () => {
     const configured = withBrokenStageEffect({ deliverySpeed: -1 });
     const snapshot = createSnapshot();
     snapshot.stages.testing = 'BROKEN';
-    const plan = resolveRound(snapshot, round, action, configured);
+    const plan = resolveRound(snapshot, round, action, configured, testCatalog);
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
     expect(plan.metrics.deliverySpeed).toBe(1);
   });
@@ -127,14 +196,14 @@ describe('resolveRound', () => {
       ...round,
       eventRules: [round.eventRules[1] as (typeof round.eventRules)[number]],
     };
-    const plan = resolveRound(snapshot, fallbackRound, action, configured);
+    const plan = resolveRound(snapshot, fallbackRound, action, configured, testCatalog);
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
     expect(plan.metrics.deliverySpeed).toBe(3);
   });
 
   it('берёт показатель штрафа из сценария, а не предполагает TTM', () => {
     const configured = withBrokenStageEffect({ quality: -2 });
-    const plan = resolveRound(createSnapshot(), round, action, configured);
+    const plan = resolveRound(createSnapshot(), round, action, configured, testCatalog);
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0, quality: -2 });
     expect(plan.metrics).toMatchObject({ deliverySpeed: 3, quality: -3 });
   });
@@ -145,7 +214,7 @@ describe('resolveRound', () => {
       metricBounds: { maximum: 2, minimum: -2 },
       propertyEffects: { ...mechanics.propertyEffects, humanReview: { quality: 5 } },
     };
-    const plan = resolveRound(createSnapshot(), round, action, configured);
+    const plan = resolveRound(createSnapshot(), round, action, configured, testCatalog);
     expect(plan.metrics).toMatchObject({ deliverySpeed: 2, quality: 2 });
   });
 
@@ -154,7 +223,7 @@ describe('resolveRound', () => {
     const firstRule = conditional.eventRules[0];
     if (!firstRule) throw new Error('Нет тестового правила');
     firstRule.hasProperty = 'humanReview';
-    const plan = resolveRound(createSnapshot(), conditional, action, mechanics);
+    const plan = resolveRound(createSnapshot(), conditional, action, mechanics, testCatalog);
     expect(plan.event.id).toBe('event-fallback');
   });
 
@@ -163,7 +232,7 @@ describe('resolveRound', () => {
     const firstRule = conditional.eventRules[0];
     if (!firstRule) throw new Error('Нет тестового правила');
     firstRule.hasResultingProperty = 'humanReview';
-    const plan = resolveRound(createSnapshot(), conditional, action, mechanics);
+    const plan = resolveRound(createSnapshot(), conditional, action, mechanics, testCatalog);
     expect(plan.event.id).toBe('event-selected');
   });
 
@@ -177,7 +246,9 @@ describe('resolveRound', () => {
     firstRule.stageStates = [{ stage: 'coding', state: 'AS_IS' }];
     const snapshot = createSnapshot();
     snapshot.appliedActions = [{ actionId: 'test-baseline', roundNumber: 1, stage: 'testing' }];
-    expect(resolveRound(snapshot, conditional, action, mechanics).event.id).toBe('event-selected');
+    expect(resolveRound(snapshot, conditional, action, mechanics, testCatalog).event.id).toBe(
+      'event-selected',
+    );
   });
 
   it('добавляет позднее последствие только после перекоса в кодинг', () => {
@@ -188,6 +259,7 @@ describe('resolveRound', () => {
       { ...template, number: 7 },
       selected,
       defaultScenario.mechanics,
+      defaultScenario.stageActions,
     );
     expect(plan.event.id).toBe('event-code-without-technical-context');
   });
@@ -200,6 +272,7 @@ describe('resolveRound', () => {
       { ...template, number: 7 },
       selected,
       defaultScenario.mechanics,
+      defaultScenario.stageActions,
     );
     expect(plan.event.id).toBe('event-code-ready');
   });
@@ -217,7 +290,13 @@ describe('resolveRound', () => {
       const current = { ...template, number: index + 1 };
       const action = getStageAction(defaultScenario.stageActions, actionId);
       snapshot = snapshotFromPlan(
-        resolveRound(snapshot, current, action, defaultScenario.mechanics),
+        resolveRound(
+          snapshot,
+          current,
+          action,
+          defaultScenario.mechanics,
+          defaultScenario.stageActions,
+        ),
       );
     }
     expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
@@ -234,6 +313,7 @@ describe('resolveRound', () => {
       scenarioRound,
       riskyAction,
       defaultScenario.mechanics,
+      defaultScenario.stageActions,
     );
     expect(plan.event.id).toBe('event-code-outpaces-checks');
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
@@ -249,11 +329,64 @@ describe('resolveRound', () => {
         template,
         selected,
         defaultScenario.mechanics,
+        defaultScenario.stageActions,
       );
       if (Object.values(plan.stages).includes('BROKEN')) {
         expect(plan.breakdown.total.deliverySpeed ?? 0, actionId).toBeLessThanOrEqual(0);
       }
     }
+  });
+
+  it('сохраняет зелёный этап при добавлении процессной основы', () => {
+    const snapshot = createScenarioSnapshot();
+    snapshot.stages.businessRequest = 'AI_ENABLED';
+    const plan = resolveAvailableScenarioAction(snapshot, 'businessRequest.outcome-metrics', 1);
+    expect(plan.stages.businessRequest).toBe('AI_ENABLED');
+  });
+
+  it('чинит сломанный этап процессной основой до серого', () => {
+    const snapshot = createScenarioSnapshot();
+    snapshot.stages.testing = 'BROKEN';
+    const plan = resolveAvailableScenarioAction(snapshot, 'testing.behavior-checks', 1);
+    expect(plan.stages.testing).toBe('AS_IS');
+    expect(plan.breakdown.pipeline?.deliverySpeed ?? 0).toBe(0);
+  });
+
+  it('активирует уже установленный AI-контур после последней недостающей основы', () => {
+    let plan = resolveAvailableScenarioAction(
+      createScenarioSnapshot(),
+      'businessRequest.feedback-mcp',
+      1,
+    );
+    expect(plan.stages.businessRequest).toBe('BROKEN');
+    plan = resolveAvailableScenarioAction(
+      snapshotFromPlan(plan),
+      'businessRequest.outcome-metrics',
+      2,
+    );
+    expect(plan.stages.businessRequest).toBe('AI_ENABLED');
+  });
+
+  it.each(infrastructurePaths)('$actionId становится рабочим только после подготовки основы', ({
+    actionId,
+    badEventId,
+    goodEventId,
+    setupActionIds,
+    stage,
+  }) => {
+    let roundNumber = 1;
+    let plan = resolveAvailableScenarioAction(createScenarioSnapshot(), actionId, roundNumber);
+    expect(plan.event.id).toBe(badEventId);
+    expect(plan.stages[stage]).toBe('BROKEN');
+    expectScenarioContinues(plan, roundNumber);
+    for (const setupActionId of setupActionIds) {
+      roundNumber += 1;
+      plan = resolveAvailableScenarioAction(snapshotFromPlan(plan), setupActionId, roundNumber);
+      expectScenarioContinues(plan, roundNumber);
+    }
+    plan = resolveAvailableScenarioAction(snapshotFromPlan(plan), actionId, roundNumber + 1);
+    expect(plan.event.id).toBe(goodEventId);
+    expect(plan.stages[stage]).toBe('AI_ENABLED');
   });
 });
 
@@ -281,7 +414,7 @@ describe('getAvailableActions', () => {
     const available = getAvailableActions(catalog, choice, snapshot);
     expect(available.map(({ id }) => id)).toEqual(['repair']);
     expect(
-      resolveRound(snapshot, round, available[0] as EngineAction, mechanics).stages.coding,
+      resolveRound(snapshot, round, available[0] as EngineAction, mechanics, catalog).stages.coding,
     ).toBe('AI_ENABLED');
   });
 
@@ -394,6 +527,43 @@ describe('evaluateOutcome', () => {
     );
   });
 
+  it('позволяет победить через основы и рабочие AI-инструменты', () => {
+    const actionIds = [
+      'businessRequest.outcome-metrics',
+      'businessRequest.feedback-mcp',
+      'productDiscovery.knowledge-base',
+      'productDiscovery.knowledge-skill',
+      'technicalDiscovery.dependency-map',
+      'technicalDiscovery.ai-impact-analysis',
+      'testing.behavior-checks',
+      'coding.project-checks',
+      'coding.repository-mcp',
+      'review.risk-policy',
+      'review.review-skill',
+      'testing.test-generation-skill',
+      'deployment.rollback-drill',
+      'support.telemetry-baseline',
+      'deployment.mcp-tooling',
+      'support.incident-mcp',
+    ];
+    const { phases, snapshot } = playScenarioActions(actionIds);
+    expect(phases.at(-1)).toBe('WON');
+    expect(Object.values(snapshot.stages)).toEqual(stageKeys.map(() => 'AI_ENABLED'));
+  });
+
+  it('одна основа может активировать AI в нескольких соседних этапах', () => {
+    const actionIds = [
+      'productDiscovery.knowledge-base',
+      'testing.test-generation-skill',
+      'review.risk-policy',
+      'review.review-skill',
+      'testing.behavior-checks',
+    ];
+    const { snapshot } = playScenarioActions(actionIds);
+    expect(snapshot.stages.testing).toBe('AI_ENABLED');
+    expect(snapshot.stages.review).toBe('AI_ENABLED');
+  });
+
   it('не завершает игру поражением в первые два хода', () => {
     expect(findEarlyLosses(2)).toEqual([]);
   });
@@ -406,6 +576,37 @@ function snapshotFromPlan(plan: ReturnType<typeof resolveRound>): EngineSnapshot
     properties: plan.properties,
     stages: plan.stages,
   };
+}
+
+function resolveScenarioAction(snapshot: EngineSnapshot, actionId: string, roundNumber: number) {
+  const template = defaultScenario.rounds[0] as ScenarioRound;
+  const round = { ...template, number: roundNumber };
+  const selected = getStageAction(defaultScenario.stageActions, actionId);
+  return resolveRound(
+    snapshot,
+    round,
+    selected,
+    defaultScenario.mechanics,
+    defaultScenario.stageActions,
+  );
+}
+
+function resolveAvailableScenarioAction(
+  snapshot: EngineSnapshot,
+  actionId: string,
+  roundNumber: number,
+) {
+  const template = defaultScenario.rounds[0] as ScenarioRound;
+  const choice = template.stageChoices.find(({ actionIds }) => actionIds.includes(actionId));
+  if (!choice) throw new Error(`Нет выбора для ${actionId}`);
+  const available = getAvailableActions(defaultScenario.stageActions, choice, snapshot);
+  expect(available.map(({ id }) => id)).toContain(actionId);
+  return resolveScenarioAction(snapshot, actionId, roundNumber);
+}
+
+function expectScenarioContinues(plan: ReturnType<typeof resolveRound>, roundNumber: number) {
+  const outcome = evaluateOutcome(plan.metrics, plan.stages, roundNumber, defaultScenario.rules);
+  expect(outcome.phase).toBe('FEEDBACK');
 }
 
 function lateCodingSnapshot(technicalDiscoveryCount: number) {
@@ -431,7 +632,15 @@ function playScenarioActions(actionIds: string[]) {
     const template = defaultScenario.rounds[index % defaultScenario.rounds.length];
     const round = { ...template, number: index + 1 } as ScenarioRound;
     const action = getStageAction(defaultScenario.stageActions, actionId);
-    snapshot = snapshotFromPlan(resolveRound(snapshot, round, action, defaultScenario.mechanics));
+    snapshot = snapshotFromPlan(
+      resolveRound(
+        snapshot,
+        round,
+        action,
+        defaultScenario.mechanics,
+        defaultScenario.stageActions,
+      ),
+    );
     const outcome = evaluateOutcome(
       snapshot.metrics,
       snapshot.stages,
@@ -471,7 +680,13 @@ function visitChoice(
 ) {
   const actions = getAvailableActions(defaultScenario.stageActions, choice, snapshot);
   for (const selected of actions) {
-    const plan = resolveRound(snapshot, round, selected, defaultScenario.mechanics);
+    const plan = resolveRound(
+      snapshot,
+      round,
+      selected,
+      defaultScenario.mechanics,
+      defaultScenario.stageActions,
+    );
     const next = snapshotFromPlan(plan);
     const nextPath = [...path, selected.id];
     const outcome = evaluateOutcome(next.metrics, next.stages, round.number, defaultScenario.rules);

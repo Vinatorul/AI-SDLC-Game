@@ -34,16 +34,21 @@ export function resolveRound(
   round: ScenarioRound,
   action: EngineAction,
   mechanics: GameMechanics,
+  catalog: StageActionCatalog,
 ): ResolutionPlan {
   const event = selectEvent(round.eventRules, action, snapshot);
   const properties = mergeProperties(snapshot.properties, action.addProperties);
-  const decisionStages = applyStageChanges(snapshot.stages, [actionStageMutation(action)]);
-  const stages = applyStageChanges(decisionStages, event.stageChanges);
+  const appliedActions = appendAppliedAction(snapshot, action, round.number);
+  const currentStage = snapshot.stages[action.stage];
+  const decisionStages = applyStageChanges(snapshot.stages, [
+    actionStageMutation(action, currentStage),
+  ]);
+  const eventStages = applyStageChanges(decisionStages, event.stageChanges);
+  const stages = activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog);
   const propertyDelta = collectPropertyEffects(properties, mechanics);
   const pipelineDelta = collectStageStateEffects(stages, mechanics);
   const breakdown = createBreakdown(action.effect, event.effect, propertyDelta, pipelineDelta);
   const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
-  const appliedActions = appendAppliedAction(snapshot, action, round.number);
   return { appliedActions, breakdown, event, metrics, properties, stages };
 }
 
@@ -161,8 +166,33 @@ function wasApplied(snapshot: EngineSnapshot, actionId: string) {
   return snapshot.appliedActions.some((action) => action.actionId === actionId);
 }
 
-function actionStageMutation(action: EngineAction): StageMutation {
-  return { stage: action.stage, state: action.resultingStageState };
+function actionStageMutation(action: EngineAction, current: StageState): StageMutation {
+  const state = action.stageTransitions?.[current] ?? action.resultingStageState;
+  if (!state) throw new Error(`У действия ${action.id} не задан переход этапа`);
+  return { stage: action.stage, state };
+}
+
+function activateNewlyReadyActions(
+  stages: EngineSnapshot['stages'],
+  snapshot: EngineSnapshot,
+  appliedActions: EngineSnapshot['appliedActions'],
+  catalog: StageActionCatalog,
+) {
+  const before = new Set(snapshot.appliedActions.map(({ actionId }) => actionId));
+  const after = new Set(appliedActions.map(({ actionId }) => actionId));
+  const changes = Object.entries(catalog)
+    .filter(
+      ([id, action]) => !isActionReady(id, action, before) && isActionReady(id, action, after),
+    )
+    .map(([, action]) => ({ stage: action.stage, state: 'AI_ENABLED' as const }));
+  return applyStageChanges(stages, changes);
+}
+
+function isActionReady(id: string, action: StageActionCatalog[string], applied: Set<string>) {
+  const requirements = action.activationRequirements;
+  return Boolean(
+    requirements && applied.has(id) && requirements.every((item) => applied.has(item)),
+  );
 }
 
 function appendAppliedAction(snapshot: EngineSnapshot, action: EngineAction, roundNumber: number) {

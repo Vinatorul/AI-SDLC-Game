@@ -351,6 +351,7 @@ export class GameService {
       scenarioRound(this.database, round),
       action,
       parseMechanics(game),
+      actionCatalog(this.database, game.id),
     );
     persistRound(this.database, round, {
       pending_plan_json: JSON.stringify(plan),
@@ -558,7 +559,7 @@ function resolveLegacy(
   const projected = { ...snapshot, stages };
   const action = legacyAction(option, stages[option.stage]);
   const legacyRound = { ...scenarioRound(database, round), eventRules: legacyEventRules(round) };
-  return resolveRound(projected, legacyRound, action, parseMechanics(game));
+  return resolveRound(projected, legacyRound, action, parseMechanics(game), {});
 }
 
 function legacyAction(option: EngineOption, current: StageState): EngineAction {

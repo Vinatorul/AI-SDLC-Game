@@ -181,6 +181,34 @@ it('чинит сломанный этап следующим решением �
   );
 });
 
+it('активирует установленный MCP после добавления недостающей основы', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  expect(game.state.decisionModel).toBe('STAGE_ACTION_V2');
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = await playRound(
+    app,
+    game,
+    player,
+    'businessRequest',
+    'businessRequest.feedback-mcp',
+    0,
+  );
+  expect(state.stages.businessRequest).toBe('BROKEN');
+  state = await playRound(
+    app,
+    game,
+    player,
+    'businessRequest',
+    'businessRequest.outcome-metrics',
+    6,
+  );
+  expect(state.stages.businessRequest).toBe('AI_ENABLED');
+  expect(
+    state.stageProgress.businessRequest.appliedActions.map(({ actionId }) => actionId),
+  ).toEqual(['businessRequest.feedback-mcp', 'businessRequest.outcome-metrics']);
+});
+
 it('продолжает игру, пока все восемь этапов не станут зелёными', async () => {
   const app = await testApp();
   const game = await createGame(app);
@@ -576,9 +604,9 @@ function scenarioWithTemplateId(id: string): Scenario {
 
 function expectOldCycleOrder(...states: GameState[]) {
   expect(states.map((state) => state.currentRound?.title)).toEqual([
-    'Какой этап меняем?',
+    'Куда вложиться сейчас?',
     'Старый второй шаблон',
-    'Какой этап меняем?',
+    'Куда вложиться сейчас?',
   ]);
 }
 

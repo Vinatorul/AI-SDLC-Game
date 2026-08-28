@@ -19,13 +19,18 @@ export type EngineOption = RoundOption & {
   stageChanges: StageMutation[];
 };
 
-export type StageAction = Omit<RoundOption, 'id'> & {
-  addProperties: ProcessProperty[];
-  availableInStates: StageState[];
-  effect: MetricDelta;
-  repeatable: boolean;
-  resultingStageState: StageState;
-};
+type ActionStageResult =
+  | { resultingStageState: StageState; stageTransitions?: never }
+  | { resultingStageState?: never; stageTransitions: Record<StageState, StageState> };
+
+export type StageAction = Omit<RoundOption, 'id'> &
+  ActionStageResult & {
+    activationRequirements?: string[];
+    addProperties: ProcessProperty[];
+    availableInStates: StageState[];
+    effect: MetricDelta;
+    repeatable: boolean;
+  };
 
 export type EngineAction = StageAction & { id: string };
 export type StageActionCatalog = Record<string, StageAction>;

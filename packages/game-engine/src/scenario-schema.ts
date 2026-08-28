@@ -44,6 +44,13 @@ const propertySchema = z.enum(processProperties);
 const stageSchema = z.enum(stageKeys);
 const stageStateSchema = z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']);
 const stageMutationSchema = z.object({ stage: stageSchema, state: stageStateSchema }).strict();
+const stageTransitionsSchema = z
+  .object({
+    AI_ENABLED: stageStateSchema,
+    AS_IS: stageStateSchema,
+    BROKEN: stageStateSchema,
+  })
+  .strict();
 const countRangeSchema = z
   .object({
     maximum: z.number().int().min(0).optional(),
@@ -88,8 +95,9 @@ const eventRuleSchema = z
   })
   .strict();
 
-const stageActionSchema = z
+const stageActionBaseSchema = z
   .object({
+    activationRequirements: z.array(z.string().min(1)).min(1).optional(),
     addProperties: z.array(propertySchema),
     availableInStates: z.array(stageStateSchema).min(1),
     description: z.string().min(1),
@@ -97,12 +105,16 @@ const stageActionSchema = z
     evidence: z.enum(['FACT', 'SCENARIO']),
     key: z.string().min(1),
     repeatable: z.boolean(),
-    resultingStageState: stageStateSchema,
     shortFeedback: z.string().min(1).nullable(),
     stage: stageSchema,
     title: z.string().min(1),
   })
   .strict();
+
+const stageActionSchema = z.union([
+  stageActionBaseSchema.extend({ resultingStageState: stageStateSchema }).strict(),
+  stageActionBaseSchema.extend({ stageTransitions: stageTransitionsSchema }).strict(),
+]);
 
 const stageChoiceSchema = z
   .object({
@@ -248,17 +260,39 @@ function validateThresholds(scenario: ScenarioCandidate, context: IssueContext) 
 }
 
 function validateActionCatalog(scenario: ScenarioCandidate, context: IssueContext) {
-  if (Object.keys(scenario.stageActions).length === 0) {
+  const actionIds = new Set(Object.keys(scenario.stageActions));
+  if (actionIds.size === 0) {
     addIssue(context, ['stageActions'], 'каталог действий не должен быть пустым');
   }
   Object.entries(scenario.stageActions).forEach(([id, action]) => {
-    validateUnique(
-      action.availableInStates,
-      ['stageActions', id, 'availableInStates'],
-      'состояние',
-      context,
-    );
+    validateAction(id, action, actionIds, context);
   });
+}
+
+function validateAction(
+  id: string,
+  action: ScenarioCandidate['stageActions'][string],
+  actionIds: Set<string>,
+  context: IssueContext,
+) {
+  validateUnique(
+    action.availableInStates,
+    ['stageActions', id, 'availableInStates'],
+    'состояние',
+    context,
+  );
+  const path = ['stageActions', id, 'activationRequirements'] as (string | number)[];
+  validateUnique(action.activationRequirements ?? [], path, 'требование активации', context);
+  validateKnown(action.activationRequirements, actionIds, path, context);
+  if (action.activationRequirements?.includes(id)) {
+    addIssue(context, path, 'не должно ссылаться на себя');
+  }
+  if (
+    action.activationRequirements &&
+    (!('resultingStageState' in action) || action.resultingStageState !== 'AI_ENABLED')
+  ) {
+    addIssue(context, path, 'допустимо только для действия с результатом AI_ENABLED');
+  }
 }
 
 function validateRound(
