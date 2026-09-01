@@ -196,8 +196,10 @@ it('чинит сломанный этап следующим решением �
   const game = await createGame(app);
   const player = await joinGame(app, game.state.code, 'Ира');
   let state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 0);
+  expect(state.stageProgress.review.state).toBe('AS_IS');
+  state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 6);
   expect(state.stageProgress.review.state).toBe('BROKEN');
-  state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 6);
+  state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 12);
   expect(state.stageProgress.review.state).toBe('AI_ENABLED');
   expect(state.stageProgress.review.appliedActions[0]?.actionId).toBe(
     'review.context-and-human-risk',
@@ -395,6 +397,7 @@ it('после перезапуска использует сохранённу�
   expect(state.metrics.quality).toBe(4);
   expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 6);
+  state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 12);
   expect(state.currentRound?.effectBreakdown?.pipeline?.deliverySpeed).toBe(-4);
   expect(state.currentRound?.effectBreakdown?.decision.deliverySpeed ?? 0).toBe(0);
   expect(state.metrics.deliverySpeed).toBe(-5);

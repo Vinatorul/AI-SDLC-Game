@@ -98,6 +98,7 @@ const infrastructurePaths = [
   {
     actionId: 'businessRequest.feedback-mcp',
     badEventId: 'event-feedback-mcp-without-metrics',
+    failedState: 'BROKEN',
     goodEventId: 'event-feedback-mcp-ready',
     setupActionIds: ['businessRequest.outcome-metrics'],
     stage: 'businessRequest',
@@ -105,6 +106,7 @@ const infrastructurePaths = [
   {
     actionId: 'productDiscovery.knowledge-skill',
     badEventId: 'event-product-skill-without-base',
+    failedState: 'BROKEN',
     goodEventId: 'event-product-skill-ready',
     setupActionIds: ['productDiscovery.knowledge-base'],
     stage: 'productDiscovery',
@@ -112,6 +114,7 @@ const infrastructurePaths = [
   {
     actionId: 'technicalDiscovery.ai-impact-analysis',
     badEventId: 'event-impact-graph-missing',
+    failedState: 'BROKEN',
     goodEventId: 'event-impact-graph-used',
     setupActionIds: ['technicalDiscovery.dependency-map'],
     stage: 'technicalDiscovery',
@@ -119,6 +122,7 @@ const infrastructurePaths = [
   {
     actionId: 'coding.repository-mcp',
     badEventId: 'event-repository-mcp-without-context',
+    failedState: 'BROKEN',
     goodEventId: 'event-repository-mcp-ready',
     setupActionIds: [
       'productDiscovery.knowledge-base',
@@ -130,6 +134,7 @@ const infrastructurePaths = [
   {
     actionId: 'review.review-skill',
     badEventId: 'event-review-skill-without-policy',
+    failedState: 'BROKEN',
     goodEventId: 'event-review-skill-ready',
     setupActionIds: ['review.risk-policy', 'testing.behavior-checks'],
     stage: 'review',
@@ -137,6 +142,7 @@ const infrastructurePaths = [
   {
     actionId: 'testing.test-generation-skill',
     badEventId: 'event-test-skill-without-baseline',
+    failedState: 'BROKEN',
     goodEventId: 'event-test-generation-skill-ready',
     setupActionIds: ['productDiscovery.knowledge-base', 'testing.behavior-checks'],
     stage: 'testing',
@@ -144,6 +150,7 @@ const infrastructurePaths = [
   {
     actionId: 'deployment.mcp-tooling',
     badEventId: 'event-deploy-mcp-without-tests',
+    failedState: 'AS_IS',
     goodEventId: 'event-deploy-mcp-ready',
     setupActionIds: [
       'testing.behavior-checks',
@@ -155,6 +162,7 @@ const infrastructurePaths = [
   {
     actionId: 'support.incident-mcp',
     badEventId: 'event-incident-mcp-without-signals',
+    failedState: 'BROKEN',
     goodEventId: 'event-incident-mcp-ready',
     setupActionIds: ['support.telemetry-baseline'],
     stage: 'support',
@@ -300,6 +308,7 @@ describe('resolveRound', () => {
     const firstRule = conditional.eventRules[0];
     if (!firstRule) throw new Error('Нет тестового правила');
     firstRule.hasAppliedActions = ['test-baseline'];
+    firstRule.appliedActionCounts = [{ actionIds: ['test-baseline'], minimum: 1 }];
     firstRule.appliedActionCount = { maximum: 1, minimum: 1 };
     firstRule.stageActionCounts = [{ maximum: 1, minimum: 1, stage: 'testing' }];
     firstRule.stageStates = [{ stage: 'coding', state: 'AS_IS' }];
@@ -361,15 +370,25 @@ describe('resolveRound', () => {
     expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
   });
 
-  it('не повторяет штраф за сломанные этапы в основном сценарии', () => {
+  it('ломает ревью и тестирование только после повторного ускорения кодинга', () => {
     const riskyAction = getStageAction(
       defaultScenario.stageActions,
       'coding.guided-implementation',
     );
     const scenarioRound = defaultScenario.rounds[0] as ScenarioRound;
-    const plan = resolveRound(
+    const first = resolveRound(
       createScenarioSnapshot(),
       scenarioRound,
+      riskyAction,
+      defaultScenario.mechanics,
+      defaultScenario.stageActions,
+    );
+    expect(first.event.id).toBe('event-code-ready');
+    expect(first.stages.review).toBe('AS_IS');
+    expect(first.stages.testing).toBe('AS_IS');
+    const plan = resolveRound(
+      snapshotFromPlan(first),
+      { ...scenarioRound, number: 2 },
       riskyAction,
       defaultScenario.mechanics,
       defaultScenario.stageActions,
@@ -379,13 +398,37 @@ describe('resolveRound', () => {
     expect(plan.stages.testing).toBe('BROKEN');
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
     expect(plan.metrics.deliverySpeed).toBe(-2);
+    expect(plan.event.effectReasons?.deliverySpeed).toContain('ревьюеры и QA');
     const next = resolveScenarioAction(
       snapshotFromPlan(plan),
       'technicalDiscovery.sync-docs-and-contract',
-      2,
+      3,
     );
     expect(next.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
     expect(next.metrics.deliverySpeed).toBe(-2);
+  });
+
+  it('не считает настройку проверок прошлым ускорением кодинга', () => {
+    const template = defaultScenario.rounds[0] as ScenarioRound;
+    const checks = getStageAction(defaultScenario.stageActions, 'coding.project-checks');
+    const coding = getStageAction(defaultScenario.stageActions, 'coding.guided-implementation');
+    const prepared = resolveRound(
+      createScenarioSnapshot(),
+      template,
+      checks,
+      defaultScenario.mechanics,
+      defaultScenario.stageActions,
+    );
+    const plan = resolveRound(
+      snapshotFromPlan(prepared),
+      { ...template, number: 2 },
+      coding,
+      defaultScenario.mechanics,
+      defaultScenario.stageActions,
+    );
+    expect(plan.event.id).toBe('event-code-ready');
+    expect(plan.stages.review).toBe('AS_IS');
+    expect(plan.stages.testing).toBe('AS_IS');
   });
 
   it('не ускоряет TTM перед сломанным этапом основного сценария', () => {
@@ -451,6 +494,7 @@ describe('resolveRound', () => {
   it.each(infrastructurePaths)('$actionId становится рабочим только после подготовки основы', ({
     actionId,
     badEventId,
+    failedState,
     goodEventId,
     setupActionIds,
     stage,
@@ -458,7 +502,7 @@ describe('resolveRound', () => {
     let roundNumber = 1;
     let plan = resolveAvailableScenarioAction(createScenarioSnapshot(), actionId, roundNumber);
     expect(plan.event.id).toBe(badEventId);
-    expect(plan.stages[stage]).toBe('BROKEN');
+    expect(plan.stages[stage]).toBe(failedState);
     expectScenarioContinues(plan, roundNumber);
     for (const setupActionId of setupActionIds) {
       roundNumber += 1;
@@ -468,6 +512,26 @@ describe('resolveRound', () => {
     plan = resolveAvailableScenarioAction(snapshotFromPlan(plan), actionId, roundNumber + 1);
     expect(plan.event.id).toBe(goodEventId);
     expect(plan.stages[stage]).toBe('AI_ENABLED');
+  });
+
+  it.each([
+    [[], 'event-deploy-mcp-without-tests'],
+    [['testing.behavior-checks'], 'event-deploy-mcp-without-rollback'],
+    [['testing.behavior-checks', 'deployment.rollback-drill'], 'event-deploy-mcp-without-signals'],
+  ])('оставляет ручной деплой рабочим при событии %s', (foundationIds, eventId) => {
+    const snapshot = createScenarioSnapshot();
+    snapshot.appliedActions = foundationIds.map((actionId, index) => ({
+      actionId,
+      roundNumber: index + 1,
+      stage: getStageAction(defaultScenario.stageActions, actionId).stage,
+    }));
+    const plan = resolveAvailableScenarioAction(
+      snapshot,
+      'deployment.mcp-tooling',
+      foundationIds.length + 1,
+    );
+    expect(plan.event.id).toBe(eventId);
+    expect(plan.stages.deployment).toBe('AS_IS');
   });
 });
 

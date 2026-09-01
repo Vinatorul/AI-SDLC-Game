@@ -183,6 +183,7 @@ function eventRuleMatches(rule: EventRule, action: EngineAction, snapshot: Engin
   if (!matchesActionHistory(rule, snapshot)) return false;
   if (!matchesStageStates(rule, snapshot)) return false;
   if (!countInRange(snapshot.appliedActions.length, rule.appliedActionCount)) return false;
+  if (!matchesAppliedActionCounts(rule, snapshot)) return false;
   if (!matchesStageActionCounts(rule, snapshot)) return false;
   return true;
 }
@@ -196,6 +197,16 @@ function matchesActionHistory(rule: EventRule, snapshot: EngineSnapshot) {
 
 function matchesStageStates(rule: EventRule, snapshot: EngineSnapshot) {
   return (rule.stageStates ?? []).every(({ stage, state }) => snapshot.stages[stage] === state);
+}
+
+function matchesAppliedActionCounts(rule: EventRule, snapshot: EngineSnapshot) {
+  return (rule.appliedActionCounts ?? []).every(({ actionIds, ...range }) => {
+    const relevantIds = new Set(actionIds);
+    const count = snapshot.appliedActions.filter(({ actionId }) =>
+      relevantIds.has(actionId),
+    ).length;
+    return countInRange(count, range);
+  });
 }
 
 function matchesStageActionCounts(rule: EventRule, snapshot: EngineSnapshot) {

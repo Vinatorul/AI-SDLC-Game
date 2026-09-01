@@ -155,6 +155,14 @@ describe('parseScenario', () => {
     expect(() => parseScenario(source)).toThrow(/hasAppliedActions.*missing-action/);
   });
 
+  it('проверяет ссылки в счётчике конкретных действий', () => {
+    const source = structuredClone(defaultScenario);
+    const firstRule = source.rounds[0]?.eventRules[0];
+    if (!firstRule) throw new Error('Тестовый сценарий повреждён');
+    firstRule.appliedActionCounts = [{ actionIds: ['missing-action'], minimum: 1 }];
+    expect(() => parseScenario(source)).toThrow(/appliedActionCounts.*missing-action/);
+  });
+
   it('проверяет ссылки в требованиях активации', () => {
     const source = structuredClone(defaultScenario);
     const action = source.stageActions['businessRequest.feedback-mcp'];

@@ -99,6 +99,15 @@ fallback copy. Each reason should name the concrete cause of that one metric cha
 The same rule applies to **mechanics.propertyEffects** / **propertyEffectReasons** and
 **stageStateEffects** / **stageStateEffectReasons**.
 
+When an event changes a stage to BROKEN, its title and description must say what actually failed
+or overloaded that stage. Every negative effectReason must connect the same concrete failure to
+that metric. Do not explain a deduction only with the later fact that the stage is broken. If the
+copy says that a queue accumulated, require enough prior actions for a queue to exist.
+
+If an AI integration cannot work yet but the team safely continues with the previous manual
+process, leave the stage AS_IS. Reserve BROKEN for a stage that has become unreliable or unusable,
+and describe the concrete failure in the event.
+
 Positive action and event effects are checked against the final stage map for the current turn.
 Configure this in **mechanics.positiveEffectRequirements**. When **requireActionStage** is true, a
 positive contribution is blocked if the selected action's own stage remains BROKEN. Use
@@ -187,6 +196,11 @@ describe a content result through cube colors or phrases such as "the stage rece
 Use MCP, skill, agent, context, and similar terms only when the exact technology matters, then say
 what data or command it provides, who verifies the result, and what fails when a prerequisite is
 missing.
+
+In Russian copy and discussion, never use a generic abstract noun to mean a gap, mismatch, missing
+dependency, or failed handoff. State exactly what differs, what is absent, which stage is
+overloaded, or which decision cannot be made. The copy validator rejects the prohibited term in
+all grammatical forms.
 
 Treat the first factually correct draft as working notes. Rewrite it once in the vocabulary a host
 would naturally use aloud, then read it aloud before accepting it. If it sounds like analysis,

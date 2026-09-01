@@ -11,6 +11,7 @@ export { defaultRules, defaultScenario } from './scenario';
 export { parseScenario } from './scenario-schema';
 export type {
   AppliedAction,
+  AppliedActionCountCondition,
   CountRange,
   EngineAction,
   EngineEvent,

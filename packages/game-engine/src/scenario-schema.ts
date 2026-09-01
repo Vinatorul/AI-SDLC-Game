@@ -104,6 +104,15 @@ const countRangeSchema = z
   .strict()
   .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
 
+const appliedActionCountConditionSchema = z
+  .object({
+    actionIds: z.array(z.string().min(1)).min(1),
+    maximum: z.number().int().min(0).optional(),
+    minimum: z.number().int().min(0).optional(),
+  })
+  .strict()
+  .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
+
 const stageActionCountSchema = z
   .object({
     maximum: z.number().int().min(0).optional(),
@@ -128,6 +137,7 @@ const eventSchema = z
 const eventRuleSchema = z
   .object({
     actionIds: z.array(z.string().min(1)).min(1).optional(),
+    appliedActionCounts: z.array(appliedActionCountConditionSchema).min(1).optional(),
     appliedActionCount: countRangeSchema.optional(),
     event: eventSchema,
     hasAppliedActions: z.array(z.string().min(1)).min(1).optional(),
@@ -498,6 +508,9 @@ function validateRuleConditions(
     'этап в stageActionCounts',
     context,
   );
+  rule.appliedActionCounts?.forEach(({ actionIds }, index) => {
+    validateUnique(actionIds, [...path, 'appliedActionCounts', index], 'actionId', context);
+  });
 }
 
 function validateRuleReferences(
@@ -510,6 +523,9 @@ function validateRuleReferences(
   const roundIds = new Set(round.stageChoices.flatMap(({ actionIds }) => actionIds));
   validateKnown(rule.actionIds, roundIds, [...path, 'actionIds'], context);
   const catalogIds = new Set(Object.keys(scenario.stageActions));
+  rule.appliedActionCounts?.forEach(({ actionIds }, index) => {
+    validateKnown(actionIds, catalogIds, [...path, 'appliedActionCounts', index], context);
+  });
   validateKnown(rule.hasAppliedActions, catalogIds, [...path, 'hasAppliedActions'], context);
   validateKnown(
     rule.missingAppliedActions,
@@ -544,6 +560,7 @@ function hasCondition(rule: ScenarioCandidate['rounds'][number]['eventRules'][nu
   return Boolean(
     rule.actionIds ||
       rule.appliedActionCount ||
+      rule.appliedActionCounts ||
       rule.hasAppliedActions ||
       rule.hasProperty ||
       rule.hasResultingProperty ||

@@ -52,6 +52,7 @@ export type EngineEvent = GameEvent & {
 
 export type EventRule = {
   actionIds?: string[];
+  appliedActionCounts?: AppliedActionCountCondition[];
   appliedActionCount?: CountRange;
   event: EngineEvent;
   hasAppliedActions?: string[];
@@ -64,6 +65,7 @@ export type EventRule = {
   stageStates?: StageMutation[];
 };
 
+export type AppliedActionCountCondition = CountRange & { actionIds: string[] };
 export type CountRange = { maximum?: number; minimum?: number };
 export type StageActionCountCondition = CountRange & { stage: StageKey };
 
