@@ -1,11 +1,11 @@
+import type { GameState } from '@ai-sdlc/contracts';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CodeEntry } from '../components/CodeEntry';
-import { GameFocus } from '../components/GameFocus';
-import { GameHeader } from '../components/GameHeader';
 import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
 import { StageMap } from '../components/StageMap';
+import { phaseLabels } from '../labels';
 import { useGameState } from '../realtime/useGameState';
 
 export function ScreenPage() {
@@ -15,39 +15,36 @@ export function ScreenPage() {
   if (!code) return <ScreenEntry onSubmit={(value) => navigate(`/screen/${value}`)} />;
   if (game.error) return <ScreenMessage error message={game.error} />;
   if (!game.state) return <ScreenMessage message="Загружаем игру…" />;
-  return <ActiveScreen code={code} connected={game.connected} state={game.state} />;
+  return <ScreenGameView code={code} state={game.state} />;
 }
 
-function ActiveScreen({
+export function ScreenGameView({
   code,
-  connected,
   state,
 }: {
   code: string;
-  connected: boolean;
   state: NonNullable<ReturnType<typeof useGameState>['state']>;
 }) {
-  const stageBallot = showsStageBallot(state);
   return (
-    <Layout compact>
-      <main className={`game-page screen-page${stageBallot ? ' screen-stage-ballot' : ''}`}>
-        <GameHeader connected={connected} state={state} title="Экран зала" />
-        <div className="screen-topline">
-          <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
-          {state.phase !== 'WON' && state.phase !== 'BROKEN' && <JoinQr code={code} />}
-        </div>
-        <GameFocus state={state} />
-        {!stageBallot && <StageMap state={state} />}
+    <Layout bare>
+      <main className="game-page screen-page">
+        <section className="screen-dashboard">
+          <ScreenCurrentPhase state={state} />
+          <MetricBoard compact breakdown={state.currentRound?.effectBreakdown} state={state} />
+          <StageMap compact state={state} />
+          <JoinQr code={code} />
+        </section>
       </main>
     </Layout>
   );
 }
 
-function showsStageBallot(state: NonNullable<ReturnType<typeof useGameState>['state']>) {
+function ScreenCurrentPhase({ state }: { state: GameState }) {
   return (
-    state.decisionModel === 'STAGE_ACTION_V2' &&
-    state.currentBallot?.kind === 'STAGE' &&
-    (state.phase === 'VOTING' || state.phase === 'RESULT')
+    <section className="screen-current-phase" aria-live="polite">
+      <p className="eyebrow">Текущая фаза</p>
+      <h2>{phaseLabels[state.phase]}</h2>
+    </section>
   );
 }
 
@@ -57,7 +54,7 @@ function ScreenEntry({ onSubmit }: { onSubmit: (value: string) => void }) {
       <main className="single-page">
         <CodeEntry
           action="Открыть"
-          description="Введите код уже созданной комнаты."
+          description="Введите код комнаты, которую создал ведущий."
           onSubmit={onSubmit}
           title="Общий экран"
         />

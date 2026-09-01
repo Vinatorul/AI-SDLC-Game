@@ -1,10 +1,13 @@
 import type {
   EffectBreakdown,
+  EffectContribution,
   GameEvent,
   GameRules,
   MetricBounds,
   MetricDefinitions,
   MetricDelta,
+  MetricKey,
+  MetricReasons,
   MetricValues,
   ProcessProperty,
   RoundOption,
@@ -29,14 +32,21 @@ export type StageAction = Omit<RoundOption, 'id'> &
     addProperties: ProcessProperty[];
     availableInStates: StageState[];
     effect: MetricDelta;
+    effectReasons?: MetricReasons;
     repeatable: boolean;
   };
 
 export type EngineAction = StageAction & { id: string };
 export type StageActionCatalog = Record<string, StageAction>;
 
+export type PositiveEffectRequirements = {
+  additionalStages?: Partial<Record<MetricKey, Partial<Record<StageKey, StageKey[]>>>>;
+  requireActionStage: boolean;
+};
+
 export type EngineEvent = GameEvent & {
   effect: MetricDelta;
+  effectReasons?: MetricReasons;
   stageChanges: StageMutation[];
 };
 
@@ -76,8 +86,11 @@ export type ScenarioRound = {
 export type GameMechanics = {
   initialMetrics: MetricValues;
   metricBounds: MetricBounds;
+  positiveEffectRequirements?: PositiveEffectRequirements;
   propertyEffects: Record<ProcessProperty, MetricDelta>;
+  propertyEffectReasons?: Partial<Record<ProcessProperty, MetricReasons>>;
   stageStateEffects?: Partial<Record<StageState, MetricDelta>>;
+  stageStateEffectReasons?: Partial<Record<StageState, MetricReasons>>;
 };
 
 export type ScenarioMechanics = GameMechanics & {
@@ -92,7 +105,7 @@ export type Scenario = {
   mechanics: ScenarioMechanics;
   rounds: ScenarioRound[];
   rules: GameRules;
-  schemaVersion: 3;
+  schemaVersion: 4;
   stageActions: StageActionCatalog;
   version: number;
 };
@@ -113,6 +126,7 @@ export type EngineSnapshot = {
 export type ResolutionPlan = {
   appliedActions: AppliedAction[];
   breakdown: EffectBreakdown;
+  effectContributions: EffectContribution[];
   event: EngineEvent;
   metrics: MetricValues;
   properties: ProcessProperty[];

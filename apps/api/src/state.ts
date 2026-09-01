@@ -9,7 +9,9 @@ import {
   type GameRules,
   type GameState,
   type MetricDefinitions,
+  type MetricDelta,
   type MetricValues,
+  metricKeys,
   type ProcessProperty,
   type RoundOption,
   type RoundView,
@@ -49,6 +51,7 @@ import {
   parsePlan,
   type RoundRow,
 } from './db/store';
+import { metricImpact } from './metric-impact';
 
 export function buildGameState(database: GameDatabase, game: GameRow): GameState {
   const round = currentRound(database, game);
@@ -87,43 +90,52 @@ function publicMetricConfig(mechanics: StoredScenarioMechanics) {
   return {
     metricBounds: mechanics.metricBounds,
     metricDefinitions: mechanics.metricDefinitions ?? legacyMetricDefinitions,
-    metricScaleDescription:
-      mechanics.metricScaleDescription ?? 'Чем выше значение, тем лучше состояние процесса',
+    metricScaleDescription: mechanics.metricScaleDescription ?? 'Чем выше балл, тем лучше',
   };
 }
 
 const legacyMetricDefinitions: MetricDefinitions = {
   controllability: {
-    description: 'Насколько процесс остаётся понятным и управляемым.',
-    label: 'Управляемость',
-    maximumDescription: 'Процесс полностью управляем.',
-    maximumLabel: 'Максимум',
-    minimumDescription: 'Процесс потерял управляемость.',
-    minimumLabel: 'Минимум',
+    description: 'Насколько обещания команды совпадают с тем, что и когда получает пользователь.',
+    label: 'Предсказуемость результата',
+    maximumDescription:
+      'Команда заранее понимает, что и когда получит пользователь, выполняет обещания, а риски замечает заранее.',
+    maximumLabel: 'Риски видны заранее',
+    minimumDescription:
+      'Никто не знает, что и когда получится. Обещания не сходятся с фактом, каждый релиз — сюрприз.',
+    minimumLabel: 'Каждый релиз — сюрприз',
   },
   deliverySpeed: {
-    description: 'Как быстро изменения доходят до пользователей.',
-    label: 'Скорость поставки',
-    maximumDescription: 'Изменения доходят максимально быстро.',
-    maximumLabel: 'Максимум',
-    minimumDescription: 'Изменения практически остановились.',
-    minimumLabel: 'Минимум',
+    description:
+      'Насколько быстро решение превращается в результат у пользователя: чем выше балл, тем короче TTM.',
+    label: 'TTM',
+    maximumDescription:
+      'Нужное изменение доходит до пользователей почти сразу после решения, без очередей и долгого ожидания.',
+    maximumLabel: 'Почти сразу',
+    minimumDescription:
+      'Изменения добираются до пользователей так долго, что успевают потерять смысл.',
+    minimumLabel: 'Слишком долго',
   },
   quality: {
-    description: 'Насколько надёжно работают выпущенные изменения.',
-    label: 'Качество',
-    maximumDescription: 'Изменения работают надёжно.',
-    maximumLabel: 'Максимум',
-    minimumDescription: 'Изменения постоянно ломаются.',
-    minimumLabel: 'Минимум',
+    description:
+      'Работают ли изменения так, как ожидала команда, и не создают ли они проблем пользователям.',
+    label: 'Качество и стабильность',
+    maximumDescription:
+      'Изменения работают как задумано, не ломают существующее, а технические проблемы почти не доходят до пользователей.',
+    maximumLabel: 'Работает как задумано',
+    minimumDescription:
+      'Каждое изменение приносит новые баги. В проде постоянно случаются инциденты, пользователи сталкиваются с проблемами.',
+    minimumLabel: 'Баги и инциденты',
   },
   teamCapacity: {
-    description: 'Сколько рабочего ресурса осталось у команды.',
-    label: 'Ресурс команды',
-    maximumDescription: 'У команды достаточно ресурса.',
-    maximumLabel: 'Максимум',
-    minimumDescription: 'Ресурс команды исчерпан.',
-    minimumLabel: 'Минимум',
+    description: 'Сколько ресурса остаётся на новое после поддержки, переделок и инцидентов.',
+    label: 'Баланс Run / Change',
+    maximumDescription:
+      'Команда победила рутину поддержки: проблемы редки или решаются автоматически, почти весь ресурс уходит на новое.',
+    maximumLabel: 'Ресурс на новое',
+    minimumDescription:
+      'Команда утонула в поддержке: на новое времени нет, а баги прилетают быстрее, чем их успевают закрывать.',
+    minimumLabel: 'Run съел Change',
   },
 };
 
@@ -139,14 +151,17 @@ function buildRoundView(
   ballot: BallotView | null,
 ): RoundView {
   const legacy = game.decision_model === 'SINGLE_OPTION_V1';
+  const plan = visiblePlan(game, round);
   const options = legacy ? legacyOptions(database, game, round) : ballotActionOptions(ballot);
   const selected = ballot?.kind === 'ACTION' ? ballot.selectedChoiceId : round.selected_option_id;
   const tied =
     ballot?.kind === 'ACTION' ? ballot.tiedChoiceIds : parseIds(round.tied_option_ids_json);
   return {
-    effectBreakdown: visiblePlan(game, round)?.breakdown ?? null,
+    effectBreakdown: plan?.breakdown ?? null,
+    effectContributions: plan?.effectContributions,
     event: visibleEvent(game, round),
     id: round.id,
+    metricImpact: visibleMetricImpact(game, round),
     number: round.round_number,
     options,
     selectedOptionId: selected,
@@ -336,7 +351,7 @@ function appliedAction(
 
 function requiredAction(database: GameDatabase, gameId: string, actionId: string) {
   const action = findAction(database, gameId, actionId);
-  if (!action) throw new Error(`Неизвестное действие ${actionId}`);
+  if (!action) throw new Error(`Не удалось найти решение ${actionId}`);
   return action;
 }
 
@@ -353,6 +368,22 @@ function publicEvent(event: EngineEvent): GameEvent {
     id: event.id,
     title: event.title,
   };
+}
+
+function visibleMetricImpact(game: GameRow, round: RoundRow) {
+  if (!['EVENT', 'FEEDBACK', 'WON', 'BROKEN'].includes(game.phase)) return null;
+  const plan = parsePlan(round);
+  if (!plan) return null;
+  const applied = plan.breakdown.applied ?? legacyPendingEffect(game, plan);
+  return applied ? metricImpact(applied) : null;
+}
+
+function legacyPendingEffect(game: GameRow, plan: ResolutionPlan): MetricDelta | null {
+  if (game.phase !== 'EVENT') return null;
+  const current = JSON.parse(game.metrics_json) as MetricValues;
+  return Object.fromEntries(
+    metricKeys.map((key) => [key, plan.metrics[key] - current[key]]),
+  ) as MetricDelta;
 }
 
 function visiblePlan(game: GameRow, round: RoundRow): ResolutionPlan | null {

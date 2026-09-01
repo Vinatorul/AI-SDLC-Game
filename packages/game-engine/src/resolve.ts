@@ -1,9 +1,12 @@
 import {
+  type EffectContribution,
   type GameRules,
   type MetricDelta,
+  type MetricKey,
   type MetricValues,
   metricKeys,
   type ProcessProperty,
+  type StageKey,
   type StageMutation,
   type StageState,
   stageKeys,
@@ -20,6 +23,12 @@ import type {
   ScenarioStageChoice,
   StageActionCatalog,
 } from './types';
+
+type GatedEffect = {
+  blockedByStages: Partial<Record<MetricKey, StageKey[]>>;
+  blockedEffect: MetricDelta;
+  effect: MetricDelta;
+};
 
 export function createInitialMetrics(mechanics: GameMechanics): MetricValues {
   return { ...mechanics.initialMetrics };
@@ -39,17 +48,57 @@ export function resolveRound(
   const event = selectEvent(round.eventRules, action, snapshot);
   const properties = mergeProperties(snapshot.properties, action.addProperties);
   const appliedActions = appendAppliedAction(snapshot, action, round.number);
-  const currentStage = snapshot.stages[action.stage];
-  const decisionStages = applyStageChanges(snapshot.stages, [
-    actionStageMutation(action, currentStage),
-  ]);
-  const eventStages = applyStageChanges(decisionStages, event.stageChanges);
-  const stages = activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog);
+  const stages = resolveStages(snapshot, action, event, appliedActions, catalog);
+  const narrativeEffects = gateNarrativeEffects(action, event, stages, mechanics);
+  const { breakdown, metrics } = calculateRoundMetrics(
+    snapshot,
+    properties,
+    stages,
+    narrativeEffects,
+    mechanics,
+  );
+  const effectContributions = createEffectContributions(
+    action,
+    event,
+    narrativeEffects,
+    properties,
+    stages,
+    mechanics,
+  );
+  return { appliedActions, breakdown, effectContributions, event, metrics, properties, stages };
+}
+
+function calculateRoundMetrics(
+  snapshot: EngineSnapshot,
+  properties: EngineSnapshot['properties'],
+  stages: EngineSnapshot['stages'],
+  effects: { decision: GatedEffect; event: GatedEffect },
+  mechanics: GameMechanics,
+) {
   const propertyDelta = collectPropertyEffects(properties, mechanics);
   const pipelineDelta = collectStageStateEffects(stages, mechanics);
-  const breakdown = createBreakdown(action.effect, event.effect, propertyDelta, pipelineDelta);
-  const metrics = applyMetricDelta(snapshot.metrics, breakdown.total, mechanics);
-  return { appliedActions, breakdown, event, metrics, properties, stages };
+  const raw = createBreakdown(
+    effects.decision.effect,
+    effects.event.effect,
+    propertyDelta,
+    pipelineDelta,
+  );
+  const metrics = applyMetricDelta(snapshot.metrics, raw.total, mechanics);
+  const applied = metricDifference(snapshot.metrics, metrics);
+  return { breakdown: { ...raw, applied }, metrics };
+}
+
+function resolveStages(
+  snapshot: EngineSnapshot,
+  action: EngineAction,
+  event: ResolutionPlan['event'],
+  appliedActions: EngineSnapshot['appliedActions'],
+  catalog: StageActionCatalog,
+) {
+  const mutation = actionStageMutation(action, snapshot.stages[action.stage]);
+  const decisionStages = applyStageChanges(snapshot.stages, [mutation]);
+  const eventStages = applyStageChanges(decisionStages, event.stageChanges);
+  return activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog);
 }
 
 export function getAvailableActions(
@@ -217,6 +266,128 @@ function collectStageStateEffects(
   return sumDeltas(stageKeys.map((stage) => mechanics.stageStateEffects?.[stages[stage]] ?? {}));
 }
 
+function createEffectContributions(
+  action: EngineAction,
+  event: ResolutionPlan['event'],
+  narrativeEffects: { decision: GatedEffect; event: GatedEffect },
+  properties: EngineSnapshot['properties'],
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+) {
+  const contributions: EffectContribution[] = [
+    ...narrativeContributions(action, event, narrativeEffects),
+    ...propertyContributions(properties, mechanics),
+    ...stageContributions(stages, mechanics),
+  ];
+  return contributions.filter(
+    ({ blockedEffect, effect }) => hasMetricEffect(effect) || hasMetricEffect(blockedEffect ?? {}),
+  );
+}
+
+function narrativeContributions(
+  action: EngineAction,
+  event: ResolutionPlan['event'],
+  effects: { decision: GatedEffect; event: GatedEffect },
+): EffectContribution[] {
+  return [
+    {
+      ...blockedEffectFields(effects.decision),
+      description: action.shortFeedback ?? action.description,
+      effect: effects.decision.effect,
+      ...(action.effectReasons ? { effectReasons: action.effectReasons } : {}),
+      kind: 'DECISION',
+      title: action.title,
+    },
+    {
+      ...blockedEffectFields(effects.event),
+      description: event.description,
+      effect: effects.event.effect,
+      ...(event.effectReasons ? { effectReasons: event.effectReasons } : {}),
+      kind: 'EVENT',
+      title: event.title,
+    },
+  ];
+}
+
+function gateNarrativeEffects(
+  action: EngineAction,
+  event: ResolutionPlan['event'],
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+) {
+  return {
+    decision: gatePositiveEffect(action.effect, action.stage, stages, mechanics),
+    event: gatePositiveEffect(event.effect, action.stage, stages, mechanics),
+  };
+}
+
+function gatePositiveEffect(
+  source: MetricDelta,
+  actionStage: StageKey,
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+): GatedEffect {
+  const result: GatedEffect = { blockedByStages: {}, blockedEffect: {}, effect: {} };
+  for (const metric of metricKeys) {
+    const value = source[metric];
+    if (value === undefined) continue;
+    const blocked = value > 0 ? brokenRequirements(metric, actionStage, stages, mechanics) : [];
+    if (blocked.length === 0) result.effect[metric] = value;
+    else {
+      result.blockedEffect[metric] = value;
+      result.blockedByStages[metric] = blocked;
+    }
+  }
+  return result;
+}
+
+function brokenRequirements(
+  metric: MetricKey,
+  actionStage: StageKey,
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+) {
+  const requirements = mechanics.positiveEffectRequirements;
+  if (!requirements) return [];
+  const configured = requirements.additionalStages?.[metric]?.[actionStage] ?? [];
+  const required = requirements.requireActionStage ? [actionStage, ...configured] : configured;
+  return [...new Set(required)].filter((stage) => stages[stage] === 'BROKEN');
+}
+
+function blockedEffectFields(effect: GatedEffect) {
+  if (!hasMetricEffect(effect.blockedEffect)) return {};
+  return { blockedByStages: effect.blockedByStages, blockedEffect: effect.blockedEffect };
+}
+
+function propertyContributions(
+  properties: EngineSnapshot['properties'],
+  mechanics: GameMechanics,
+): EffectContribution[] {
+  return properties.map((property) => ({
+    effect: mechanics.propertyEffects[property],
+    ...(mechanics.propertyEffectReasons?.[property]
+      ? { effectReasons: mechanics.propertyEffectReasons[property] }
+      : {}),
+    kind: 'PROPERTY' as const,
+    property,
+  }));
+}
+
+function stageContributions(
+  stages: EngineSnapshot['stages'],
+  mechanics: GameMechanics,
+): EffectContribution[] {
+  return stageKeys.map((stage) => ({
+    effect: mechanics.stageStateEffects?.[stages[stage]] ?? {},
+    ...(mechanics.stageStateEffectReasons?.[stages[stage]]
+      ? { effectReasons: mechanics.stageStateEffectReasons[stages[stage]] }
+      : {}),
+    kind: 'STAGE_STATE' as const,
+    stage,
+    state: stages[stage],
+  }));
+}
+
 function createBreakdown(
   decision: MetricDelta,
   event: MetricDelta,
@@ -236,6 +407,14 @@ function sumDeltas(deltas: MetricDelta[]): MetricDelta {
   return Object.fromEntries(
     metricKeys.map((key) => [key, deltas.reduce((sum, delta) => sum + (delta[key] ?? 0), 0)]),
   );
+}
+
+function hasMetricEffect(effect: MetricDelta) {
+  return metricKeys.some((key) => (effect[key] ?? 0) !== 0);
+}
+
+function metricDifference(before: MetricValues, after: MetricValues): MetricDelta {
+  return Object.fromEntries(metricKeys.map((key) => [key, after[key] - before[key]]));
 }
 
 function applyMetricDelta(

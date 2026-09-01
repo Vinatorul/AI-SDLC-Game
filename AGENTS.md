@@ -32,6 +32,8 @@ template; its copy and balance are still a technical draft.
   after a notification or reconnect.
 - Public responses must not expose effect, addProperties, stageChanges, actionIds for a later
   ballot, or other hidden consequences before the appropriate phase.
+- Once an event is visible, public state may expose only the aggregate metricImpact needed to color
+  its card. Keep numeric effects and contribution details hidden until consequences are applied.
 - **myVoteChoiceId** and the deprecated **myVoteOptionId** are returned only when the state request
   has a valid player token.
 - A new game snapshots its scenario and rules in SQLite. Later content edits must not alter an
@@ -55,7 +57,8 @@ examples are in **packages/game-engine/content/README.md**.
 - the bundled turn template exposes all eight SDLC stages on every move;
 - **rules** contains thresholds, round mode, template count, feedback share, and win conditions;
 - **mechanics** contains metric labels, scale help, endpoint labels and descriptions, initial
-  values, bounds, process-property effects, and effects of each final stage state;
+  values, bounds, positive-effect requirements, process-property effects, and effects of each
+  final stage state;
 - top-level metadata defines the schema version, scenario id, content version, and status.
 
 **packages/game-engine/src/scenario.ts** only imports and validates the bundled JSON. Do not put
@@ -87,6 +90,22 @@ may be applied again. Each action must use exactly one form of stage transition:
 
 Do not define both fields. Different actions on the same stage remain valid in later rounds. Event
 consequences belong in event.effect and event.stageChanges.
+
+Every action or event with a non-zero metric in **effect** must explain that metric in its sibling
+**effectReasons** map. The keys in **effectReasons** must match the non-zero effect keys exactly.
+These strings are the source of truth for the host's metric explanation: the engine and frontend
+must not invent a reason from the metric name, the sign of the delta, shortFeedback, or generic
+fallback copy. Each reason should name the concrete cause of that one metric change.
+The same rule applies to **mechanics.propertyEffects** / **propertyEffectReasons** and
+**stageStateEffects** / **stageStateEffectReasons**.
+
+Positive action and event effects are checked against the final stage map for the current turn.
+Configure this in **mechanics.positiveEffectRequirements**. When **requireActionStage** is true, a
+positive contribution is blocked if the selected action's own stage remains BROKEN. Use
+**additionalStages** for metric-specific dependencies: the bundled scenario lists the downstream
+delivery stages for TTM. Block each positive action or event contribution before summing; never
+hide a negative contribution in the same turn. Preserve the blocked amount and blocking stages in
+effectContributions so the host can explain why the bonus was not awarded.
 
 Stage state describes the work happening in that SDLC stage, not the category of technology used:
 
@@ -143,9 +162,10 @@ only when it has a verified basis; mark simulations and hypotheses as SCENARIO. 
 useful individual shortFeedback before treating the content as final.
 
 The bundled scenario treats process properties as guards against specific bad events, not as
-recurring score income: its propertyEffects are deliberately empty. Keep ordinary successful event
-rewards to at most one positive point in total unless a playtest justifies a stronger conditional
-result.
+recurring score income: its propertyEffects are deliberately empty. Its stageStateEffects are also
+empty: BROKEN blocks victory until repaired, but does not silently subtract points every later
+turn. Keep ordinary successful event rewards to at most one positive point in total unless a
+playtest justifies a stronger conditional result.
 
 For an AI_ENABLED action, make the concrete AI task clear in the title and state the human decision
 or check in the title or first sentence. Make autonomous scope equally explicit. For an AS_IS
@@ -153,17 +173,50 @@ process action, name the practice the team adds and say that it is not yet an AI
 final stage map reuses these titles, so never mark generic infrastructure as AI_ENABLED unless the
 final event leaves AI doing useful work in that stage.
 
+### Scenario copy style
+
+Write every player- or host-facing scenario string in natural spoken Russian. Build the sentence
+around three concrete things: who acts, what they do or check, and what practical consequence
+follows. An action should describe the actual choice; an event should say what happened; a
+shortFeedback or effectReasons entry should explain why the concrete result follows from that
+choice. Do not replace that explanation with an abstract metric summary such as "quality improved"
+or "controllability decreased."
+
+Avoid corporate filler, generic AI prose, invented metaphors, and implementation narration. Do not
+describe a content result through cube colors or phrases such as "the stage received an effect."
+Use MCP, skill, agent, context, and similar terms only when the exact technology matters, then say
+what data or command it provides, who verifies the result, and what fails when a prerequisite is
+missing.
+
+Treat the first factually correct draft as working notes. Rewrite it once in the vocabulary a host
+would naturally use aloud, then read it aloud before accepting it. If it sounds like analysis,
+documentation, a corporate memo, or generated copy, rewrite it again. **pnpm copy:validate** catches
+only known structural and wording mistakes; passing it never replaces this manual edit and
+read-aloud pass.
+
+In Russian player- and host-facing copy, use **релиз** rather than **выпуск**, and **откат** rather
+than phrases such as **возврат прошлой версии**. Reserve **восстановление** for service or persisted
+game recovery when it does not mean rolling back a deployed version.
+
+Use **метрика**, not **показатель**, and **прод**, not `production` or **боевое окружение**, in
+Russian player- and host-facing copy. Use **баг** for a defect in code or product behavior and
+**инцидент** for an operational situation in prod; do not alternate them with **ошибка** or
+**сбой**. Keep **тест**, **автотест**, and **проверка** distinct: an autotest runs automatically, a
+test is the test case or code, and a check is the broader verification step performed by a person
+or tool.
+
 After a content change:
 
 1. Keep rules.roundLimit equal to the number of round templates. Set rules.roundMode to FINITE for
    one pass or CYCLIC to repeat the saved templates until the win condition is met.
 2. Increment the top-level version.
 3. Run `pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json`.
-4. Add or update focused tests for eligibility, event selection, history, and effect calculation.
-5. Verify that a round cannot lose all useful stage or action choices on reachable histories.
-6. Verify that conditional events follow from earlier decisions instead of acting as random
+4. Run `pnpm copy:validate`, then manually read every changed visible string aloud.
+5. Add or update focused tests for eligibility, event selection, history, and effect calculation.
+6. Verify that a round cannot lose all useful stage or action choices on reachable histories.
+7. Verify that conditional events follow from earlier decisions instead of acting as random
    penalties.
-7. Create a new room when checking the change; existing rooms use their stored snapshot.
+8. Create a new room when checking the change; existing rooms use their stored snapshot.
 
 To add another scenario, copy the JSON to
 **packages/game-engine/content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,
@@ -183,17 +236,19 @@ There are three configuration layers:
 - API runtime settings in environment variables documented by **apps/api/.env.example**;
 - web build settings in environment variables documented by **apps/web/.env.example**.
 
-Never repeat configurable values as magic literals. Round mode, template count, metric
-definitions, initial values, limits, property bonuses, stage-state effects, critical thresholds,
-and win conditions must have one typed configuration source rather than copies of the current
-scenario defaults across the codebase.
+Never repeat configurable values as magic literals. Round mode, template count, action-choice
+shuffling, metric definitions, initial values, limits, positive-effect requirements, property
+bonuses, stage-state effects, critical thresholds, and win conditions must have one typed
+configuration source rather than copies of the current scenario defaults across the codebase. When
+`rules.shuffleActionChoices` is enabled, shuffle only the action ballot once on the server and
+persist that order for every client.
 
 The metric keys are stable internal identifiers kept for persisted-room compatibility. Their
 player-facing meaning comes from `mechanics.metricDefinitions`. The bundled scenario uses a
 high-is-good score from -10 to +10, starts at 0, enters danger at -5, and breaks at -8. Treat those
 numbers as scenario defaults, not engine constants. Keep action, event, and property effects in
 small integer points; the current content uses 1 for a small effect, 2 for a noticeable effect, and
-3 for a strong effect. Version 3 metric bounds must span zero because the web gauge uses zero as
+3 for a strong effect. Version 3 and later metric bounds must span zero because the web gauge uses zero as
 the neutral origin; initial values may still be configured independently inside those bounds.
 
 When adding a tunable setting:
@@ -308,6 +363,22 @@ multiple API replicas or has no persistent disk.
 - Keep routes compatible with HashRouter and GitHub Pages subpaths.
 - Derive labels and visible state from shared contracts or server data rather than duplicating game
   rules in components.
+- Keep the joined player view phase-focused: waiting status and current metrics, a concise ballot
+  while voting is open, then the same ballot cards with winner/tie styling and raw vote counts after
+  it closes. Do not introduce a separate results list. Show the event and compact updated metric
+  values after the turn. Hide metric descriptions and detailed metric reasons from the joined
+  player view; keep the detailed explanations and action **shortFeedback** on the host screen.
+  Always place the joined player's applied-action history as a separate list after the
+  phase-specific content. Do not render the room header, full stage map, or catalog choice keys
+  such as A, B, or C in the joined player view.
+- Keep the shared-screen route as a stable dashboard without the site navigation or game header.
+  Show only the generic current phase, compact metrics, all eight stage states, and the join QR.
+  Do not show the selected action, event details, or applied-action history there. Use only one
+  visible heading for the stage map: **Состояние SDLC**.
+- Do not render the generic metric-scale explanation above metric cards. Metric labels, values,
+  gauge bounds, and endpoint labels already carry the useful information.
+- Keep stage-ballot cards square on the player and shared screens. Show applied-action history as a
+  list below the ballot instead of stretching individual stage cards.
 - Check host, player, and shared-screen layouts at narrow phone and projected-screen widths when a
   visual component changes.
 
@@ -328,7 +399,12 @@ pnpm exec vitest run \
   packages/game-engine/src/scenario-schema.test.ts \
   apps/api/src/scenario-loader.test.ts \
   apps/api/src/db/database.test.ts \
-  apps/api/src/game-flow.test.ts
+  apps/api/src/game-flow.test.ts \
+  apps/api/src/metric-impact.test.ts \
+  apps/api/src/shuffle.test.ts \
+  apps/web/src/components/MetricChangeNotes.test.tsx \
+  apps/web/src/pages/PlayerPage.test.tsx \
+  apps/web/src/pages/ScreenPage.test.tsx
 ~~~
 
 Build both applications:

@@ -19,7 +19,7 @@ export function useGameState(code: string | undefined, playerToken?: string) {
       acceptState(next);
       setError(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось получить состояние');
+      setError(caught instanceof Error ? caught.message : 'Не получилось загрузить игру.');
     }
   }, [acceptState, code, playerToken]);
   useEffect(() => void refresh(), [refresh]);

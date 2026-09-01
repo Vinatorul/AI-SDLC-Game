@@ -10,7 +10,7 @@ export function BallotProgress({ kind, stageSelected }: BallotProgressProps) {
         1. Выбираем этап
       </span>
       <i aria-hidden="true">→</i>
-      <span className={`ballot-step ${actionStep ? 'is-active' : ''}`}>2. Выбираем способ</span>
+      <span className={`ballot-step ${actionStep ? 'is-active' : ''}`}>2. Выбираем решение</span>
     </div>
   );
 }

@@ -34,15 +34,14 @@ function showCurrentBallot(state: GameState) {
   );
 }
 
-function EventCard({ state }: { state: GameState }) {
+export function EventCard({ state }: { state: GameState }) {
   const event = state.currentRound?.event;
   if (!event) return null;
+  const impact = state.currentRound?.metricImpact ?? 'NEUTRAL';
   return (
-    <article className="event-card">
-      <span>Игровой сценарий</span>
+    <article className={`event-card event-${impact.toLowerCase()}`}>
       <h3>{event.title}</h3>
       <p>{event.description}</p>
-      {state.phase === 'EVENT' && <small>Последствия ещё не применены</small>}
     </article>
   );
 }
@@ -51,7 +50,7 @@ function PropertyList({ state }: { state: GameState }) {
   if (state.properties.length === 0) return null;
   return (
     <div className="property-list">
-      <span>Свойства процесса</span>
+      <span>Что команда уже подготовила</span>
       {state.properties.map((property) => (
         <strong key={property}>{propertyLabels[property]}</strong>
       ))}
@@ -59,12 +58,12 @@ function PropertyList({ state }: { state: GameState }) {
   );
 }
 
-function FinalState({ state }: { state: GameState }) {
+export function FinalState({ state }: { state: GameState }) {
   const won = state.phase === 'WON';
   return (
     <section className={won ? 'final-state final-won' : 'final-state final-broken'}>
       <p className="eyebrow">Финал</p>
-      <h2>{won ? 'AI встроен во весь SDLC' : 'Процесс не выдержал'}</h2>
+      <h2>{won ? 'Победа' : 'Игра окончена'}</h2>
       <p>{state.outcomeReason ? outcomeLabels[state.outcomeReason] : victoryText(state)}</p>
     </section>
   );
@@ -72,14 +71,12 @@ function FinalState({ state }: { state: GameState }) {
 
 function victoryText(state: GameState) {
   if (state.rules.minAiStagesToWin === 8) {
-    return 'Все восемь этапов работают с AI, а процесс не развалился. Ниже — новая граница ответственности.';
+    return 'AI работает на всех восьми этапах. Ни одна метрика не упала до критического уровня.';
   }
   const count = state.rules.minAiStagesToWin;
-  return `AI встроен минимум в ${count} ${stageWord(count)}, критических показателей нет.`;
+  return `AI работает минимум на ${count} ${stageLocationWord(count)}. Ни одна метрика не упала до критического уровня.`;
 }
 
-function stageWord(count: number) {
-  if (count % 10 === 1 && count % 100 !== 11) return 'этап';
-  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'этапа';
-  return 'этапов';
+function stageLocationWord(count: number) {
+  return count % 10 === 1 && count % 100 !== 11 ? 'этапе' : 'этапах';
 }

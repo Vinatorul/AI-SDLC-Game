@@ -6,40 +6,55 @@ import {
 } from '@ai-sdlc/contracts';
 import { stageLabels, stageStateLabels } from '../labels';
 
-export function StageMap({ state }: { state: GameState }) {
+export function StageMap({ compact = false, state }: { compact?: boolean; state: GameState }) {
   const won = state.phase === 'WON';
   return (
     <section className={won ? 'map-section victory-map' : 'map-section'}>
-      <div className="section-heading">
-        <p className="eyebrow">{won ? 'Новая схема работы' : 'Карта процесса'}</p>
-        <h2>{won ? 'Что делает AI и что решает человек' : 'Что уже изменилось'}</h2>
-      </div>
-      <div className="stage-grid">
+      <StageMapHeading compact={compact} won={won} />
+      <div className={compact ? 'stage-grid stage-grid-compact' : 'stage-grid'}>
         {stageKeys.map((key, index) => (
-          <StageCard index={index} key={key} stage={key} state={state} />
+          <StageCard index={index} key={key} showActions={!compact} stage={key} state={state} />
         ))}
       </div>
-      {!won && <AppliedHistory state={state} />}
+      {!won && !compact && <AppliedHistory state={state} />}
     </section>
   );
 }
 
-function StageCard({ index, stage, state }: { index: number; stage: StageKey; state: GameState }) {
+function StageMapHeading({ compact, won }: { compact: boolean; won: boolean }) {
+  if (compact) {
+    return (
+      <div className="section-heading">
+        <h2>Состояние SDLC</h2>
+      </div>
+    );
+  }
+  return (
+    <div className="section-heading">
+      <p className="eyebrow">{won ? 'Итоговая карта' : 'Карта SDLC'}</p>
+      <h2>{won ? 'Что делает AI и что решает человек' : 'Что уже поменяли'}</h2>
+    </div>
+  );
+}
+
+function StageCard({ index, showActions, stage, state }: StageCardProps) {
   const progress = state.stageProgress?.[stage];
   const stageState = progress?.state ?? state.stages[stage];
   const actions = progress?.appliedActions ?? [];
   const visibleActions = state.phase === 'WON' ? actions.slice(-1) : actions.slice(-2);
   return (
-    <article className={`stage-card stage-${stageState.toLowerCase()}`}>
+    <article
+      className={`stage-card stage-${stageState.toLowerCase()}${showActions ? '' : ' stage-card-compact'}`}
+    >
       <span>{String(index + 1).padStart(2, '0')}</span>
       <span className="stage-card-main">
         <strong>{stageLabels[stage]}</strong>
         <small>{stageStateLabels[stageState]}</small>
       </span>
-      {visibleActions.length > 0 && (
+      {showActions && visibleActions.length > 0 && (
         <span className="stage-actions">
           <small>
-            {state.phase === 'WON' ? 'Как теперь работает этап' : `Действий: ${actions.length}`}
+            {state.phase === 'WON' ? 'Как теперь работает этап' : `Решений: ${actions.length}`}
           </small>
           {visibleActions.map((action) => (
             <b key={`${action.roundNumber}:${action.actionId}`}>{action.title}</b>
@@ -50,7 +65,14 @@ function StageCard({ index, stage, state }: { index: number; stage: StageKey; st
   );
 }
 
-function AppliedHistory({ state }: { state: GameState }) {
+type StageCardProps = {
+  index: number;
+  showActions: boolean;
+  stage: StageKey;
+  state: GameState;
+};
+
+export function AppliedHistory({ state }: { state: GameState }) {
   const actions = historyActions(state);
   if (actions.length === 0) return null;
   return (

@@ -8,21 +8,26 @@ import {
 } from '@ai-sdlc/contracts';
 import { stageLabels, stageStateLabels } from '../labels';
 import { BallotProgress } from './BallotProgress';
+import { AppliedHistory } from './StageMap';
 
 type BallotFocusProps = {
   interactive?: boolean;
   onSelect?: (choiceId: string) => void;
   selected?: string | null;
   state: GameState;
+  variant?: 'default' | 'player';
 };
 
 export function BallotFocus(props: BallotFocusProps) {
   const ballot = props.state.currentBallot;
   if (!ballot || ballot.kind === 'LEGACY_OPTION') return null;
+  const player = props.variant === 'player';
   return (
     <section className="round-focus ballot-focus">
-      <BallotRoundContext state={props.state} />
-      <BallotProgress kind={ballot.kind} stageSelected={Boolean(ballot.selectedChoiceId)} />
+      {!player && <BallotRoundContext state={props.state} />}
+      {!player && (
+        <BallotProgress kind={ballot.kind} stageSelected={Boolean(ballot.selectedChoiceId)} />
+      )}
       {ballot.kind === 'STAGE' ? (
         <StageBallot ballot={ballot} {...props} />
       ) : (
@@ -34,12 +39,17 @@ export function BallotFocus(props: BallotFocusProps) {
 
 function StageBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotView }) {
   const choices = ballot.choices.filter(isStageChoice);
+  const title = props.state.phase === 'RESULT' ? 'Итоги голосования' : 'Выберите этап SDLC';
   return (
-    <div className="stage-grid stage-ballot-grid">
-      {choices.map((choice) => (
-        <StageChoiceCard choice={choice} key={choice.id} {...props} />
-      ))}
-    </div>
+    <>
+      {props.variant === 'player' && <BallotHeading title={title} />}
+      <div className="stage-grid stage-ballot-grid">
+        {choices.map((choice) => (
+          <StageChoiceCard choice={choice} key={choice.id} {...props} />
+        ))}
+      </div>
+      {props.variant !== 'player' && <AppliedHistory state={props.state} />}
+    </>
   );
 }
 
@@ -58,9 +68,7 @@ function StageChoiceCard({ choice, ...props }: BallotFocusProps & StageChoiceCar
       <span className="stage-card-main">
         <strong>{choice.title}</strong>
         <small>{stageStateLabels[progress.state]}</small>
-        <small>{choice.description}</small>
       </span>
-      <StageActionSummary stage={choice.stage} state={props.state} />
       {props.state.phase === 'RESULT' && <b className="stage-votes">{tally?.count ?? 0}</b>}
     </button>
   );
@@ -71,13 +79,15 @@ type StageChoiceCardProps = { choice: StageBallotChoice };
 function ActionBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotView }) {
   const choices = ballot.choices.filter(isActionChoice);
   const stage = ballot.stage ?? choices[0]?.stage;
+  const playerTitle = props.state.phase === 'RESULT' ? 'Итоги голосования' : 'Что сделаем?';
+  const title =
+    props.variant === 'player'
+      ? playerTitle
+      : `Что сделаем на этапе «${stage ? stageLabels[stage] : 'выбранный этап'}»?`;
   return (
     <>
-      <ActionStageBanner stage={stage} state={props.state} />
-      <BallotHeading
-        description="Выберите конкретный способ работы для этапа. До закрытия голос можно менять."
-        title={`Что делаем с этапом «${stage ? stageLabels[stage] : 'выбранный этап'}»?`}
-      />
+      {props.variant !== 'player' && <ActionStageBanner stage={stage} state={props.state} />}
+      <BallotHeading title={title} />
       <div className="option-grid">
         {choices.map((choice) => (
           <ActionChoiceCard choice={choice} key={choice.id} {...props} />
@@ -97,23 +107,23 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
       onClick={() => props.onSelect?.(choice.id)}
       type="button"
     >
-      <span className="option-key">{choice.key}</span>
       <span className="option-copy">
         <small>{stageLabels[choice.stage]}</small>
         <strong>{choice.title}</strong>
         <span>{choice.description}</span>
-        {choice.shortFeedback && props.state.phase === 'RESULT' && <em>{choice.shortFeedback}</em>}
+        {choice.shortFeedback && props.state.phase === 'RESULT' && props.variant !== 'player' && (
+          <em>{choice.shortFeedback}</em>
+        )}
       </span>
       {props.state.phase === 'RESULT' && <b className="option-votes">{tally?.count ?? 0}</b>}
     </button>
   );
 }
 
-function BallotHeading({ description, title }: { description: string; title: string }) {
+function BallotHeading({ title }: { title: string }) {
   return (
     <div className="round-question">
       <h2>{title}</h2>
-      <p>{description}</p>
     </div>
   );
 }
@@ -125,7 +135,6 @@ function BallotRoundContext({ state }: { state: GameState }) {
     <div className="ballot-round-context">
       <p className="eyebrow">Ход {round.number}</p>
       <h2>{round.title}</h2>
-      <p>{round.situation}</p>
     </div>
   );
 }
@@ -139,19 +148,6 @@ function ActionStageBanner({ stage, state }: { stage?: StageKey; state: GameStat
       <strong>{stageLabels[stage]}</strong>
       <small>{stageStateLabels[progress.state]}</small>
     </div>
-  );
-}
-
-function StageActionSummary({ stage, state }: { stage: StageKey; state: GameState }) {
-  const actions = state.stageProgress[stage].appliedActions;
-  if (actions.length === 0) return null;
-  return (
-    <span className="stage-actions">
-      <small>Применено действий: {actions.length}</small>
-      {actions.slice(-2).map((action) => (
-        <b key={`${action.roundNumber}:${action.actionId}`}>{action.title}</b>
-      ))}
-    </span>
   );
 }
 

@@ -16,7 +16,7 @@ export function GameHeader({ connected, state, title }: GameHeaderProps) {
       </div>
       <div className="game-meta">
         <span className={connected ? 'connection is-online' : 'connection'}>
-          {connected ? 'В сети' : 'Переподключение'}
+          {connected ? 'В сети' : 'Подключаемся…'}
         </span>
         <strong>{state.code}</strong>
         <span>{roundLabel(state)}</span>
@@ -41,13 +41,13 @@ function stateTitle(state: GameState) {
     return phaseLabels[state.phase];
   }
   if (state.phase === 'RESULT' && ballot.tiedChoiceIds.length > 0) {
-    return ballot.kind === 'STAGE' ? 'Ничья в выборе этапа' : 'Ничья в выборе способа';
+    return ballot.kind === 'STAGE' ? 'Ничья в выборе этапа' : 'Ничья в выборе решения';
   }
   if (ballot.kind === 'STAGE') {
     return state.phase === 'VOTING' ? 'Выбор этапа' : 'Этап выбран';
   }
   if (ballot.kind === 'ACTION') {
-    return state.phase === 'VOTING' ? 'Выбор способа' : 'Способ выбран';
+    return state.phase === 'VOTING' ? 'Выбор решения' : 'Решение выбрано';
   }
   return phaseLabels[state.phase];
 }

@@ -62,6 +62,20 @@ it('отклоняет устаревшую версию админской ко
   expect(response.json().code).toBe('VERSION_CONFLICT');
 });
 
+it('сохраняет порядок решений из сценария, если перемешивание выключено', async () => {
+  const scenario = structuredClone(defaultScenario);
+  scenario.rules.shuffleActionChoices = false;
+  const app = await testApp(':memory:', scenario);
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  const opened = await openActionBallot(app, game, player, 'technicalDiscovery', 0);
+  const expected = scenario.rounds[0]?.stageChoices.find(
+    ({ stage }) => stage === 'technicalDiscovery',
+  )?.actionIds;
+
+  expect(requiredBallot(opened.state).choices.map(({ id }) => id)).toEqual(expected);
+});
+
 it('не открывает раунд, если осталось меньше двух доступных этапов', async () => {
   const app = await testApp(':memory:', scenarioWithOneStage());
   const game = await createGame(app);
@@ -117,18 +131,27 @@ it('не раскрывает эффекты действия и применя�
   const game = await createGame(app);
   const player = await joinGame(app, game.state.code, 'Ира');
   let { state } = await openActionBallot(app, game, player, 'technicalDiscovery', 0);
-  const action = requiredBallot(state).choices[0];
+  const action = requiredBallot(state).choices.find(
+    ({ id }) => id === 'technicalDiscovery.code-research',
+  );
+  if (!action) throw new Error('Нет решения с числовым эффектом');
   expect(action).not.toHaveProperty('effect');
   expect(action).not.toHaveProperty('addProperties');
   await voteFor(app, game, player, requiredBallot(state).id, action?.id);
   state = await command(app, game, 'CLOSE_VOTING', 3);
   const duplicate = await rawCommand(app, game, 'OPEN_NEXT_BALLOT', 4);
   expect(duplicate.statusCode).toBe(409);
+  expect(state.currentRound?.metricImpact).toBeNull();
   state = await command(app, game, 'SHOW_EVENT', 4);
   expect(state.currentRound?.event).not.toHaveProperty('effect');
+  expect(state.currentRound?.effectBreakdown).toBeNull();
+  expect(state.currentRound?.effectContributions).toBeUndefined();
+  expect(state.currentRound?.metricImpact).toBe('IMPROVED');
   state = await command(app, game, 'APPLY_CONSEQUENCES', 5);
   const response = await rawCommand(app, game, 'APPLY_CONSEQUENCES', 6);
   expect(state.phase).toBe('FEEDBACK');
+  expect(state.currentRound?.metricImpact).toBe('IMPROVED');
+  expect(state.currentRound?.effectContributions?.length).toBeGreaterThan(0);
   expect(response.statusCode).toBe(409);
 });
 
@@ -245,12 +268,14 @@ describe('восстановление SQLite', () => {
     const player = await joinGame(first, game.state.code, 'Ира');
     const opened = await openActionBallot(first, game, player, 'testing', 0);
     const ballot = requiredBallot(opened.state);
+    const choiceIds = ballot.choices.map(({ id }) => id);
     const choiceId = ballot.choices[0]?.id ?? '';
     await voteFor(first, game, player, ballot.id, choiceId);
     await closeTrackedApp(first);
     const second = await testApp(databasePath);
     const state = await getState(second, game.state.code, player.playerToken);
     expect(state.currentBallot?.id).toBe(ballot.id);
+    expect(state.currentBallot?.choices.map(({ id }) => id)).toEqual(choiceIds);
     expect(state.myVoteChoiceId).toBe(choiceId);
     await closeTrackedApp(second);
     rmSync(directory, { force: true, recursive: true });
@@ -371,7 +396,8 @@ it('после перезапуска использует сохранённу�
   expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 6);
   expect(state.currentRound?.effectBreakdown?.pipeline?.deliverySpeed).toBe(-4);
-  expect(state.metrics.deliverySpeed).toBe(-3);
+  expect(state.currentRound?.effectBreakdown?.decision.deliverySpeed ?? 0).toBe(0);
+  expect(state.metrics.deliverySpeed).toBe(-5);
   await closeTrackedApp(second);
   rmSync(directory, { force: true, recursive: true });
 });
@@ -384,7 +410,7 @@ it('продолжает старую игру из активного голо�
   let state = await getState(app, 'OLD234');
   expect(state.currentBallot?.kind).toBe('LEGACY_OPTION');
   expect(state.metricBounds).toEqual({ maximum: 100, minimum: 0 });
-  expect(state.metricDefinitions.deliverySpeed.label).toBe('Скорость поставки');
+  expect(state.metricDefinitions.deliverySpeed.label).toBe('TTM');
   const optionId = state.currentRound?.options[0]?.id ?? '';
   await vote(app, 'OLD234', player.playerToken, { optionId });
   state = await legacyCommand(app, 'CLOSE_VOTING', 0);
@@ -407,6 +433,7 @@ it.each([
   let state = await getState(app, 'OLD234');
   expect(state.currentBallot?.selectedChoiceId).toBe('old-a');
   if (phase === 'RESULT') state = await legacyCommand(app, 'SHOW_EVENT', 0);
+  expect(state.currentRound?.metricImpact).toBe('NEUTRAL');
   state = await legacyCommand(app, 'APPLY_CONSEQUENCES', phase === 'RESULT' ? 1 : 0);
   expect(state.phase).toBe('WON');
   await closeTrackedApp(app);
@@ -604,9 +631,9 @@ function scenarioWithTemplateId(id: string): Scenario {
 
 function expectOldCycleOrder(...states: GameState[]) {
   expect(states.map((state) => state.currentRound?.title)).toEqual([
-    'Куда вложиться сейчас?',
+    'За какой этап возьмёмся сейчас?',
     'Старый второй шаблон',
-    'Куда вложиться сейчас?',
+    'За какой этап возьмёмся сейчас?',
   ]);
 }
 

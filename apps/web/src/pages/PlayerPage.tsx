@@ -5,12 +5,11 @@ import { api } from '../api/client';
 import { playerTokenKey } from '../api/storage';
 import { BallotFocus } from '../components/BallotFocus';
 import { CodeEntry } from '../components/CodeEntry';
-import { GameFocus } from '../components/GameFocus';
-import { GameHeader } from '../components/GameHeader';
+import { EventCard, FinalState } from '../components/GameFocus';
 import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
 import { OptionGrid } from '../components/OptionGrid';
-import { StageMap } from '../components/StageMap';
+import { AppliedHistory } from '../components/StageMap';
 import { useGameState } from '../realtime/useGameState';
 
 export function PlayerPage() {
@@ -92,7 +91,7 @@ function useJoinGame(
       onJoined(result.playerToken);
       game.setState(result.state);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось войти');
+      setError(caught instanceof Error ? caught.message : 'Не получилось войти в комнату.');
       setBusy(false);
     }
   }
@@ -103,7 +102,7 @@ function JoinCard({ code, join }: { code: string; join: ReturnType<typeof useJoi
   return (
     <section className="entry-card">
       <p className="eyebrow">Комната {code}</p>
-      <h1>Как вас показать ведущему?</h1>
+      <h1>Как вас подписать?</h1>
       <form onSubmit={join.submit}>
         <input
           aria-label="Имя"
@@ -131,13 +130,15 @@ type PlayerGameProps = {
 
 function PlayerGame({ code, game, state, token }: PlayerGameProps) {
   const vote = usePlayerVote(code, game, token);
+  return <PlayerGameView error={vote.error} onVote={vote.submit} state={state} />;
+}
+
+export function PlayerGameView({ error, onVote, state }: PlayerDecisionProps) {
   return (
-    <Layout compact>
+    <Layout bare>
       <main className="game-page player-page">
-        <GameHeader connected={game.connected} state={state} />
-        <PlayerDecision error={vote.error} onVote={vote.submit} state={state} />
-        <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
-        <StageMap state={state} />
+        <PlayerDecision error={error} onVote={onVote} state={state} />
+        <AppliedHistory state={state} />
       </main>
     </Layout>
   );
@@ -151,19 +152,23 @@ function usePlayerVote(code: string, game: PlayerGameProps['game'], token: strin
       game.setState(result.state);
       setError(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Голос не принят');
+      setError(caught instanceof Error ? caught.message : 'Не получилось сохранить голос.');
       await game.refresh();
     }
   }
   return { error, submit };
 }
 
-function PlayerDecision({ error, onVote, state }: PlayerDecisionProps) {
-  if (state.phase !== 'VOTING') {
-    return <GameFocus selectedChoiceId={state.myVoteChoiceId} state={state} />;
+export function PlayerDecision({ error, onVote, state }: PlayerDecisionProps) {
+  if (state.phase === 'WON' || state.phase === 'BROKEN') return <FinalState state={state} />;
+  if (state.phase === 'EVENT' || state.phase === 'FEEDBACK') {
+    return <PlayerRoundResult state={state} />;
   }
+  if (state.phase === 'RESULT') return <PlayerVoteResult state={state} />;
+  if (state.phase !== 'VOTING') return <PlayerWaiting state={state} />;
   const ballot = state.currentBallot;
-  if (state.decisionModel === 'STAGE_ACTION_V2' && ballot && ballot.kind !== 'LEGACY_OPTION') {
+  if (state.decisionModel === 'STAGE_ACTION_V2') {
+    if (!ballot || ballot.kind === 'LEGACY_OPTION') return <PlayerVotingLoading />;
     return <PlayerBallotVote error={error} onVote={onVote} state={state} />;
   }
   return <PlayerLegacyVote error={error} onVote={onVote} state={state} />;
@@ -175,9 +180,58 @@ type PlayerDecisionProps = {
   state: GameState;
 };
 
+function PlayerWaiting({ state }: { state: GameState }) {
+  return (
+    <>
+      <section aria-live="polite" className="player-waiting">
+        <p className="eyebrow">Голосование не идёт</p>
+        <p>Ждём, когда ведущий откроет голосование.</p>
+      </section>
+      <MetricBoard compact state={state} />
+    </>
+  );
+}
+
+function PlayerRoundResult({ state }: { state: GameState }) {
+  if (!state.currentRound?.event) return <PlayerWaiting state={state} />;
+  return (
+    <>
+      <section className="round-focus player-result">
+        <EventCard state={state} />
+      </section>
+      {state.phase === 'FEEDBACK' && (
+        <MetricBoard compact breakdown={state.currentRound.effectBreakdown} state={state} />
+      )}
+    </>
+  );
+}
+
+function PlayerVoteResult({ state }: { state: GameState }) {
+  const ballot = state.currentBallot;
+  if (!ballot) return <PlayerWaiting state={state} />;
+  if (ballot.kind === 'LEGACY_OPTION') return <PlayerLegacyResult state={state} />;
+  const tied = !ballot.selectedChoiceId && ballot.tiedChoiceIds.length > 0;
+  return (
+    <div aria-live="polite" className="player-ballot-result">
+      <BallotFocus state={state} variant="player" />
+      {tied && <p className="player-result-note">Ничья. Ведущий выберет один из лидеров.</p>}
+    </div>
+  );
+}
+
+function PlayerLegacyResult({ state }: { state: GameState }) {
+  const round = state.currentRound;
+  if (!round) return <PlayerWaiting state={state} />;
+  return (
+    <section className="round-focus">
+      <OptionGrid disabled round={round} showResults />
+    </section>
+  );
+}
+
 function PlayerBallotVote({ error, onVote, state }: PlayerDecisionProps) {
   const ballot = state.currentBallot;
-  if (!ballot) return <GameFocus state={state} />;
+  if (!ballot) return <PlayerVotingLoading />;
   return (
     <>
       <BallotFocus
@@ -185,6 +239,7 @@ function PlayerBallotVote({ error, onVote, state }: PlayerDecisionProps) {
         onSelect={(choiceId) => onVote({ ballotId: ballot.id, choiceId })}
         selected={state.myVoteChoiceId}
         state={state}
+        variant="player"
       />
       {state.myVoteChoiceId && ballot.kind !== 'LEGACY_OPTION' && (
         <VoteConfirmation kind={ballot.kind} />
@@ -196,7 +251,7 @@ function PlayerBallotVote({ error, onVote, state }: PlayerDecisionProps) {
 
 function PlayerLegacyVote({ error, state, onVote }: PlayerDecisionProps) {
   const round = state.currentRound;
-  if (!round) return null;
+  if (!round) return <PlayerVotingLoading />;
   return (
     <section className="round-focus">
       <div className="round-question">
@@ -217,10 +272,19 @@ function PlayerLegacyVote({ error, state, onVote }: PlayerDecisionProps) {
   );
 }
 
+function PlayerVotingLoading() {
+  return (
+    <section aria-live="polite" className="player-waiting">
+      <p className="eyebrow">Идёт голосование</p>
+      <p>Загружаем варианты…</p>
+    </section>
+  );
+}
+
 function VoteConfirmation({ kind }: { kind: 'STAGE' | 'ACTION' }) {
   return (
     <p className="vote-confirmation">
-      {kind === 'STAGE' ? 'Голос за этап принят.' : 'Голос за способ принят.'} До закрытия можно
+      {kind === 'STAGE' ? 'Голос за этап принят.' : 'Голос за решение принят.'} До закрытия можно
       выбрать другой вариант.
     </p>
   );

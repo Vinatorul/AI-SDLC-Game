@@ -1,16 +1,7 @@
+import { stageKeys } from '@ai-sdlc/contracts';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-
-const stages = [
-  'Бизнес-заказ',
-  'Продуктовая проработка',
-  'Техническая проработка',
-  'Написание кода',
-  'Ревью',
-  'Тестирование',
-  'Деплой',
-  'Поддержка',
-];
+import { stageLabels, stageStateLabels } from '../labels';
 
 export function LandingPage() {
   return (
@@ -26,7 +17,7 @@ export function LandingPage() {
           />
           <RoleLink body="Войти по коду и голосовать." index="02" title="Я игрок" to="/play" />
           <RoleLink
-            body="Показать карту и последствия."
+            body="Открыть экран для проектора."
             index="03"
             title="Общий экран"
             to="/screen"
@@ -42,9 +33,10 @@ function LandingHero() {
   return (
     <header className="landing-hero">
       <p className="eyebrow">Интерактивный доклад · 8 этапов SDLC</p>
-      <h1>Строим AI SDLC вместе с залом</h1>
+      <h1>Зал решает, где AI будет работать в SDLC</h1>
       <p className="lede">
-        Одно решение может ускорить поток, перенести узкое место или сломать процесс.
+        Выберите этап и решение. Игра покажет, что ускорилось, что сломалось и что теперь мешает
+        поставке.
       </p>
     </header>
   );
@@ -54,13 +46,13 @@ function StagePreview() {
   return (
     <section className="stage-preview" aria-labelledby="map-title">
       <p className="eyebrow">Исходная карта</p>
-      <h2 id="map-title">Победа — когда все восемь этапов зелёные</h2>
+      <h2 id="map-title">Победа — когда AI работает на всех восьми этапах</h2>
       <div className="stage-grid">
-        {stages.map((stage, index) => (
+        {stageKeys.map((stage, index) => (
           <article className="stage-card" key={stage}>
             <span>{String(index + 1).padStart(2, '0')}</span>
-            <strong>{stage}</strong>
-            <small>Работает как раньше</small>
+            <strong>{stageLabels[stage]}</strong>
+            <small>{stageStateLabels.AS_IS}</small>
           </article>
         ))}
       </div>

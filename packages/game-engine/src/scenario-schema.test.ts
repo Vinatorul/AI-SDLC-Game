@@ -34,6 +34,10 @@ describe('parseScenario', () => {
     }
   });
 
+  it('включает перемешивание решений в основном сценарии', () => {
+    expect(defaultScenario.rules.shuffleActionChoices).toBe(true);
+  });
+
   it('задаёт обычное событие для каждого действия', () => {
     const round = defaultScenario.rounds[0];
     if (!round) throw new Error('Нет шаблона хода');
@@ -159,6 +163,30 @@ describe('parseScenario', () => {
     expect(() => parseScenario(source)).toThrow(/activationRequirements.*missing-action/);
   });
 
+  it('требует отдельную причину для каждого эффекта действия', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['businessRequest.production-signals'];
+    if (!action?.effectReasons) throw new Error('В тестовом действии нет причин');
+    delete action.effectReasons.quality;
+    expect(() => parseScenario(source)).toThrow(/effectReasons.*ненулевого эффекта/);
+  });
+
+  it('не принимает пробел вместо причины', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['businessRequest.production-signals'];
+    if (!action?.effectReasons) throw new Error('В тестовом действии нет причин');
+    action.effectReasons.quality = ' ';
+    expect(() => parseScenario(source)).toThrow(/effectReasons\.quality/);
+  });
+
+  it('требует отдельную причину для каждого эффекта события', () => {
+    const source = structuredClone(defaultScenario);
+    const event = source.rounds[0]?.eventRules[0]?.event;
+    if (!event?.effectReasons) throw new Error('В тестовом событии нет причин');
+    delete event.effectReasons.quality;
+    expect(() => parseScenario(source)).toThrow(/effectReasons.*ненулевого эффекта/);
+  });
+
   it('проверяет границы начальных показателей', () => {
     const source = structuredClone(defaultScenario);
     source.mechanics.initialMetrics.quality = 11;
@@ -182,6 +210,52 @@ describe('parseScenario', () => {
     const effects = source.mechanics.stageStateEffects as Record<string, unknown>;
     effects.PAUSED = {};
     expect(() => parseScenario(source)).toThrow(/stageStateEffects/);
+  });
+
+  it('требует причину для постоянного штрафа сломанных этапов', () => {
+    const source = structuredClone(defaultScenario);
+    const effects = source.mechanics.stageStateEffects;
+    if (!effects) throw new Error('В тестовой механике нет эффектов этапов');
+    effects.BROKEN = { deliverySpeed: -1 };
+    const reasons = source.mechanics.stageStateEffectReasons;
+    if (!reasons) throw new Error('В тестовой механике нет причин');
+    reasons.BROKEN = {};
+    expect(() => parseScenario(source)).toThrow(/stageStateEffectReasons\.BROKEN/);
+  });
+
+  it('не начисляет очки за состояние этапов в основном сценарии', () => {
+    expect(defaultScenario.mechanics.stageStateEffects).toEqual({
+      AI_ENABLED: {},
+      AS_IS: {},
+      BROKEN: {},
+    });
+  });
+
+  it('задаёт этапы, через которые должен пройти положительный TTM', () => {
+    const requirements = defaultScenario.mechanics.positiveEffectRequirements;
+    expect(requirements?.requireActionStage).toBe(true);
+    expect(requirements?.additionalStages?.deliverySpeed?.technicalDiscovery).toEqual([
+      'coding',
+      'review',
+      'testing',
+      'deployment',
+    ]);
+  });
+
+  it('не принимает один этап дважды в требованиях к эффекту', () => {
+    const source = structuredClone(defaultScenario);
+    const requirements = source.mechanics.positiveEffectRequirements;
+    if (!requirements?.additionalStages?.deliverySpeed) throw new Error('Нет требований к TTM');
+    requirements.additionalStages.deliverySpeed.coding = ['review', 'review'];
+    expect(() => parseScenario(source)).toThrow(/этапы не должны повторяться/);
+  });
+
+  it('не требует карты причин, если постоянных поправок нет', () => {
+    const source = structuredClone(defaultScenario);
+    source.mechanics.stageStateEffects = { AI_ENABLED: {}, AS_IS: {}, BROKEN: {} };
+    delete source.mechanics.propertyEffectReasons;
+    delete source.mechanics.stageStateEffectReasons;
+    expect(parseScenario(source).mechanics.stageStateEffectReasons).toBeUndefined();
   });
 
   it('не превращает скорость написания кода в ускорение TTM', () => {

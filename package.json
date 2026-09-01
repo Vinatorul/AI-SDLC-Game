@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "pnpm --filter @ai-sdlc/web build && pnpm --filter @ai-sdlc/api build",
-    "check": "biome check . && pnpm typecheck",
+    "check": "biome check . && pnpm copy:validate && pnpm typecheck",
+    "copy:validate": "node scripts/validate-copy.mjs",
     "dev": "pnpm --parallel --filter @ai-sdlc/web --filter @ai-sdlc/api dev",
     "dev:api": "pnpm --filter @ai-sdlc/api dev",
     "dev:web": "pnpm --filter @ai-sdlc/web dev",

@@ -47,6 +47,7 @@ const action: EngineAction = {
   availableInStates: ['AS_IS', 'AI_ENABLED', 'BROKEN'],
   description: 'Описание решения',
   effect: { deliverySpeed: 3 },
+  effectReasons: { deliverySpeed: 'Код появился без ручного ожидания.' },
   evidence: 'SCENARIO',
   id: 'action-a',
   key: 'A',
@@ -66,6 +67,7 @@ const round: ScenarioRound = {
       event: {
         description: 'Описание события',
         effect: { quality: -2 },
+        effectReasons: { quality: 'Ошибка дошла до следующего этапа.' },
         evidence: 'SCENARIO',
         id: 'event-selected',
         stageChanges: [{ stage: 'review', state: 'BROKEN' }],
@@ -172,11 +174,52 @@ describe('resolveRound', () => {
   it('складывает эффекты, меняет карту и сохраняет действие', () => {
     const plan = resolveRound(createSnapshot(), round, action, mechanics, testCatalog);
     expect(plan.metrics).toMatchObject({ deliverySpeed: 3, quality: -1 });
+    expect(plan.breakdown.applied).toMatchObject({ deliverySpeed: 3, quality: -1 });
+    expect(plan.effectContributions).toEqual([
+      {
+        description: 'Обратная связь',
+        effect: { deliverySpeed: 3 },
+        effectReasons: { deliverySpeed: 'Код появился без ручного ожидания.' },
+        kind: 'DECISION',
+        title: 'Решение',
+      },
+      {
+        description: 'Описание события',
+        effect: { quality: -2 },
+        effectReasons: { quality: 'Ошибка дошла до следующего этапа.' },
+        kind: 'EVENT',
+        title: 'Событие',
+      },
+      { effect: { quality: 1 }, kind: 'PROPERTY', property: 'humanReview' },
+    ]);
     expect(plan.stages.coding).toBe('AI_ENABLED');
     expect(plan.stages.review).toBe('BROKEN');
     expect(plan.appliedActions).toEqual([
       { actionId: 'action-a', roundNumber: 1, stage: 'coding' },
     ]);
+  });
+
+  it('не даёт положительный эффект через сломанный этап', () => {
+    const configured: ScenarioMechanics = {
+      ...mechanics,
+      positiveEffectRequirements: {
+        additionalStages: {
+          deliverySpeed: { coding: ['review'] },
+          quality: { coding: ['review'] },
+        },
+        requireActionStage: true,
+      },
+    };
+    const plan = resolveRound(createSnapshot(), round, action, configured, testCatalog);
+    const contribution = plan.effectContributions.find(({ kind }) => kind === 'DECISION');
+    expect(plan.breakdown.decision).toEqual({});
+    expect(plan.breakdown.event).toEqual({ quality: -2 });
+    expect(plan.metrics).toMatchObject({ deliverySpeed: 0, quality: -1 });
+    expect(contribution).toMatchObject({
+      blockedByStages: { deliverySpeed: ['review'] },
+      blockedEffect: { deliverySpeed: 3 },
+      effect: {},
+    });
   });
 
   it('штрафует TTM за каждый сломанный этап после события', () => {
@@ -185,6 +228,20 @@ describe('resolveRound', () => {
     snapshot.stages.testing = 'BROKEN';
     const plan = resolveRound(snapshot, round, action, configured, testCatalog);
     expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
+    expect(plan.effectContributions.filter(({ kind }) => kind === 'STAGE_STATE')).toEqual([
+      {
+        effect: { deliverySpeed: -1 },
+        kind: 'STAGE_STATE',
+        stage: 'review',
+        state: 'BROKEN',
+      },
+      {
+        effect: { deliverySpeed: -1 },
+        kind: 'STAGE_STATE',
+        stage: 'testing',
+        state: 'BROKEN',
+      },
+    ]);
     expect(plan.metrics.deliverySpeed).toBe(1);
   });
 
@@ -216,6 +273,8 @@ describe('resolveRound', () => {
     };
     const plan = resolveRound(createSnapshot(), round, action, configured, testCatalog);
     expect(plan.metrics).toMatchObject({ deliverySpeed: 2, quality: 2 });
+    expect(plan.breakdown.total).toMatchObject({ deliverySpeed: 3, quality: 3 });
+    expect(plan.breakdown.applied).toMatchObject({ deliverySpeed: 2, quality: 2 });
   });
 
   it('проверяет условия события по состоянию до нового действия', () => {
@@ -302,7 +361,7 @@ describe('resolveRound', () => {
     expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
   });
 
-  it('снижает TTM, когда новый код ломает ревью и тестирование', () => {
+  it('не повторяет штраф за сломанные этапы в основном сценарии', () => {
     const riskyAction = getStageAction(
       defaultScenario.stageActions,
       'coding.guided-implementation',
@@ -316,8 +375,30 @@ describe('resolveRound', () => {
       defaultScenario.stageActions,
     );
     expect(plan.event.id).toBe('event-code-outpaces-checks');
-    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: -2 });
+    expect(plan.stages.review).toBe('BROKEN');
+    expect(plan.stages.testing).toBe('BROKEN');
+    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
     expect(plan.metrics.deliverySpeed).toBe(-2);
+    const next = resolveScenarioAction(
+      snapshotFromPlan(plan),
+      'technicalDiscovery.sync-docs-and-contract',
+      2,
+    );
+    expect(next.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
+    expect(next.metrics.deliverySpeed).toBe(-2);
+  });
+
+  it('не ускоряет TTM перед сломанным этапом основного сценария', () => {
+    const snapshot = createScenarioSnapshot();
+    snapshot.stages.coding = 'BROKEN';
+    const plan = resolveScenarioAction(snapshot, 'technicalDiscovery.code-research', 1);
+    const contribution = plan.effectContributions.find(({ kind }) => kind === 'DECISION');
+    expect(plan.breakdown.decision.deliverySpeed ?? 0).toBe(0);
+    expect(plan.metrics.deliverySpeed).toBe(0);
+    expect(contribution).toMatchObject({
+      blockedByStages: { deliverySpeed: ['coding'] },
+      blockedEffect: { deliverySpeed: 1 },
+    });
   });
 
   it('не ускоряет TTM ни одним решением, которое сразу ломает процесс', () => {

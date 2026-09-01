@@ -73,6 +73,7 @@ import {
 } from './db/store';
 import { AppError, assertCondition, assertFound } from './errors';
 import type { GameHub } from './realtime/game-hub';
+import { shuffledIds } from './shuffle';
 import { buildGameState } from './state';
 
 export class GameService {
@@ -155,7 +156,11 @@ export class GameService {
       const code = createRoomCode();
       if (!findGameByCode(this.database, code)) return code;
     }
-    throw new AppError(503, 'ROOM_CODE_EXHAUSTED', 'Не удалось создать код комнаты');
+    throw new AppError(
+      503,
+      'ROOM_CODE_EXHAUSTED',
+      'Не получилось создать игру. Попробуйте ещё раз',
+    );
   }
 
   private stateByCode(code: string) {
@@ -175,7 +180,12 @@ export class GameService {
   private stateForPlayer(game: GameRow, state: GameState, token: string | undefined) {
     if (!token) return state;
     const player = findPlayerByToken(this.database, game.id, hashToken(token));
-    assertCondition(player, 401, 'INVALID_PLAYER_TOKEN', 'Неверный токен игрока');
+    assertCondition(
+      player,
+      401,
+      'INVALID_PLAYER_TOKEN',
+      'Не удалось подтвердить вход игрока. Войдите в игру заново',
+    );
     if (!state.currentRound || !state.currentBallot) return state;
     if (game.decision_model === 'SINGLE_OPTION_V1') {
       const optionId = findVoteOption(this.database, state.currentRound.id, player.id);
@@ -187,14 +197,34 @@ export class GameService {
 
   private persistVote(game: GameRow, token: string, request: VoteRequest) {
     const current = assertFound(findGameById(this.database, game.id));
-    assertCondition(current.phase === 'VOTING', 409, 'VOTING_CLOSED', 'Голосование закрыто');
+    assertCondition(
+      current.phase === 'VOTING',
+      409,
+      'VOTING_CLOSED',
+      'Голосование ещё не открыто или уже закрыто',
+    );
     const player = findPlayerByToken(this.database, game.id, hashToken(token));
-    assertCondition(player, 401, 'INVALID_PLAYER_TOKEN', 'Неверный токен игрока');
+    assertCondition(
+      player,
+      401,
+      'INVALID_PLAYER_TOKEN',
+      'Не удалось подтвердить вход игрока. Войдите в игру заново',
+    );
     if (current.decision_model === 'SINGLE_OPTION_V1') {
-      assertCondition('optionId' in request, 400, 'INVALID_VOTE', 'Нужен вариант ответа');
+      assertCondition(
+        'optionId' in request,
+        400,
+        'INVALID_VOTE',
+        'Выберите вариант, за который хотите проголосовать',
+      );
       return this.persistLegacyVote(current, player.id, assertFound(request.optionId));
     }
-    assertCondition('ballotId' in request, 400, 'INVALID_VOTE', 'Нужен бюллетень');
+    assertCondition(
+      'ballotId' in request,
+      400,
+      'INVALID_VOTE',
+      'Не удалось определить текущее голосование. Обновите страницу и попробуйте ещё раз',
+    );
     return this.persistDecisionVote(
       current,
       player.id,
@@ -205,7 +235,7 @@ export class GameService {
 
   private persistLegacyVote(game: GameRow, playerId: string, optionId: string) {
     const round = assertFound(findRound(this.database, game.id, game.current_round));
-    assertFound(findOption(this.database, round.id, optionId), 'Вариант не найден');
+    assertFound(findOption(this.database, round.id, optionId), 'Такого варианта в голосовании нет');
     upsertVote(this.database, round.id, playerId, optionId);
     this.logVote(game, playerId, { optionId });
   }
@@ -213,9 +243,19 @@ export class GameService {
   private persistDecisionVote(game: GameRow, playerId: string, ballotId: string, choiceId: string) {
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const current = assertFound(findCurrentBallot(this.database, round.id));
-    assertCondition(current.id === ballotId, 409, 'STALE_BALLOT', 'Голосование уже сменилось');
+    assertCondition(
+      current.id === ballotId,
+      409,
+      'STALE_BALLOT',
+      'Ведущий уже открыл другое голосование. Обновите страницу и выберите вариант ещё раз',
+    );
     const choices = listBallotChoiceIds(this.database, ballotId);
-    assertCondition(choices.includes(choiceId), 404, 'NOT_FOUND', 'Вариант не найден');
+    assertCondition(
+      choices.includes(choiceId),
+      404,
+      'NOT_FOUND',
+      'Такого варианта в голосовании нет',
+    );
     upsertBallotVote(this.database, ballotId, playerId, choiceId);
     this.logVote(game, playerId, { ballotId, choiceId });
   }
@@ -248,7 +288,11 @@ export class GameService {
     }
     if (command.type === 'SHOW_EVENT') return this.showDecisionEvent(game);
     if (command.type === 'APPLY_CONSEQUENCES') return this.applyDecisionConsequences(game);
-    throw new AppError(400, 'UNKNOWN_COMMAND', 'Неизвестная команда');
+    throw new AppError(
+      400,
+      'UNKNOWN_COMMAND',
+      'Пульт отправил неизвестную команду. Обновите страницу',
+    );
   }
 
   private dispatchLegacy(game: GameRow, command: AdminCommand) {
@@ -259,7 +303,11 @@ export class GameService {
     }
     if (command.type === 'SHOW_EVENT') return this.showLegacyEvent(game);
     if (command.type === 'APPLY_CONSEQUENCES') return this.applyLegacyConsequences(game);
-    throw new AppError(400, 'UNKNOWN_COMMAND', 'Неизвестная команда');
+    throw new AppError(
+      400,
+      'UNKNOWN_COMMAND',
+      'Пульт отправил неизвестную команду. Обновите страницу',
+    );
   }
 
   private openStageVoting(game: GameRow) {
@@ -270,7 +318,7 @@ export class GameService {
       choices.length >= 2,
       409,
       'NOT_ENOUGH_STAGES',
-      'Для голосования нужно хотя бы два этапа',
+      'Нельзя начать голосование: доступно меньше двух этапов',
     );
     createBallot(
       this.database,
@@ -283,35 +331,55 @@ export class GameService {
   }
 
   private openActionVoting(game: GameRow) {
-    assertCondition(game.phase === 'RESULT', 409, 'INVALID_PHASE', 'Сейчас нельзя продолжить');
+    assertCondition(
+      game.phase === 'RESULT',
+      409,
+      'INVALID_PHASE',
+      'Голосование за решение можно открыть только после выбора этапа',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const stageBallot = assertFound(findCurrentBallot(this.database, round.id));
     assertCondition(
       stageBallot.kind === 'STAGE',
       409,
       'INVALID_BALLOT',
-      'Голосование за действие уже прошло',
+      'Голосование за решение уже началось',
     );
-    const stage = assertFound(stageBallot.selected_choice_id, 'Этап ещё не выбран') as StageKey;
+    const stage = assertFound(
+      stageBallot.selected_choice_id,
+      'Сначала завершите голосование за этап',
+    ) as StageKey;
     const choice = findStageChoice(this.database, round, stage);
     const actions = getAvailableActions(
       actionCatalog(this.database, game.id),
       choice,
       engineSnapshot(this.database, game),
     );
-    assertCondition(actions.length > 0, 409, 'NO_AVAILABLE_ACTIONS', 'Для этапа нет действий');
+    assertCondition(
+      actions.length > 0,
+      409,
+      'NO_AVAILABLE_ACTIONS',
+      'Для этого этапа не осталось доступных решений',
+    );
+    const actionIds = actions.map(({ id }) => id);
+    const rules = parseRules(game);
     createBallot(
       this.database,
       game.id,
       round.id,
       'ACTION',
-      actions.map(({ id }) => id),
+      rules.shuffleActionChoices ? shuffledIds(actionIds) : actionIds,
     );
     this.persistTransition(game, { phase: 'VOTING' });
   }
 
   private closeDecisionVoting(game: GameRow) {
-    assertCondition(game.phase === 'VOTING', 409, 'INVALID_PHASE', 'Голосование уже закрыто');
+    assertCondition(
+      game.phase === 'VOTING',
+      409,
+      'INVALID_PHASE',
+      'Сейчас нет открытого голосования',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const ballot = assertFound(findCurrentBallot(this.database, round.id));
     const choiceIds = listBallotChoiceIds(this.database, ballot.id);
@@ -323,7 +391,12 @@ export class GameService {
   }
 
   private resolveDecisionTie(game: GameRow, choiceId: string | undefined) {
-    assertCondition(game.phase === 'RESULT', 409, 'INVALID_PHASE', 'Сейчас нет ничьей');
+    assertCondition(
+      game.phase === 'RESULT',
+      409,
+      'INVALID_PHASE',
+      'Выбрать победителя можно только при ничьей',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const ballot = assertFound(findCurrentBallot(this.database, round.id));
     const leaders = parseIds(ballot.tied_choice_ids_json);
@@ -339,12 +412,20 @@ export class GameService {
       game.phase === 'RESULT',
       409,
       'INVALID_PHASE',
-      'Сейчас нельзя показать событие',
+      'Событие можно показать только после выбора победителя',
     );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const ballot = assertFound(findCurrentBallot(this.database, round.id));
-    assertCondition(ballot.kind === 'ACTION', 409, 'INVALID_BALLOT', 'Сначала выберите действие');
-    const actionId = assertFound(ballot.selected_choice_id, 'Победитель ещё не выбран');
+    assertCondition(
+      ballot.kind === 'ACTION',
+      409,
+      'INVALID_BALLOT',
+      'Сначала завершите голосование за решение',
+    );
+    const actionId = assertFound(
+      ballot.selected_choice_id,
+      'Сначала выберите победителя голосования',
+    );
     const action = parseAction(assertFound(findAction(this.database, game.id, actionId)));
     const plan = resolveRound(
       engineSnapshot(this.database, game),
@@ -363,8 +444,11 @@ export class GameService {
   private applyDecisionConsequences(game: GameRow) {
     const { plan, round } = this.pendingConsequences(game);
     const ballot = assertFound(findCurrentBallot(this.database, round.id));
-    assertCondition(ballot.kind === 'ACTION', 409, 'INVALID_BALLOT', 'Действие не выбрано');
-    const actionId = assertFound(ballot.selected_choice_id, 'Победитель ещё не выбран');
+    assertCondition(ballot.kind === 'ACTION', 409, 'INVALID_BALLOT', 'Сначала выберите решение');
+    const actionId = assertFound(
+      ballot.selected_choice_id,
+      'Сначала выберите победителя голосования',
+    );
     const action = parseAction(assertFound(findAction(this.database, game.id, actionId)));
     insertAppliedAction(this.database, game.id, round.id, actionId, action.stage);
     persistRound(this.database, round, { applied_at: new Date().toISOString() });
@@ -376,7 +460,12 @@ export class GameService {
   }
 
   private closeLegacyVoting(game: GameRow) {
-    assertCondition(game.phase === 'VOTING', 409, 'INVALID_PHASE', 'Голосование уже закрыто');
+    assertCondition(
+      game.phase === 'VOTING',
+      409,
+      'INVALID_PHASE',
+      'Сейчас нет открытого голосования',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const optionIds = listOptions(this.database, round.id).map((option) => option.id);
     const leaders = optionLeaderIds(optionIds, listVoteCounts(this.database, round.id));
@@ -388,7 +477,12 @@ export class GameService {
   }
 
   private resolveLegacyTie(game: GameRow, optionId: string | undefined) {
-    assertCondition(game.phase === 'RESULT', 409, 'INVALID_PHASE', 'Сейчас нет ничьей');
+    assertCondition(
+      game.phase === 'RESULT',
+      409,
+      'INVALID_PHASE',
+      'Выбрать победителя можно только при ничьей',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
     const leaders = parseIds(round.tied_option_ids_json);
     assertLeader(optionId, leaders);
@@ -404,10 +498,13 @@ export class GameService {
       game.phase === 'RESULT',
       409,
       'INVALID_PHASE',
-      'Сейчас нельзя показать событие',
+      'Событие можно показать только после выбора победителя',
     );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
-    const optionId = assertFound(round.selected_option_id, 'Победитель ещё не выбран');
+    const optionId = assertFound(
+      round.selected_option_id,
+      'Сначала выберите победителя голосования',
+    );
     const option = parseOption(assertFound(findOption(this.database, round.id, optionId)));
     const plan = resolveLegacy(this.database, game, round, option);
     persistRound(this.database, round, {
@@ -424,9 +521,17 @@ export class GameService {
   }
 
   private pendingConsequences(game: GameRow) {
-    assertCondition(game.phase === 'EVENT', 409, 'INVALID_PHASE', 'Последствия уже применены');
+    assertCondition(
+      game.phase === 'EVENT',
+      409,
+      'INVALID_PHASE',
+      'Сначала покажите событие, затем примените последствия',
+    );
     const round = assertFound(findRound(this.database, game.id, game.current_round));
-    return { plan: assertFound(parsePlan(round), 'План последствий не найден'), round };
+    return {
+      plan: assertFound(parsePlan(round), 'Не нашли расчёт этого хода. Обновите пульт'),
+      round,
+    };
   }
 
   private persistPlan(game: GameRow, plan: NonNullable<ReturnType<typeof parsePlan>>) {
@@ -450,12 +555,12 @@ export class GameService {
       game.phase === 'LOBBY' || game.phase === 'FEEDBACK',
       409,
       'INVALID_PHASE',
-      'Сейчас нельзя открыть голосование',
+      'Сейчас нельзя открыть новое голосование. Сначала завершите текущий ход',
     );
     const next = game.phase === 'LOBBY' ? 0 : game.current_round + 1;
     const rules = parseRules(game);
     if (rules.roundMode !== 'CYCLIC') {
-      assertCondition(next < rules.roundLimit, 409, 'NO_MORE_ROUNDS', 'Раунды закончились');
+      assertCondition(next < rules.roundLimit, 409, 'NO_MORE_ROUNDS', 'Все раунды уже сыграны');
     }
     ensureRoundInstance(this.database, game, next, rules);
     return next;
@@ -463,7 +568,12 @@ export class GameService {
 
   private persistTransition(game: GameRow, patch: Parameters<typeof persistGameTransition>[2]) {
     const changed = persistGameTransition(this.database, game, patch);
-    assertCondition(changed, 409, 'VERSION_CONFLICT', 'Состояние игры уже изменилось');
+    assertCondition(
+      changed,
+      409,
+      'VERSION_CONFLICT',
+      'Игра уже перешла дальше. Обновите страницу и попробуйте ещё раз',
+    );
   }
 
   private assertAdmin(game: GameRow, token: string) {
@@ -471,7 +581,7 @@ export class GameService {
       tokenMatches(token, game.admin_token_hash),
       401,
       'INVALID_ADMIN_TOKEN',
-      'Неверный секрет ведущего',
+      'Эта вкладка больше не может управлять игрой. Откройте пульт в браузере, где создали комнату',
     );
   }
 
@@ -480,7 +590,7 @@ export class GameService {
     throw new AppError(
       409,
       'VERSION_CONFLICT',
-      'Состояние игры уже изменилось',
+      'Игра уже перешла дальше. Обновите страницу и попробуйте ещё раз',
       buildGameState(this.database, game),
     );
   }
@@ -493,7 +603,7 @@ function ensureRoundInstance(
   rules: GameRules,
 ) {
   if (findRound(database, game.id, roundIndex)) return;
-  assertCondition(rules.roundMode === 'CYCLIC', 409, 'NO_MORE_ROUNDS', 'Раунды закончились');
+  assertCondition(rules.roundMode === 'CYCLIC', 409, 'NO_MORE_ROUNDS', 'Все раунды уже сыграны');
   const template = assertFound(findRound(database, game.id, roundIndex % rules.roundLimit));
   const decision = assertFound(findRoundDecision(database, template.id));
   insertRoundCopy(database, game.id, template, roundIndex + 1, decision.stageChoices);
@@ -510,7 +620,7 @@ function findStageChoice(database: GameDatabase, round: RoundRow, stage: StageKe
   const choices = findRoundDecision(database, round.id)?.stageChoices ?? [];
   return assertFound(
     choices.find((choice) => choice.stage === stage),
-    'Этап не найден',
+    'Такого этапа в этом голосовании нет',
   );
 }
 
@@ -609,7 +719,7 @@ function assertLeader(choiceId: string | undefined, leaders: string[]) {
     choiceId && leaders.includes(choiceId),
     400,
     'NOT_A_LEADER',
-    'Можно выбрать только лидера',
+    'Выберите один из вариантов с максимальным числом голосов',
   );
 }
 

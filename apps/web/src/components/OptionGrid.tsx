@@ -22,7 +22,6 @@ export function OptionGrid(props: OptionGridProps) {
             onClick={() => props.onSelect?.(option.id)}
             type="button"
           >
-            <span className="option-key">{option.key}</span>
             <span className="option-copy">
               <small>{stageLabels[option.stage]}</small>
               <strong>{option.title}</strong>

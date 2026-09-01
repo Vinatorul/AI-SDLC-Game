@@ -11,7 +11,10 @@ export class AppError extends Error {
   }
 }
 
-export function assertFound<T>(value: T | undefined | null, message = 'Игра не найдена'): T {
+export function assertFound<T>(
+  value: T | undefined | null,
+  message = 'Комната с таким кодом не найдена',
+): T {
   if (value === undefined || value === null) throw new AppError(404, 'NOT_FOUND', message);
   return value;
 }

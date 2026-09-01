@@ -10,13 +10,13 @@ import {
 
 type MetricBoardProps = {
   breakdown?: EffectBreakdown | null;
+  compact?: boolean;
   state: GameState;
 };
 
 type MetricDisplayConfig = {
   bounds: MetricBounds;
   definitions: MetricDefinitions;
-  scaleDescription: string;
 };
 
 type MetricGaugeProps = {
@@ -26,13 +26,22 @@ type MetricGaugeProps = {
   value: number;
 };
 
-export function MetricBoard({ breakdown, state }: MetricBoardProps) {
+export function MetricBoard({ breakdown, compact = false, state }: MetricBoardProps) {
   const config = metricConfig(state);
   return (
-    <section className="metric-grid" aria-label="Показатели SDLC">
-      <p className="metric-legend">{config.scaleDescription}</p>
+    <section
+      className={`metric-grid${compact ? ' metric-grid-compact' : ''}`}
+      aria-label="Метрики SDLC"
+    >
       {metricKeys.map((key) => (
-        <MetricCard breakdown={breakdown} config={config} key={key} metric={key} state={state} />
+        <MetricCard
+          breakdown={breakdown}
+          compact={compact}
+          config={config}
+          key={key}
+          metric={key}
+          state={state}
+        />
       ))}
     </section>
   );
@@ -40,12 +49,13 @@ export function MetricBoard({ breakdown, state }: MetricBoardProps) {
 
 function MetricCard({
   breakdown,
+  compact,
   config,
   metric,
   state,
 }: MetricBoardProps & { config: MetricDisplayConfig; metric: MetricKey }) {
   const value = state.metrics[metric];
-  const delta = breakdown?.total[metric] ?? 0;
+  const delta = breakdown?.applied?.[metric] ?? 0;
   const definition = config.definitions[metric];
   const signed = config.bounds.minimum < 0;
   const zone = metricZone(value, state.rules.criticalThreshold, state.rules.dangerThreshold);
@@ -57,7 +67,7 @@ function MetricCard({
     >
       <MetricLabel definition={definition} delta={delta} />
       <strong>{formatScore(value, signed)}</strong>
-      <p className="metric-description">{definition.description}</p>
+      {!compact && <p className="metric-description">{definition.description}</p>}
       <MetricGauge bounds={config.bounds} definition={definition} signed={signed} value={value} />
     </article>
   );
@@ -100,14 +110,10 @@ function MetricGauge(props: MetricGaugeProps) {
 }
 
 function metricConfig(state: GameState): MetricDisplayConfig {
-  const compatible = state as Partial<
-    Pick<GameState, 'metricBounds' | 'metricDefinitions' | 'metricScaleDescription'>
-  >;
+  const compatible = state as Partial<Pick<GameState, 'metricBounds' | 'metricDefinitions'>>;
   return {
     bounds: compatible.metricBounds ?? legacyMetricBounds,
     definitions: compatible.metricDefinitions ?? legacyMetricDefinitions,
-    scaleDescription:
-      compatible.metricScaleDescription ?? 'Чем выше значение, тем лучше состояние процесса',
   };
 }
 
@@ -139,22 +145,28 @@ function formatScore(value: number, signed: boolean) {
 const legacyMetricBounds: MetricBounds = { maximum: 100, minimum: 0 };
 
 const legacyMetricDefinitions: MetricDefinitions = {
-  controllability: legacyDefinition('Управляемость', 'Насколько процесс остаётся управляемым.'),
-  deliverySpeed: legacyDefinition(
-    'Скорость поставки',
-    'Как быстро изменения доходят до пользователей.',
+  controllability: legacyDefinition(
+    'Предсказуемость результата',
+    'Совпадают ли обещания команды с тем, что и когда получает пользователь.',
   ),
-  quality: legacyDefinition('Качество', 'Насколько надёжно работают выпущенные изменения.'),
-  teamCapacity: legacyDefinition('Ресурс команды', 'Сколько рабочего ресурса осталось у команды.'),
+  deliverySpeed: legacyDefinition('TTM', 'Как быстро изменения доходят до пользователей.'),
+  quality: legacyDefinition(
+    'Качество и стабильность',
+    'Работают ли изменения так, как ожидала команда.',
+  ),
+  teamCapacity: legacyDefinition(
+    'Баланс Run / Change',
+    'Хватает ли команде времени на новое, а не только на поддержку.',
+  ),
 };
 
 function legacyDefinition(label: string, description: string): MetricDefinition {
   return {
     description,
     label,
-    maximumDescription: 'Максимальное значение старой шкалы.',
+    maximumDescription: 'Верхняя граница шкалы.',
     maximumLabel: 'Максимум',
-    minimumDescription: 'Минимальное значение старой шкалы.',
+    minimumDescription: 'Нижняя граница шкалы.',
     minimumLabel: 'Минимум',
   };
 }

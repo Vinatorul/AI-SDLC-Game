@@ -24,25 +24,25 @@ export const stageStateLabels: Record<StageState, string> = {
 };
 
 export const phaseLabels: Record<GamePhase, string> = {
-  BROKEN: 'Игра завершена',
-  EVENT: 'Событие',
-  FEEDBACK: 'Разбор последствий',
-  LOBBY: 'Лобби',
-  RESULT: 'Результат голосования',
-  VOTING: 'Голосование',
+  BROKEN: 'Поражение',
+  EVENT: 'Событие хода',
+  FEEDBACK: 'Что изменилось',
+  LOBBY: 'Ждём игроков',
+  RESULT: 'Голосование завершено',
+  VOTING: 'Идёт голосование',
   WON: 'Победа',
 };
 
 export const propertyLabels: Record<ProcessProperty, string> = {
   automatedTests: 'Автоматические тесты',
-  currentContext: 'Актуальный контекст',
+  currentContext: 'Актуальные данные и документация',
   humanReview: 'Проверка человеком',
-  observability: 'Наблюдаемость',
-  rollback: 'Откат',
+  observability: 'Мониторинг и логи',
+  rollback: 'Быстрый откат',
 };
 
 export const outcomeLabels: Record<OutcomeReason, string> = {
-  AI_NOT_EMBEDDED: 'AI не успели встроить в нужное число этапов.',
-  BROKEN_STAGES_REMAIN: 'На карте остались сломанные этапы.',
-  CRITICAL_METRIC: 'Один из показателей пересёк критический порог.',
+  AI_NOT_EMBEDDED: 'Игра закончилась раньше, чем AI заработал на нужном числе этапов.',
+  BROKEN_STAGES_REMAIN: 'Не все сломанные этапы удалось починить.',
+  CRITICAL_METRIC: 'Одна из метрик упала до критического уровня.',
 };

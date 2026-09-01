@@ -87,7 +87,7 @@ function registerWebSocketRoute(
   app.get('/api/games/:code/ws', { websocket: true }, (socket, request) => {
     const { code } = codeParams.parse(request.params);
     if (!originAllowed(request.headers.origin, origins))
-      return socket.close(1008, 'Origin rejected');
+      return socket.close(1008, 'Сервер не разрешает подключение с этого адреса');
     const normalized = normalizeCode(code);
     const state = service.getState(normalized);
     const remove = hub.add(normalized, socket);
@@ -98,7 +98,8 @@ function registerWebSocketRoute(
 
 function bearer(request: FastifyRequest) {
   const token = readBearerToken(request.headers.authorization);
-  if (!token) throw new AppError(401, 'TOKEN_REQUIRED', 'Нужен токен доступа');
+  if (!token)
+    throw new AppError(401, 'TOKEN_REQUIRED', 'Не удалось подтвердить вход. Войдите заново.');
   return token;
 }
 
@@ -122,7 +123,7 @@ function originAllowed(origin: string | undefined, allowed: string[]) {
 function corsOrigin(allowed: string[]) {
   return (origin: string | undefined, callback: (error: Error | null, value: boolean) => void) => {
     if (originAllowed(origin, allowed)) return callback(null, true);
-    return callback(new Error('Origin rejected'), false);
+    return callback(new Error('Сервер не разрешает подключение с этого адреса'), false);
   };
 }
 
@@ -135,14 +136,21 @@ function errorHandler(error: Error, request: FastifyRequest, reply: FastifyReply
     });
   }
   if (error instanceof ZodError) {
-    return reply.status(400).send({ code: 'INVALID_REQUEST', message: 'Проверьте данные запроса' });
+    return reply.status(400).send({
+      code: 'INVALID_REQUEST',
+      message: 'Проверьте введённые данные и попробуйте ещё раз',
+    });
   }
   const statusCode = 'statusCode' in error ? Number(error.statusCode) : 0;
   if (statusCode >= 400 && statusCode < 500) {
-    return reply
-      .status(statusCode)
-      .send({ code: 'INVALID_REQUEST', message: 'Некорректный запрос' });
+    return reply.status(statusCode).send({
+      code: 'INVALID_REQUEST',
+      message: 'Не получилось выполнить действие. Обновите страницу и попробуйте ещё раз',
+    });
   }
   request.log.error(error);
-  return reply.status(500).send({ code: 'INTERNAL_ERROR', message: 'Внутренняя ошибка сервера' });
+  return reply.status(500).send({
+    code: 'INTERNAL_ERROR',
+    message: 'На сервере что-то пошло не так. Попробуйте ещё раз',
+  });
 }

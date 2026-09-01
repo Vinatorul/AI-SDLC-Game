@@ -1,4 +1,10 @@
-import { metricKeys, processProperties, stageKeys } from '@ai-sdlc/contracts';
+import {
+  type MetricDelta,
+  type MetricReasons,
+  metricKeys,
+  processProperties,
+  stageKeys,
+} from '@ai-sdlc/contracts';
 import { z } from 'zod';
 import type { Scenario } from './types';
 
@@ -8,6 +14,15 @@ const metricDeltaSchema = z
     deliverySpeed: z.number().optional(),
     quality: z.number().optional(),
     teamCapacity: z.number().optional(),
+  })
+  .strict();
+
+const metricReasonsSchema = z
+  .object({
+    controllability: z.string().trim().min(1).optional(),
+    deliverySpeed: z.string().trim().min(1).optional(),
+    quality: z.string().trim().min(1).optional(),
+    teamCapacity: z.string().trim().min(1).optional(),
   })
   .strict();
 
@@ -43,6 +58,36 @@ const metricDefinitionsSchema = z
 const propertySchema = z.enum(processProperties);
 const stageSchema = z.enum(stageKeys);
 const stageStateSchema = z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']);
+const requiredStagesSchema = z
+  .array(stageSchema)
+  .min(1)
+  .refine((stages) => new Set(stages).size === stages.length, 'этапы не должны повторяться');
+const stageEffectRequirementsSchema = z
+  .object({
+    businessRequest: requiredStagesSchema.optional(),
+    coding: requiredStagesSchema.optional(),
+    deployment: requiredStagesSchema.optional(),
+    productDiscovery: requiredStagesSchema.optional(),
+    review: requiredStagesSchema.optional(),
+    support: requiredStagesSchema.optional(),
+    technicalDiscovery: requiredStagesSchema.optional(),
+    testing: requiredStagesSchema.optional(),
+  })
+  .strict();
+const additionalRequiredStagesSchema = z
+  .object({
+    controllability: stageEffectRequirementsSchema.optional(),
+    deliverySpeed: stageEffectRequirementsSchema.optional(),
+    quality: stageEffectRequirementsSchema.optional(),
+    teamCapacity: stageEffectRequirementsSchema.optional(),
+  })
+  .strict();
+const positiveEffectRequirementsSchema = z
+  .object({
+    additionalStages: additionalRequiredStagesSchema.optional(),
+    requireActionStage: z.boolean(),
+  })
+  .strict();
 const stageMutationSchema = z.object({ stage: stageSchema, state: stageStateSchema }).strict();
 const stageTransitionsSchema = z
   .object({
@@ -72,6 +117,7 @@ const eventSchema = z
   .object({
     description: z.string().min(1),
     effect: metricDeltaSchema,
+    effectReasons: metricReasonsSchema.optional(),
     evidence: z.enum(['FACT', 'SCENARIO']),
     id: z.string().min(1),
     stageChanges: z.array(stageMutationSchema),
@@ -102,6 +148,7 @@ const stageActionBaseSchema = z
     availableInStates: z.array(stageStateSchema).min(1),
     description: z.string().min(1),
     effect: metricDeltaSchema,
+    effectReasons: metricReasonsSchema.optional(),
     evidence: z.enum(['FACT', 'SCENARIO']),
     key: z.string().min(1),
     repeatable: z.boolean(),
@@ -145,6 +192,7 @@ const rulesSchema = z
     requireNoBrokenStages: z.boolean(),
     roundLimit: z.number().int().positive(),
     roundMode: z.enum(['CYCLIC', 'FINITE']),
+    shuffleActionChoices: z.boolean().optional(),
   })
   .strict();
 
@@ -154,6 +202,7 @@ const mechanicsSchema = z
     metricBounds: z.object({ maximum: z.number(), minimum: z.number() }).strict(),
     metricDefinitions: metricDefinitionsSchema,
     metricScaleDescription: z.string().min(1),
+    positiveEffectRequirements: positiveEffectRequirementsSchema.optional(),
     propertyEffects: z
       .object({
         automatedTests: metricDeltaSchema,
@@ -163,11 +212,29 @@ const mechanicsSchema = z
         rollback: metricDeltaSchema,
       })
       .strict(),
+    propertyEffectReasons: z
+      .object({
+        automatedTests: metricReasonsSchema.optional(),
+        currentContext: metricReasonsSchema.optional(),
+        humanReview: metricReasonsSchema.optional(),
+        observability: metricReasonsSchema.optional(),
+        rollback: metricReasonsSchema.optional(),
+      })
+      .strict()
+      .optional(),
     stageStateEffects: z
       .object({
         AI_ENABLED: metricDeltaSchema,
         AS_IS: metricDeltaSchema,
         BROKEN: metricDeltaSchema,
+      })
+      .strict()
+      .optional(),
+    stageStateEffectReasons: z
+      .object({
+        AI_ENABLED: metricReasonsSchema.optional(),
+        AS_IS: metricReasonsSchema.optional(),
+        BROKEN: metricReasonsSchema.optional(),
       })
       .strict()
       .optional(),
@@ -182,7 +249,7 @@ const scenarioSchema = z
     mechanics: mechanicsSchema,
     rounds: z.array(roundSchema).min(1),
     rules: rulesSchema,
-    schemaVersion: z.literal(3),
+    schemaVersion: z.literal(4),
     stageActions: z.record(z.string().min(1), stageActionSchema),
     version: z.number().int().positive(),
   })
@@ -242,17 +309,37 @@ function validateMechanics(scenario: ScenarioCandidate, context: IssueContext) {
   for (const key of metricKeys) {
     const value = scenario.mechanics.initialMetrics[key];
     if (value < minimum || value > maximum) {
-      addIssue(context, ['mechanics', 'initialMetrics', key], 'значение вне границ показателя');
+      addIssue(context, ['mechanics', 'initialMetrics', key], 'значение вне границ метрики');
     }
   }
   validateThresholds(scenario, context);
+  validateMechanicReasons(scenario, context);
+}
+
+function validateMechanicReasons(scenario: ScenarioCandidate, context: IssueContext) {
+  for (const property of processProperties) {
+    validateEffectReasons(
+      scenario.mechanics.propertyEffects[property],
+      scenario.mechanics.propertyEffectReasons?.[property],
+      ['mechanics', 'propertyEffectReasons', property],
+      context,
+    );
+  }
+  for (const state of ['AS_IS', 'AI_ENABLED', 'BROKEN'] as const) {
+    validateEffectReasons(
+      scenario.mechanics.stageStateEffects?.[state] ?? {},
+      scenario.mechanics.stageStateEffectReasons?.[state],
+      ['mechanics', 'stageStateEffectReasons', state],
+      context,
+    );
+  }
 }
 
 function validateThresholds(scenario: ScenarioCandidate, context: IssueContext) {
   const { maximum, minimum } = scenario.mechanics.metricBounds;
   const { criticalThreshold, dangerThreshold } = scenario.rules;
   if (criticalThreshold < minimum || criticalThreshold > maximum) {
-    addIssue(context, ['rules', 'criticalThreshold'], 'порог вне границ показателя');
+    addIssue(context, ['rules', 'criticalThreshold'], 'порог вне границ метрики');
   }
   if (dangerThreshold <= criticalThreshold || dangerThreshold > maximum) {
     addIssue(context, ['rules', 'dangerThreshold'], 'должен быть выше criticalThreshold');
@@ -293,6 +380,12 @@ function validateAction(
   ) {
     addIssue(context, path, 'допустимо только для действия с результатом AI_ENABLED');
   }
+  validateEffectReasons(
+    action.effect,
+    action.effectReasons,
+    ['stageActions', id, 'effectReasons'],
+    context,
+  );
 }
 
 function validateRound(
@@ -353,7 +446,29 @@ function validateEventRules(
     if (index < lastIndex && !hasCondition(rule))
       addIssue(context, path, 'безусловным может быть только последнее событие');
     validateRuleReferences(scenario, round, rule, path, context);
+    validateEffectReasons(
+      rule.event.effect,
+      rule.event.effectReasons,
+      [...path, 'event', 'effectReasons'],
+      context,
+    );
   });
+}
+
+function validateEffectReasons(
+  effect: MetricDelta,
+  reasons: MetricReasons | undefined,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const effectKeys = metricKeys.filter((key) => effect[key] !== undefined && effect[key] !== 0);
+  const reasonKeys = metricKeys.filter((key) => reasons?.[key] !== undefined);
+  if (sameKeys(effectKeys, reasonKeys)) return;
+  addIssue(context, path, 'нужна отдельная причина для каждого ненулевого эффекта');
+}
+
+function sameKeys(left: string[], right: string[]) {
+  return left.length === right.length && left.every((key) => right.includes(key));
 }
 
 function validateRuleConditions(

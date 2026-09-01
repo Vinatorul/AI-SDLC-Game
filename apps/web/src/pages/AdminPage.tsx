@@ -8,6 +8,7 @@ import { GameFocus } from '../components/GameFocus';
 import { GameHeader } from '../components/GameHeader';
 import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
+import { MetricChangeNotes } from '../components/MetricChangeNotes';
 import { StageMap } from '../components/StageMap';
 import { useGameState } from '../realtime/useGameState';
 
@@ -28,9 +29,9 @@ function AdminStart() {
     <Layout>
       <main className="single-page">
         <section className="entry-card">
-          <p className="eyebrow">Экран ведущего</p>
+          <p className="eyebrow">Пульт ведущего</p>
           <h1>Новая игра</h1>
-          <p>Сервер создаст комнату, сохранит сценарий и выдаст одноразовый секрет ведущего.</p>
+          <p>Создайте комнату. Здесь появятся код для игроков и кнопки управления игрой.</p>
           {createGame.error && <p className="form-error">{createGame.error}</p>}
           <button
             className="primary-button"
@@ -58,7 +59,7 @@ function useCreateGame() {
       sessionStorage.setItem(adminTokenKey(result.state.code), result.adminToken);
       navigate(`/admin/${result.state.code}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось создать игру');
+      setError(caught instanceof Error ? caught.message : 'Не получилось создать игру.');
       setBusy(false);
     }
   }
@@ -81,11 +82,12 @@ function AdminGame({ code, game, token }: AdminGameProps) {
         <div className="admin-layout">
           <div>
             <GameFocus state={state} />
+            <MetricChangeNotes state={state} />
             <StageMap state={state} />
           </div>
           <aside>
             <AdminControls code={code} game={game} state={state} token={token} />
-            <SharePanel code={code} state={state} />
+            <SharePanel code={code} />
           </aside>
         </div>
       </main>
@@ -100,7 +102,8 @@ function AdminControls({ code, game, state, token }: AdminGameProps & { state: G
       <p className="eyebrow">Следующий шаг</p>
       <h2>{controlTitle(state)}</h2>
       <p>
-        {state.playerCount} игроков · {state.voteCount} голосов
+        {countWithNoun(state.playerCount, ['игрок', 'игрока', 'игроков'])} ·{' '}
+        {countWithNoun(state.voteCount, ['голос', 'голоса', 'голосов'])}
       </p>
       {command.error && <p className="form-error">{command.error}</p>}
       <ControlButtons busy={command.busy} send={command.send} state={state} />
@@ -127,7 +130,7 @@ function useAdminCommand(
       });
       game.setState(result.state);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Команда не выполнена');
+      setError(caught instanceof Error ? caught.message : 'Не получилось выполнить команду.');
       await game.refresh();
     } finally {
       setBusy(false);
@@ -149,10 +152,10 @@ function ControlButtons({
     return <TieButtons busy={busy} send={send} state={state} />;
   }
   const command = state.allowedCommands[0];
-  if (!command) return <p className="muted">Игра завершена.</p>;
+  if (!command) return <p className="muted">Игра окончена.</p>;
   return (
     <button className="primary-button" disabled={busy} onClick={() => send(command)} type="button">
-      {busy ? 'Применяем…' : commandLabel(command, state)}
+      {busy ? 'Подождите…' : commandLabel(command, state)}
     </button>
   );
 }
@@ -176,7 +179,7 @@ function TieButtons({ busy, send, state }: Parameters<typeof ControlButtons>[0])
   );
 }
 
-function SharePanel({ code, state }: { code: string; state: GameState }) {
+function SharePanel({ code }: { code: string }) {
   const playerUrl = `${window.location.origin}${window.location.pathname}#/play/${code}`;
   return (
     <section className="share-panel">
@@ -184,9 +187,6 @@ function SharePanel({ code, state }: { code: string; state: GameState }) {
       <QRCodeSVG bgColor="#ffffff" fgColor="#111214" size={164} value={playerUrl} />
       <strong>{code}</strong>
       <Link to={`/screen/${code}`}>Открыть общий экран</Link>
-      <small>
-        Версия {state.transitionVersion} · ревизия {state.revision}
-      </small>
     </section>
   );
 }
@@ -197,10 +197,13 @@ function MissingAdminToken({ code }: { code: string }) {
       <main className="single-page">
         <section className="entry-card">
           <p className="eyebrow">Комната {code}</p>
-          <h1>Нет секрета ведущего</h1>
-          <p>Откройте комнату в том браузере, где она была создана, или создайте новую.</p>
+          <h1>Эта вкладка не может управлять игрой</h1>
+          <p>
+            Пульт работает только в браузере, где создали комнату. Откройте его там или начните
+            новую игру.
+          </p>
           <Link className="primary-button" to="/admin">
-            Создать новую
+            Создать новую игру
           </Link>
         </section>
       </main>
@@ -232,13 +235,14 @@ function controlTitle(state: GameState) {
   const kind = state.currentBallot?.kind;
   if (state.phase === 'VOTING' && kind === 'STAGE') return 'Закройте выбор этапа, когда зал готов';
   if (state.phase === 'VOTING' && kind === 'ACTION')
-    return 'Закройте выбор способа, когда зал готов';
+    return 'Закройте выбор решения, когда зал готов';
   if (state.phase === 'VOTING') return 'Закройте голосование, когда зал готов';
   if (state.phase === 'RESULT' && hasTie(state)) return tieLabel(state);
-  if (state.phase === 'RESULT' && kind === 'STAGE') return 'Обсудите этап перед выбором способа';
-  if (state.phase === 'RESULT') return 'Обсудите выбранный способ перед событием';
-  if (state.phase === 'EVENT') return 'Обсудите событие перед расчётом';
-  if (state.phase === 'FEEDBACK') return 'Зафиксируйте изменения и идите дальше';
+  if (state.phase === 'RESULT' && kind === 'STAGE')
+    return 'Обсудите выбор, затем откройте варианты решений';
+  if (state.phase === 'RESULT') return 'Обсудите решение, затем покажите событие';
+  if (state.phase === 'EVENT') return 'Обсудите событие, затем примените последствия';
+  if (state.phase === 'FEEDBACK') return 'Разберите изменения и открывайте следующий ход';
   return state.decisionModel === 'STAGE_ACTION_V2'
     ? 'Откройте выбор этапа'
     : 'Откройте первый раунд';
@@ -247,11 +251,11 @@ function controlTitle(state: GameState) {
 function commandLabel(command: AdminCommandName, state: GameState) {
   if (command === 'OPEN_VOTING' && state.decisionModel === 'STAGE_ACTION_V2')
     return 'Открыть выбор этапа';
-  if (command === 'OPEN_NEXT_BALLOT') return 'Перейти к выбору способа';
+  if (command === 'OPEN_NEXT_BALLOT') return 'Перейти к выбору решения';
   if (command === 'CLOSE_VOTING' && state.currentBallot?.kind === 'STAGE')
     return 'Закрыть выбор этапа';
   if (command === 'CLOSE_VOTING' && state.currentBallot?.kind === 'ACTION')
-    return 'Закрыть выбор способа';
+    return 'Закрыть выбор решения';
   return defaultCommandLabels[command];
 }
 
@@ -268,8 +272,18 @@ function hasTie(state: GameState) {
 
 function tieLabel(state: GameState) {
   if (state.currentBallot?.kind === 'STAGE') return 'Ничья в выборе этапа';
-  if (state.currentBallot?.kind === 'ACTION') return 'Ничья в выборе способа';
-  return 'Выберите лидера';
+  if (state.currentBallot?.kind === 'ACTION') return 'Ничья в выборе решения';
+  return 'Ничья: выберите вариант с максимальным числом голосов';
+}
+
+function countWithNoun(count: number, forms: [string, string, string]) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} ${forms[0]}`;
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) {
+    return `${count} ${forms[1]}`;
+  }
+  return `${count} ${forms[2]}`;
 }
 
 function tieLeaders(state: GameState) {
@@ -290,7 +304,7 @@ function tieLeaders(state: GameState) {
 const defaultCommandLabels: Record<AdminCommandName, string> = {
   APPLY_CONSEQUENCES: 'Применить последствия',
   CLOSE_VOTING: 'Закрыть голосование',
-  OPEN_NEXT_BALLOT: 'Перейти к следующему выбору',
+  OPEN_NEXT_BALLOT: 'Перейти к выбору решения',
   OPEN_VOTING: 'Открыть голосование',
   RESOLVE_TIE: 'Выбрать победителя',
   SHOW_EVENT: 'Показать событие',

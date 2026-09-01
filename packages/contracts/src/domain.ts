@@ -22,6 +22,7 @@ export const processProperties = [
 export type MetricKey = (typeof metricKeys)[number];
 export type MetricValues = Record<MetricKey, number>;
 export type MetricDelta = Partial<MetricValues>;
+export type MetricReasons = Partial<Record<MetricKey, string>>;
 export type MetricBounds = {
   maximum: number;
   minimum: number;
@@ -35,6 +36,7 @@ export type MetricDefinition = {
   minimumLabel: string;
 };
 export type MetricDefinitions = Record<MetricKey, MetricDefinition>;
+export type MetricImpact = 'IMPROVED' | 'NEUTRAL' | 'WORSENED';
 export type StageKey = (typeof stageKeys)[number];
 export type ProcessProperty = (typeof processProperties)[number];
 export type StageState = 'AS_IS' | 'AI_ENABLED' | 'BROKEN';
@@ -51,6 +53,7 @@ export type GameRules = {
   requireNoBrokenStages: boolean;
   roundLimit: number;
   roundMode?: 'CYCLIC' | 'FINITE';
+  shuffleActionChoices?: boolean;
 };
 
 export type StageMutation = {
@@ -129,6 +132,7 @@ export type StageProgress = {
 };
 
 export type EffectBreakdown = {
+  applied?: MetricDelta;
   decision: MetricDelta;
   event: MetricDelta;
   pipeline?: MetricDelta;
@@ -136,10 +140,37 @@ export type EffectBreakdown = {
   total: MetricDelta;
 };
 
+type EffectContributionBase = {
+  blockedByStages?: Partial<Record<MetricKey, StageKey[]>>;
+  blockedEffect?: MetricDelta;
+  effect: MetricDelta;
+  effectReasons?: MetricReasons;
+};
+
+export type EffectContribution = EffectContributionBase &
+  (
+    | {
+        description: string;
+        kind: 'DECISION' | 'EVENT';
+        title: string;
+      }
+    | {
+        kind: 'PROPERTY';
+        property: ProcessProperty;
+      }
+    | {
+        kind: 'STAGE_STATE';
+        stage: StageKey;
+        state: StageState;
+      }
+  );
+
 export type RoundView = {
   effectBreakdown: EffectBreakdown | null;
+  effectContributions?: EffectContribution[];
   event: GameEvent | null;
   id: string;
+  metricImpact: MetricImpact | null;
   number: number;
   options: RoundOption[];
   selectedOptionId: string | null;
