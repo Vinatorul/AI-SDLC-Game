@@ -66,6 +66,11 @@ function registerHttpRoutes(app: FastifyInstance, service: GameService) {
     const { code } = codeParams.parse(request.params);
     return service.getState(normalizeCode(code), optionalBearer(request));
   });
+  app.get('/api/games/:code/admin/forecast', async (request, reply) => {
+    const { code } = codeParams.parse(request.params);
+    reply.header('cache-control', 'no-store');
+    return service.getAdminForecast(normalizeCode(code), bearer(request));
+  });
   app.put('/api/games/:code/vote', async (request) => {
     const { code } = codeParams.parse(request.params);
     const vote = voteBody.parse(request.body);

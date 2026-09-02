@@ -121,9 +121,47 @@ export type BallotView<TChoice extends BallotChoice = BallotChoice> = {
 
 export type AppliedActionView = {
   actionId: string;
+  impact?: AppliedActionImpactView;
   roundNumber: number;
   stage: StageKey;
   title: string;
+};
+
+export type AppliedActionImpactView = {
+  metricDelta: MetricDelta;
+  reasons: Partial<Record<MetricKey, string[]>>;
+};
+
+export type MetricPotentialRange = {
+  maximum: number;
+  minimum: number;
+};
+
+export type StageStatePotential = {
+  stage: StageKey;
+  states: StageState[];
+};
+
+export type ActionPotentialView = {
+  actionId: string;
+  metricDelta: MetricDelta;
+  stageChanges: StageMutation[];
+};
+
+export type StagePotentialView = {
+  actionCount: number;
+  metricRanges: Record<MetricKey, MetricPotentialRange>;
+  stage: StageKey;
+  stageChanges: StageStatePotential[];
+};
+
+export type AdminForecast = {
+  actionPotentials: ActionPotentialView[];
+  ballotId: string | null;
+  kind: 'ACTION' | 'STAGE' | null;
+  revision: number;
+  stagePotentials: StagePotentialView[];
+  transitionVersion: number;
 };
 
 export type ActivatedAction = {
@@ -219,6 +257,7 @@ export type RoundView = {
 
 export type GameState = {
   allowedCommands: AdminCommandName[];
+  appliedActionHistory?: AppliedActionView[];
   code: string;
   currentBallot: BallotView | null;
   currentRound: RoundView | null;

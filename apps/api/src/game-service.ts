@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AdminCommand,
+  AdminForecast,
   CreateGameResponse,
   GameRules,
   GameState,
@@ -21,6 +22,8 @@ import {
   type EngineOption,
   type EngineSnapshot,
   evaluateOutcome,
+  forecastAction,
+  forecastStage,
   type GameMechanics,
   getAvailableActions,
   getAvailableStageChoices,
@@ -110,6 +113,12 @@ export class GameService {
   getState(code: string, playerToken?: string): GameState {
     const game = this.gameByCode(code);
     return this.stateForPlayer(game, buildGameState(this.database, game), playerToken);
+  }
+
+  getAdminForecast(code: string, token: string): AdminForecast {
+    const game = this.gameByCode(code);
+    this.assertAdmin(game, token);
+    return buildAdminForecast(this.database, game);
   }
 
   vote(code: string, token: string, request: VoteRequest): VoteResponse {
@@ -620,6 +629,79 @@ function availableStageChoices(database: GameDatabase, game: GameRow, round: Rou
   const catalog = actionCatalog(database, game.id);
   const choices = findRoundDecision(database, round.id)?.stageChoices ?? [];
   return getAvailableStageChoices(catalog, choices, snapshot);
+}
+
+function buildAdminForecast(database: GameDatabase, game: GameRow): AdminForecast {
+  const round = findRound(database, game.id, game.current_round);
+  const ballot = round ? findCurrentBallot(database, round.id) : null;
+  const ballotVisible = game.phase === 'VOTING' || game.phase === 'RESULT';
+  if (!round || !ballot || !ballotVisible || game.decision_model !== 'STAGE_ACTION_V2') {
+    return forecastEnvelope(game, null, null, { actionPotentials: [], stagePotentials: [] });
+  }
+  const snapshot = engineSnapshot(database, game);
+  const catalog = actionCatalog(database, game.id);
+  const data =
+    ballot.kind === 'STAGE'
+      ? stageForecast(database, game, round, snapshot, catalog, ballot.id)
+      : actionForecast(database, game, round, snapshot, catalog, ballot.id);
+  return forecastEnvelope(game, ballot.id, ballot.kind, data);
+}
+
+function forecastEnvelope(
+  game: GameRow,
+  ballotId: string | null,
+  kind: AdminForecast['kind'],
+  data: Pick<AdminForecast, 'actionPotentials' | 'stagePotentials'>,
+): AdminForecast {
+  return {
+    ...data,
+    ballotId,
+    kind,
+    revision: game.revision,
+    transitionVersion: game.transition_version,
+  };
+}
+
+function stageForecast(
+  database: GameDatabase,
+  game: GameRow,
+  round: RoundRow,
+  snapshot: EngineSnapshot,
+  catalog: StageActionCatalog,
+  ballotId: string,
+): Pick<AdminForecast, 'actionPotentials' | 'stagePotentials'> {
+  const mechanics = parseMechanics(game);
+  const scenario = scenarioRound(database, round);
+  const choices = listBallotChoiceIds(database, ballotId).map((id) =>
+    findStageChoice(database, round, id as StageKey),
+  );
+  return {
+    actionPotentials: [],
+    stagePotentials: choices.map((choice) =>
+      forecastStage(snapshot, scenario, choice, mechanics, catalog),
+    ),
+  };
+}
+
+function actionForecast(
+  database: GameDatabase,
+  game: GameRow,
+  round: RoundRow,
+  snapshot: EngineSnapshot,
+  catalog: StageActionCatalog,
+  ballotId: string,
+): Pick<AdminForecast, 'actionPotentials' | 'stagePotentials'> {
+  const mechanics = parseMechanics(game);
+  const scenario = scenarioRound(database, round);
+  const actions = listBallotChoiceIds(database, ballotId).map((id) =>
+    parseAction(assertFound(findAction(database, game.id, id))),
+  );
+  return {
+    actionPotentials: actions.map((action) =>
+      forecastAction(snapshot, scenario, action, mechanics, catalog),
+    ),
+    stagePotentials: [],
+  };
 }
 
 function findStageChoice(database: GameDatabase, round: RoundRow, stage: StageKey) {

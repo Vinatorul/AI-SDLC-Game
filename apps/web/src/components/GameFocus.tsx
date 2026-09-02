@@ -1,13 +1,19 @@
-import type { GameState } from '@ai-sdlc/contracts';
+import type { AdminForecast, GameState } from '@ai-sdlc/contracts';
 import { outcomeLabels, propertyLabels } from '../labels';
 import { BallotFocus } from './BallotFocus';
 import { OptionGrid } from './OptionGrid';
 
-type GameFocusProps = { selectedChoiceId?: string | null; state: GameState };
+type GameFocusProps = {
+  forecast?: AdminForecast | null;
+  selectedChoiceId?: string | null;
+  state: GameState;
+};
 
-export function GameFocus({ selectedChoiceId, state }: GameFocusProps) {
+export function GameFocus({ forecast, selectedChoiceId, state }: GameFocusProps) {
   if (state.phase === 'WON' || state.phase === 'BROKEN') return <FinalState state={state} />;
-  if (showCurrentBallot(state)) return <BallotFocus selected={selectedChoiceId} state={state} />;
+  if (showCurrentBallot(state)) {
+    return <BallotFocus forecast={forecast} selected={selectedChoiceId} state={state} />;
+  }
   const round = state.currentRound;
   if (!round) return null;
   return (

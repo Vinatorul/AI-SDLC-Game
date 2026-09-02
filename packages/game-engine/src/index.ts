@@ -1,3 +1,4 @@
+export { forecastAction, forecastStage } from './forecast';
 export {
   createInitialMetrics,
   createInitialStages,

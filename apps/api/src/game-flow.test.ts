@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   type AdminCommandName,
+  type AdminForecast,
   type CreateGameResponse,
   type GameState,
   type JoinGameResponse,
@@ -152,7 +153,58 @@ it('не раскрывает эффекты действия и применя�
   expect(state.phase).toBe('FEEDBACK');
   expect(state.currentRound?.metricImpact).toBe('IMPROVED');
   expect(state.currentRound?.effectContributions?.length).toBeGreaterThan(0);
+  expectLatestHistory(state, 'technicalDiscovery.code-research');
   expect(response.statusCode).toBe(409);
+});
+
+it('отдаёт прогноз только ведущему и считает его тем же движком', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = await command(app, game, 'OPEN_VOTING', 0);
+  const stageForecast = await getAdminForecast(app, game);
+  expect(stageForecast.kind).toBe('STAGE');
+  expect(stageForecast.ballotId).toBe(state.currentBallot?.id);
+  expect(stageForecast.stagePotentials).toHaveLength(8);
+  expect(stageForecast.actionPotentials).toEqual([]);
+  const withoutToken = await rawAdminForecast(app, game.state.code);
+  const playerToken = await rawAdminForecast(app, game.state.code, player.playerToken);
+  expect(withoutToken.statusCode).toBe(401);
+  expect(playerToken.statusCode).toBe(401);
+  const publicState = await getState(app, game.state.code);
+  expect(publicState).not.toHaveProperty('forecast');
+  const stageBallot = requiredBallot(state);
+  await voteFor(app, game, player, stageBallot.id, 'technicalDiscovery');
+  state = await command(app, game, 'CLOSE_VOTING', 1);
+  state = await command(app, game, 'OPEN_NEXT_BALLOT', 2);
+  const actionForecast = await getAdminForecast(app, game);
+  const actionId = requiredBallot(state).choices[0]?.id ?? '';
+  const potential = actionForecast.actionPotentials.find((item) => item.actionId === actionId);
+  expect(actionForecast.kind).toBe('ACTION');
+  expect(actionForecast.stagePotentials).toEqual([]);
+  state = await finishAction(app, game, player, actionId, 3, state);
+  expect(potential?.metricDelta).toEqual(state.currentRound?.effectBreakdown?.applied);
+  expect(potential?.stageChanges).toEqual(changedStageState(game.state, state));
+});
+
+it('не объясняет баллы, которые не изменились на границе шкалы', async () => {
+  const scenario = structuredClone(defaultScenario);
+  scenario.mechanics.initialMetrics.deliverySpeed = scenario.mechanics.metricBounds.maximum;
+  scenario.mechanics.initialMetrics.quality = scenario.mechanics.metricBounds.maximum;
+  const app = await testApp(':memory:', scenario);
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  const state = await playRound(
+    app,
+    game,
+    player,
+    'technicalDiscovery',
+    'technicalDiscovery.code-research',
+    0,
+  );
+  const impact = state.appliedActionHistory?.[0]?.impact;
+  expect(impact?.metricDelta).toMatchObject({ deliverySpeed: 0, quality: 0 });
+  expect(impact?.reasons).toEqual({});
 });
 
 it('восстанавливает личный голос только по токену игрока', async () => {
@@ -406,6 +458,11 @@ describe('восстановление SQLite', () => {
     expect(state.currentRound?.activatedActions?.[0]?.completedByActionId).toBe(
       'businessRequest.outcome-metrics',
     );
+    expect(state.appliedActionHistory?.map(({ actionId }) => actionId)).toEqual([
+      'businessRequest.outcome-metrics',
+      'businessRequest.feedback-mcp',
+    ]);
+    expect(state.appliedActionHistory?.every(({ impact }) => Boolean(impact))).toBe(true);
     await closeTrackedApp(second);
     rmSync(directory, { force: true, recursive: true });
   });
@@ -599,6 +656,36 @@ async function getState(app: FastifyInstance, code: string, token?: string) {
   });
   expect(response.statusCode).toBe(200);
   return response.json() as GameState;
+}
+
+async function getAdminForecast(app: FastifyInstance, game: CreateGameResponse) {
+  const response = await rawAdminForecast(app, game.state.code, game.adminToken);
+  expect(response.statusCode).toBe(200);
+  expect(response.headers['cache-control']).toBe('no-store');
+  return response.json() as AdminForecast;
+}
+
+function rawAdminForecast(app: FastifyInstance, code: string, token?: string) {
+  return app.inject({
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    method: 'GET',
+    url: `/api/games/${code}/admin/forecast`,
+  });
+}
+
+function changedStageState(before: GameState, after: GameState) {
+  return stageKeys.flatMap((stage) =>
+    before.stages[stage] === after.stages[stage] ? [] : [{ stage, state: after.stages[stage] }],
+  );
+}
+
+function expectLatestHistory(state: GameState, actionId: string) {
+  expect(state.appliedActionHistory?.[0]).toMatchObject({
+    actionId,
+    impact: { metricDelta: state.currentRound?.effectBreakdown?.applied },
+  });
+  const reasons = Object.values(state.appliedActionHistory?.[0]?.impact?.reasons ?? {}).flat();
+  expect(reasons.length).toBeGreaterThan(0);
 }
 
 async function command(

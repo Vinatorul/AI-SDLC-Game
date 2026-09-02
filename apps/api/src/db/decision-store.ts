@@ -28,6 +28,7 @@ export type AppliedActionRow = {
   applied_at: string;
   game_id: string;
   id: number;
+  pending_plan_json: string | null;
   round_number: number;
   round_id: string;
   stage: StageKey;
@@ -160,7 +161,8 @@ export function listBallotVoteCounts(database: GameDatabase, ballotId: string) {
 }
 
 export function listAppliedActions(database: GameDatabase, gameId: string) {
-  const sql = `SELECT applied_actions.*, game_rounds.round_number FROM applied_actions
+  const sql = `SELECT applied_actions.*, game_rounds.round_number, game_rounds.pending_plan_json
+    FROM applied_actions
     JOIN game_rounds ON game_rounds.id = applied_actions.round_id
     WHERE applied_actions.game_id = ? ORDER BY applied_actions.id`;
   return database.prepare(sql).all(gameId) as unknown as AppliedActionRow[];

@@ -12,6 +12,7 @@ import { MetricBoard } from '../components/MetricBoard';
 import { MetricChangeNotes } from '../components/MetricChangeNotes';
 import { RecoveryGuides } from '../components/RecoveryGuides';
 import { StageMap } from '../components/StageMap';
+import { useAdminForecast } from '../realtime/useAdminForecast';
 import { useGameState } from '../realtime/useGameState';
 
 export function AdminPage() {
@@ -76,6 +77,7 @@ type AdminGameProps = {
 
 function AdminGame({ code, game, token }: AdminGameProps) {
   const state = game.state as GameState;
+  const forecast = useAdminForecast(code, token, state);
   return (
     <Layout>
       <main className="game-page">
@@ -83,7 +85,8 @@ function AdminGame({ code, game, token }: AdminGameProps) {
         <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
         <div className="admin-layout">
           <div>
-            <GameFocus state={state} />
+            <GameFocus forecast={forecast.forecast} state={state} />
+            {forecast.error && <p className="form-error">{forecast.error}</p>}
             <MetricChangeNotes state={state} />
             <ActivatedActions state={state} />
             <RecoveryGuides state={state} />

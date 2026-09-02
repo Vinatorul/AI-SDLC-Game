@@ -1,5 +1,6 @@
 import {
   type ActionBallotChoice,
+  type AdminForecast,
   type BallotView,
   type GameState,
   type StageBallotChoice,
@@ -7,10 +8,12 @@ import {
   stageKeys,
 } from '@ai-sdlc/contracts';
 import { stageLabels, stageStateLabels } from '../labels';
+import { ActionPotential, StagePotential } from './AdminPotential';
 import { BallotProgress } from './BallotProgress';
 import { AppliedHistory } from './StageMap';
 
 type BallotFocusProps = {
+  forecast?: AdminForecast | null;
   interactive?: boolean;
   onSelect?: (choiceId: string) => void;
   selected?: string | null;
@@ -70,6 +73,9 @@ function StageChoiceCard({ choice, ...props }: BallotFocusProps & StageChoiceCar
         <small>{stageStateLabels[progress.state]}</small>
       </span>
       {props.state.phase === 'RESULT' && <b className="stage-votes">{tally?.count ?? 0}</b>}
+      {props.variant !== 'player' && (
+        <StagePotential forecast={props.forecast} stage={choice.stage} state={props.state} />
+      )}
     </button>
   );
 }
@@ -114,6 +120,9 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
         <span>{choice.description}</span>
         {choice.shortFeedback && showFeedback && props.variant !== 'player' && (
           <em>{choice.shortFeedback}</em>
+        )}
+        {props.variant !== 'player' && (
+          <ActionPotential actionId={choice.id} forecast={props.forecast} state={props.state} />
         )}
       </span>
       {props.state.phase === 'RESULT' && <b className="option-votes">{tally?.count ?? 0}</b>}

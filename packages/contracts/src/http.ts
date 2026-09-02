@@ -1,4 +1,4 @@
-import type { AdminCommand, GameState } from './domain';
+import type { AdminCommand, AdminForecast, GameState } from './domain';
 
 export type CreateGameResponse = {
   adminToken: string;
@@ -28,6 +28,8 @@ export type AdminCommandRequest = AdminCommand;
 export type AdminCommandResponse = {
   state: GameState;
 };
+
+export type AdminForecastResponse = AdminForecast;
 
 export type ApiErrorBody = {
   code: string;

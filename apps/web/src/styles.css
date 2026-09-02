@@ -545,6 +545,62 @@ h1 {
   line-height: 1.35;
 }
 
+.admin-potential {
+  display: grid;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgb(17 18 20 / 12%);
+  color: #555a62;
+}
+
+.admin-potential > small {
+  color: #555a62;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.potential-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.potential-chips span {
+  padding: 3px 5px;
+  color: #555a62;
+  background: #e6e8ec;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.potential-chips .is-positive {
+  color: #236c47;
+  background: #e3f3ea;
+}
+
+.potential-chips .is-negative {
+  color: #a43a3a;
+  background: #fbe6e6;
+}
+
+.potential-chips .is-mixed {
+  color: #675477;
+  background: #efe8f5;
+}
+
+.potential-stages {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: #62666d;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
 .ballot-focus button:disabled {
   cursor: default;
 }
@@ -1027,6 +1083,15 @@ button.stage-card:not(:disabled):focus-visible,
   aspect-ratio: 1;
 }
 
+.admin-layout .stage-ballot-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-layout .stage-ballot-grid > .stage-card {
+  min-height: 210px;
+  aspect-ratio: auto;
+}
+
 .screen-page .stage-ballot-grid {
   grid-template-columns: repeat(8, minmax(0, 1fr));
 }
@@ -1089,21 +1154,62 @@ button.stage-card:not(:disabled):focus-visible,
   list-style: none;
 }
 
-.applied-history-list li {
+.applied-history-list > li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   padding-top: 9px;
   border-top: 1px solid #e4e6ea;
 }
 
-.applied-history-list span {
+.applied-history-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.applied-history-heading span {
   color: #777c84;
   font-size: 12px;
 }
 
-.applied-history-list strong {
+.applied-history-heading strong {
   overflow-wrap: anywhere;
+}
+
+.applied-history-impact {
+  display: grid;
+  gap: 7px;
+  padding-left: 48px;
+}
+
+.applied-history-effects {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.applied-history-effects > span,
+.applied-history-effects li > span {
+  display: inline-block;
+  padding: 4px 7px;
+  color: #2468c5;
+  background: #eaf4ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.applied-history-effects span.is-negative {
+  color: #a43a3a;
+  background: #fff0f0;
+}
+
+.applied-history-effects p {
+  margin: 4px 0 0;
+  color: #62666d;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .recovery-guide > p {
@@ -1226,6 +1332,14 @@ button.stage-card:not(:disabled):focus-visible,
   .player-page .stage-ballot-grid,
   .screen-page .stage-ballot-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-layout .stage-ballot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .applied-history-impact {
+    padding-left: 0;
   }
 
   .stage-grid-compact {

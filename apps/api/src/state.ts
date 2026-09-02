@@ -62,14 +62,15 @@ import { metricImpact } from './metric-impact';
 export function buildGameState(database: GameDatabase, game: GameRow): GameState {
   const round = currentRound(database, game);
   const ballot = round ? buildBallot(database, game, round) : null;
-  const roundView = round ? buildRoundView(database, game, round, ballot) : null;
   const mechanics = JSON.parse(game.mechanics_json) as StoredScenarioMechanics;
   const stages = JSON.parse(game.stages_json) as Record<StageKey, StageState>;
+  const actionHistory = gameActionHistory(database, game.id);
   return {
     allowedCommands: allowedCommands(game, round, ballot),
+    appliedActionHistory: [...actionHistory].reverse(),
     code: game.code,
     currentBallot: ballot,
-    currentRound: roundView,
+    currentRound: round ? buildRoundView(database, game, round, ballot) : null,
     decisionModel: game.decision_model,
     ...publicMetricConfig(mechanics),
     metrics: JSON.parse(game.metrics_json) as MetricValues,
@@ -82,7 +83,7 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
     revision: game.revision,
     roundIndex: game.current_round,
     rules: JSON.parse(game.rules_json) as GameRules,
-    stageProgress: buildStageProgress(database, game, stages),
+    stageProgress: buildStageProgress(database, game, stages, actionHistory),
     stages,
     transitionVersion: game.transition_version,
     voteCount: ballot?.voteTallies.reduce((sum, item) => sum + item.count, 0) ?? 0,
@@ -335,8 +336,8 @@ function buildStageProgress(
   database: GameDatabase,
   game: GameRow,
   stages: Record<StageKey, StageState>,
+  history: AppliedActionView[],
 ): Record<StageKey, StageProgress> {
-  const history = listAppliedActions(database, game.id).map((row) => appliedAction(database, row));
   const activations = recordedActivations(database, game.id);
   return Object.fromEntries(
     stageKeys.map((stage) => [
@@ -504,12 +505,41 @@ function appliedAction(
   row: ReturnType<typeof listAppliedActions>[number],
 ): AppliedActionView {
   const action = parseAction(requiredAction(database, row.game_id, row.action_id));
+  const plan = row.pending_plan_json ? (JSON.parse(row.pending_plan_json) as ResolutionPlan) : null;
+  const impact = plan ? historicalImpact(plan) : null;
   return {
     actionId: row.action_id,
+    ...(impact ? { impact } : {}),
     roundNumber: row.round_number,
     stage: row.stage,
     title: action.title,
   };
+}
+
+function gameActionHistory(database: GameDatabase, gameId: string) {
+  return listAppliedActions(database, gameId).map((row) => appliedAction(database, row));
+}
+
+function historicalImpact(plan: ResolutionPlan): AppliedActionView['impact'] | null {
+  const metricDelta = plan.breakdown.applied;
+  if (!metricDelta) return null;
+  const reasons = Object.fromEntries(
+    metricKeys.flatMap((metric) => {
+      if ((metricDelta[metric] ?? 0) === 0) return [];
+      const items = historicalReasons(plan, metric);
+      return items.length > 0 ? [[metric, items]] : [];
+    }),
+  );
+  return { metricDelta, reasons };
+}
+
+function historicalReasons(plan: ResolutionPlan, metric: (typeof metricKeys)[number]) {
+  const reasons = (plan.effectContributions ?? []).flatMap((item) => {
+    if ((item.effect[metric] ?? 0) === 0) return [];
+    const explicit = item.effectReasons?.[metric];
+    return explicit ? [explicit] : [];
+  });
+  return [...new Set(reasons)];
 }
 
 function requiredAction(database: GameDatabase, gameId: string, actionId: string) {

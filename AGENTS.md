@@ -32,6 +32,9 @@ template; its copy and balance are still a technical draft.
   after a notification or reconnect.
 - Public responses must not expose effect, addProperties, stageChanges, actionIds for a later
   ballot, or other hidden consequences before the appropriate phase.
+- Admin forecasts live behind the host token in `/api/games/:code/admin/forecast`. Build them from
+  the saved room snapshot with the same game-engine resolver used for application. Never add them
+  to public GameState, ballot choices, command errors, or WebSocket messages.
 - Once an event is visible, public state may expose only the aggregate metricImpact needed to color
   its card. Keep numeric effects and contribution details hidden until consequences are applied.
 - **myVoteChoiceId** and the deprecated **myVoteOptionId** are returned only when the state request
@@ -99,7 +102,8 @@ whether a proposed foundation is actually usable.
 
 Every action or event with a non-zero metric in **effect** must explain that metric in its sibling
 **effectReasons** map. The keys in **effectReasons** must match the non-zero effect keys exactly.
-These strings are the source of truth for the host's metric explanation: the engine and frontend
+These strings are the source of truth for the host's metric explanation and the player's completed
+turn history: the engine and frontend
 must not invent a reason from the metric name, the sign of the delta, shortFeedback, or generic
 fallback copy. Each reason should name the concrete cause of that one metric change.
 The same rule applies to **repeatEffect** / **repeatEffectReasons**,
@@ -110,6 +114,10 @@ When an event changes a stage to BROKEN, its title and description must say what
 or overloaded that stage. Every negative effectReason must connect the same concrete failure to
 that metric. Do not explain a deduction only with the later fact that the stage is broken. If the
 copy says that a queue accumulated, require enough prior actions for a queue to exist.
+
+Negative events may use restrained, wry humor about the failed shortcut or misplaced confidence;
+never mock the players or hide the concrete cause. Positive events should sound warm and earned.
+Keep mixed and neutral outcomes matter-of-fact. Tone never overrides causal accuracy.
 
 If an AI integration cannot work yet but the team safely continues with the previous manual
 process, leave the stage AS_IS. Reserve BROKEN for a stage that has become unreliable or unusable,

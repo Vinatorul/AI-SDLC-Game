@@ -1,6 +1,7 @@
 import type {
   AdminCommand,
   AdminCommandResponse,
+  AdminForecastResponse,
   ApiErrorBody,
   CreateGameResponse,
   GameState,
@@ -28,6 +29,10 @@ export const api = {
       method: 'POST',
     }),
   createGame: () => request<CreateGameResponse>('/api/games', { method: 'POST' }),
+  getAdminForecast: (code: string, token: string) =>
+    request<AdminForecastResponse>(`/api/games/${code}/admin/forecast`, {
+      headers: authHeaders(token),
+    }),
   getState: (code: string, token?: string) =>
     request<GameState>(`/api/games/${code}/state`, {
       ...(token ? { headers: authHeaders(token) } : {}),

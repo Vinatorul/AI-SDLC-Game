@@ -1,4 +1,10 @@
-import type { GameState, MetricDefinition, MetricImpact, RoundView } from '@ai-sdlc/contracts';
+import type {
+  AppliedActionView,
+  GameState,
+  MetricDefinition,
+  MetricImpact,
+  RoundView,
+} from '@ai-sdlc/contracts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { OptionGrid } from '../components/OptionGrid';
@@ -26,6 +32,7 @@ describe('PlayerGameView', () => {
     expect(html).not.toContain('aria-label="Метрики SDLC"');
     expect(html).not.toContain('option-key');
     expect(html).not.toMatch(/>A<\/span>/);
+    expect(html).not.toContain('Если выберут сейчас');
   });
 
   it('не подменяет отсутствующий V2-бюллетень старым голосованием', () => {
@@ -107,6 +114,26 @@ describe('PlayerGameView', () => {
     expect(html).toContain('История решений');
     expect(html).toContain('Проверить код с AI');
     expect(html.indexOf('История решений')).toBeGreaterThan(html.indexOf('Что сделаем?'));
+  });
+
+  it('в истории ставит свежий ход выше и объясняет изменение метрик', () => {
+    const html = render(
+      state({
+        appliedActionHistory: [
+          historyAction(2, 'Сначала проверить риск', -1, 'Проверка задержала релиз.', {
+            delta: 2,
+            reason: 'Автотесты поймали баг до слияния.',
+          }),
+          historyAction(1, 'Собрать контекст', 1, 'Команда быстрее нашла нужные данные.'),
+        ],
+      }),
+    );
+    expect(html.indexOf('Сначала проверить риск')).toBeLessThan(html.indexOf('Собрать контекст'));
+    expect(html).toMatch(/TTM -1<\/span><p>Проверка задержала релиз\.<\/p>/);
+    expect(html).toMatch(
+      /Качество и стабильность \+2<\/span><p>Автотесты поймали баг до слияния\.<\/p>/,
+    );
+    expect(html).toContain('Команда быстрее нашла нужные данные.');
   });
 
   it('после показа события скрывает служебные подписи и метрики', () => {
@@ -315,6 +342,28 @@ const progressWithHistory: GameState['stageProgress'] = {
     state: 'AI_ENABLED',
   },
 };
+
+function historyAction(
+  roundNumber: number,
+  title: string,
+  delta: number,
+  reason: string,
+  quality?: { delta: number; reason: string },
+): AppliedActionView {
+  return {
+    actionId: `history-${roundNumber}`,
+    impact: {
+      metricDelta: { deliverySpeed: delta, ...(quality ? { quality: quality.delta } : {}) },
+      reasons: {
+        deliverySpeed: [reason],
+        ...(quality ? { quality: [quality.reason] } : {}),
+      },
+    },
+    roundNumber,
+    stage: 'review' as const,
+    title,
+  };
+}
 
 const baseStages: GameState['stages'] = {
   businessRequest: 'AS_IS',

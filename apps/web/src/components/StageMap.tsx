@@ -1,6 +1,7 @@
 import {
   type AppliedActionView,
   type GameState,
+  metricKeys,
   type StageKey,
   stageKeys,
 } from '@ai-sdlc/contracts';
@@ -108,12 +109,15 @@ export function AppliedHistory({ state }: { state: GameState }) {
       <ul className="applied-history-list">
         {actions.map((action) => (
           <li key={`${action.roundNumber}:${action.actionId}`}>
-            <span>
-              {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
-            </span>
-            <strong>
-              {stageLabels[action.stage]} · {action.title}
-            </strong>
+            <div className="applied-history-heading">
+              <span>
+                {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
+              </span>
+              <strong>
+                {stageLabels[action.stage]} · {action.title}
+              </strong>
+            </div>
+            <HistoryImpact action={action} state={state} />
           </li>
         ))}
       </ul>
@@ -122,7 +126,49 @@ export function AppliedHistory({ state }: { state: GameState }) {
 }
 
 function historyActions(state: GameState): AppliedActionView[] {
+  if (state.appliedActionHistory) return state.appliedActionHistory;
   return stageKeys
     .flatMap((stage) => state.stageProgress?.[stage]?.appliedActions ?? [])
-    .sort((left, right) => left.roundNumber - right.roundNumber);
+    .sort((left, right) => right.roundNumber - left.roundNumber);
+}
+
+function HistoryImpact({ action, state }: { action: AppliedActionView; state: GameState }) {
+  if (!action.impact) return null;
+  const changes = metricKeys.filter((key) => (action.impact?.metricDelta[key] ?? 0) !== 0);
+  return (
+    <div className="applied-history-impact">
+      <ul className="applied-history-effects">
+        {changes.length === 0 && (
+          <li>
+            <span>Метрики без изменений</span>
+          </li>
+        )}
+        {changes.map((key) => (
+          <li key={key}>
+            <span className={metricClass(action.impact?.metricDelta[key] ?? 0)}>
+              {state.metricDefinitions[key].label}{' '}
+              {formatSigned(action.impact?.metricDelta[key] ?? 0)}
+            </span>
+            <MetricReasons action={action} metric={key} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MetricReasons({ action, metric }: { action: AppliedActionView; metric: StageMetricKey }) {
+  const reasons = action.impact?.reasons[metric] ?? [];
+  if (reasons.length === 0) return null;
+  return <p>{[...new Set(reasons)].join(' ')}</p>;
+}
+
+type StageMetricKey = (typeof metricKeys)[number];
+
+function formatSigned(value: number) {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function metricClass(value: number) {
+  return value < 0 ? 'is-negative' : 'is-positive';
 }
