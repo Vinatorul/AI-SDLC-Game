@@ -62,7 +62,7 @@ function blockedActivationText(
 ) {
   const stage = stageLabels[action.stage];
   if (action.reason === 'STAGE_REPAIRED') {
-    return `Этап «${stage}» снова работает без AI после решения «${action.completedByTitle}». Чтобы включить «${action.title}», снова выберите это AI-решение.`;
+    return `Этап «${stage}» снова работает без AI после решения «${action.completedByTitle}», но AI-решение «${action.title}» не включилось.`;
   }
-  return `AI-решение «${action.title}» пока не заработало: этап «${stage}» всё ещё сломан. Сначала почините этап, затем снова выберите это решение.`;
+  return `AI-решение «${action.title}» не включилось: этап «${stage}» остался сломан.`;
 }

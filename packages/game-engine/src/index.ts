@@ -20,6 +20,7 @@ export type {
   EventRule,
   GameMechanics,
   OutcomeEvaluation,
+  RecoveryGuide,
   ResolutionPlan,
   Scenario,
   ScenarioMechanics,

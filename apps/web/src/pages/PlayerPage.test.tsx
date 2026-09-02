@@ -135,6 +135,7 @@ describe('PlayerGameView', () => {
     expect(html).not.toContain('Очередь на ревью задержала релиз.');
     expect(html).not.toContain('Скрытая активация для ведущего');
     expect(html).not.toContain('Скрытая причина для ведущего');
+    expect(html).not.toContain('Скрытая подсказка для ведущего');
     expect(html).not.toContain('Карта SDLC');
     expect(html).not.toContain('class="metric-description"');
     expect(html).not.toContain('0 — исходный процесс');
@@ -175,7 +176,13 @@ function feedbackRound(): RoundView {
   return {
     ...eventRound('WORSENED'),
     activatedActions: [activation('Скрытая активация для ведущего')],
-    blockedActivations: [{ ...activation('Скрытая причина для ведущего'), reason: 'STAGE_BROKEN' }],
+    blockedActivations: [
+      {
+        ...activation('Скрытая причина для ведущего'),
+        reason: 'STAGE_BROKEN',
+        recovery: hiddenRecovery,
+      },
+    ],
     effectBreakdown: {
       applied: { deliverySpeed: -1 },
       decision: {},
@@ -184,8 +191,15 @@ function feedbackRound(): RoundView {
       properties: {},
       total: { deliverySpeed: -1 },
     },
+    recovery: hiddenRecovery,
   };
 }
+
+const hiddenRecovery = {
+  hostHint: 'Скрытая подсказка для ведущего',
+  prerequisiteActions: [],
+  repairActions: [],
+};
 
 function activation(title: string) {
   return {

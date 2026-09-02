@@ -1106,6 +1106,29 @@ button.stage-card:not(:disabled):focus-visible,
   overflow-wrap: anywhere;
 }
 
+.recovery-guide > p {
+  max-width: 76ch;
+  margin: 0;
+  color: #555b64;
+  line-height: 1.5;
+}
+
+.recovery-guide + .recovery-guide {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #dfe2e7;
+}
+
+.recovery-actions {
+  margin-top: 16px;
+}
+
+.recovery-actions h3 {
+  margin: 0 0 8px;
+  color: #777c84;
+  font-size: 13px;
+}
+
 .stage-card span,
 .stage-card small {
   color: #6b7078;

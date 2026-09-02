@@ -236,6 +236,33 @@ it('активирует установленный MCP после добавл�
   expectBusinessActivation(state);
 });
 
+it('включает установленный скилл сразу после ремонта его этапа', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = await playRound(
+    app,
+    game,
+    player,
+    'productDiscovery',
+    'productDiscovery.knowledge-skill',
+    0,
+  );
+  expect(state.stages.productDiscovery).toBe('BROKEN');
+  state = await playRound(
+    app,
+    game,
+    player,
+    'productDiscovery',
+    'productDiscovery.knowledge-base',
+    6,
+  );
+  expect(state.stages.productDiscovery).toBe('AI_ENABLED');
+  expect(state.currentRound?.activatedActions).toContainEqual(
+    expect.objectContaining({ actionId: 'productDiscovery.knowledge-skill' }),
+  );
+});
+
 it('показывает последнее из одновременно активированных AI-решений этапа', async () => {
   const app = await testApp();
   const game = await createGame(app);
@@ -257,6 +284,26 @@ it('показывает последнее из одновременно акт
   );
 });
 
+it('показывает ведущему настроенный план после открытия события', async () => {
+  const app = await testApp(':memory:', scenarioWithBlockedActivation());
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let { state } = await openActionBallot(app, game, player, 'businessRequest', 0);
+  const ballot = requiredBallot(state);
+  await voteFor(app, game, player, ballot.id, 'businessRequest.feedback-mcp');
+  state = await command(app, game, 'CLOSE_VOTING', 3);
+  expect(state.currentRound?.recovery).toBeNull();
+  state = await command(app, game, 'SHOW_EVENT', 4);
+  expect(state.phase).toBe('EVENT');
+  expect(state.currentRound?.recovery?.hostHint).toBe(recoveryHostHint);
+  expect(state.currentRound?.recovery?.prerequisiteActions).toEqual([
+    actionView('businessRequest.outcome-metrics'),
+  ]);
+  expect(state.currentRound?.recovery?.repairActions).toEqual([
+    actionView('businessRequest.production-signals'),
+  ]);
+});
+
 it('объясняет, почему поздняя активация не починила сломанный этап', async () => {
   const app = await testApp(':memory:', scenarioWithBlockedActivation());
   const game = await createGame(app);
@@ -272,8 +319,25 @@ it('объясняет, почему поздняя активация не по
       completedByActionId: 'businessRequest.outcome-metrics',
       completedByTitle: defaultScenario.stageActions['businessRequest.outcome-metrics']?.title,
       reason: 'STAGE_BROKEN',
+      recovery: {
+        hostHint: recoveryHostHint,
+        prerequisiteActions: [],
+        repairActions: [actionView('businessRequest.production-signals')],
+      },
       title: defaultScenario.stageActions['businessRequest.feedback-mcp']?.title,
     }),
+  ]);
+});
+
+it('не скрывает повторяемое решение для ремонта, если его уже выбирали', async () => {
+  const app = await testApp(':memory:', scenarioWithBlockedActivation());
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  await playBusinessAction(app, game, player, 'businessRequest.production-signals', 0);
+  await playBusinessAction(app, game, player, 'businessRequest.feedback-mcp', 6);
+  const state = await playBusinessAction(app, game, player, 'businessRequest.outcome-metrics', 12);
+  expect(state.currentRound?.blockedActivations?.[0]?.recovery?.repairActions).toEqual([
+    actionView('businessRequest.production-signals'),
   ]);
 });
 
@@ -681,14 +745,31 @@ function scenarioWithContextQuality(quality: number): Scenario {
 function scenarioWithBlockedActivation(): Scenario {
   const scenario = structuredClone(defaultScenario);
   const foundation = scenario.stageActions['businessRequest.outcome-metrics'];
+  const aiAction = scenario.stageActions['businessRequest.feedback-mcp'];
   if (!foundation?.stageTransitions) throw new Error('Нет переходов подготовительного решения');
+  if (!aiAction) throw new Error('Нет AI-решения для обратной связи');
   foundation.stageTransitions.BROKEN = 'BROKEN';
+  aiAction.recovery = recoveryGuide;
   const rule = scenario.rounds[0]?.eventRules.find(
     ({ event }) => event.id === 'event-feedback-mcp-without-metrics',
   );
   if (!rule) throw new Error('Нет события для MCP без продуктовых метрик');
   rule.event.stageChanges = [{ stage: 'businessRequest', state: 'BROKEN' }];
+  rule.event.recovery = recoveryGuide;
   return scenario;
+}
+
+const recoveryHostHint = 'Сначала добавьте продуктовые метрики, затем почините этап.';
+const recoveryGuide = {
+  hostHint: recoveryHostHint,
+  prerequisiteActionIds: ['businessRequest.outcome-metrics'],
+  repairActionIds: ['businessRequest.production-signals'],
+};
+
+function actionView(actionId: string) {
+  const action = defaultScenario.stageActions[actionId];
+  if (!action) throw new Error(`Нет решения ${actionId}`);
+  return { actionId, stage: action.stage, title: action.title };
 }
 
 function scenarioWithOneStage(): Scenario {

@@ -28,6 +28,12 @@ type ActionStageResult =
   | { resultingStageState: StageState; stageTransitions?: never }
   | { resultingStageState?: never; stageTransitions: Record<StageState, StageState> };
 
+export type RecoveryGuide = {
+  hostHint: string;
+  prerequisiteActionIds?: string[];
+  repairActionIds?: string[];
+};
+
 export type StageAction = Omit<RoundOption, 'id'> &
   ActionStageResult & {
     activationRequirements?: string[];
@@ -35,6 +41,7 @@ export type StageAction = Omit<RoundOption, 'id'> &
     availableInStates: StageState[];
     effect: MetricDelta;
     effectReasons?: MetricReasons;
+    recovery?: RecoveryGuide;
     repeatEffect?: MetricDelta;
     repeatEffectReasons?: MetricReasons;
     repeatable: boolean;
@@ -52,6 +59,7 @@ export type EngineEvent = GameEvent & {
   addProperties?: ProcessProperty[];
   effect: MetricDelta;
   effectReasons?: MetricReasons;
+  recovery?: RecoveryGuide;
   removeProperties?: ProcessProperty[];
   repeatEffect?: MetricDelta;
   repeatEffectReasons?: MetricReasons;

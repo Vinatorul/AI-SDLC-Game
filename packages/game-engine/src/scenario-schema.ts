@@ -96,6 +96,22 @@ const stageTransitionsSchema = z
     BROKEN: stageStateSchema,
   })
   .strict();
+const actionIdListSchema = z
+  .array(z.string().min(1))
+  .min(1)
+  .refine((ids) => new Set(ids).size === ids.length, 'id действия должен быть уникальным');
+const recoveryGuideSchema = z
+  .object({
+    hostHint: z.string().trim().min(1),
+    prerequisiteActionIds: actionIdListSchema.optional(),
+    repairActionIds: actionIdListSchema.optional(),
+  })
+  .strict()
+  .refine(
+    ({ prerequisiteActionIds, repairActionIds }) =>
+      Boolean(prerequisiteActionIds || repairActionIds),
+    'нужно указать prerequisiteActionIds или repairActionIds',
+  );
 const countRangeSchema = z
   .object({
     maximum: z.number().int().min(0).optional(),
@@ -141,6 +157,7 @@ const eventSchema = z
     evidence: z.enum(['FACT', 'SCENARIO']),
     id: z.string().min(1),
     addProperties: z.array(propertySchema).optional(),
+    recovery: recoveryGuideSchema.optional(),
     removeProperties: z.array(propertySchema).optional(),
     repeatEffect: metricDeltaSchema.optional(),
     repeatEffectReasons: metricReasonsSchema.optional(),
@@ -177,6 +194,7 @@ const stageActionBaseSchema = z
     effectReasons: metricReasonsSchema.optional(),
     evidence: z.enum(['FACT', 'SCENARIO']),
     key: z.string().min(1),
+    recovery: recoveryGuideSchema.optional(),
     repeatable: z.boolean(),
     repeatEffect: metricDeltaSchema.optional(),
     repeatEffectReasons: metricReasonsSchema.optional(),
@@ -286,6 +304,7 @@ const scenarioSchema = z
 
 type ScenarioCandidate = z.infer<typeof scenarioSchema>;
 type IssueContext = Parameters<Parameters<typeof scenarioSchema.superRefine>[0]>[1];
+type RecoveryCandidate = ScenarioCandidate['stageActions'][string]['recovery'];
 
 export function parseScenario(input: unknown): Scenario {
   const result = scenarioSchema.safeParse(input);
@@ -380,14 +399,14 @@ function validateActionCatalog(scenario: ScenarioCandidate, context: IssueContex
     addIssue(context, ['stageActions'], 'каталог действий не должен быть пустым');
   }
   Object.entries(scenario.stageActions).forEach(([id, action]) => {
-    validateAction(id, action, actionIds, context);
+    validateAction(id, action, scenario, context);
   });
 }
 
 function validateAction(
   id: string,
   action: ScenarioCandidate['stageActions'][string],
-  actionIds: Set<string>,
+  scenario: ScenarioCandidate,
   context: IssueContext,
 ) {
   validateUnique(
@@ -396,18 +415,10 @@ function validateAction(
     'состояние',
     context,
   );
-  const path = ['stageActions', id, 'activationRequirements'] as (string | number)[];
-  validateUnique(action.activationRequirements ?? [], path, 'требование активации', context);
-  validateKnown(action.activationRequirements, actionIds, path, context);
-  if (action.activationRequirements?.includes(id)) {
-    addIssue(context, path, 'не должно ссылаться на себя');
-  }
-  if (
-    action.activationRequirements &&
-    (!('resultingStageState' in action) || action.resultingStageState !== 'AI_ENABLED')
-  ) {
-    addIssue(context, path, 'допустимо только для действия с результатом AI_ENABLED');
-  }
+  validateActivationRequirements(id, action, scenario, context);
+  const recoveryPath = ['stageActions', id, 'recovery'] as (string | number)[];
+  validateRequiredRecovery(action.activationRequirements, action.recovery, recoveryPath, context);
+  validateRecovery(scenario, action.recovery, recoveryPath, context, action.stage);
   validateEffectReasons(
     action.effect,
     action.effectReasons,
@@ -421,6 +432,31 @@ function validateAction(
     context,
   );
   validateUnique(action.addProperties, ['stageActions', id, 'addProperties'], 'свойство', context);
+}
+
+function validateActivationRequirements(
+  id: string,
+  action: ScenarioCandidate['stageActions'][string],
+  scenario: ScenarioCandidate,
+  context: IssueContext,
+) {
+  const path = ['stageActions', id, 'activationRequirements'] as (string | number)[];
+  validateUnique(action.activationRequirements ?? [], path, 'требование активации', context);
+  validateKnown(
+    action.activationRequirements,
+    new Set(Object.keys(scenario.stageActions)),
+    path,
+    context,
+  );
+  if (action.activationRequirements?.includes(id)) {
+    addIssue(context, path, 'не должно ссылаться на себя');
+  }
+  if (
+    action.activationRequirements &&
+    (!('resultingStageState' in action) || action.resultingStageState !== 'AI_ENABLED')
+  ) {
+    addIssue(context, path, 'допустимо только для действия с результатом AI_ENABLED');
+  }
 }
 
 function validateRound(
@@ -494,6 +530,10 @@ function validateEventRules(
       context,
     );
     validateEventProperties(rule.event, [...path, 'event'], context);
+    const recoveryPath = [...path, 'event', 'recovery'];
+    validateAdverseEventRecovery(rule.event, recoveryPath, context);
+    validateRecovery(scenario, rule.event.recovery, recoveryPath, context);
+    validateBrokenStageRepairs(scenario, rule.event, recoveryPath, context);
   });
 }
 
@@ -508,6 +548,98 @@ function validateEventProperties(
   if ((event.removeProperties ?? []).some((property) => added.has(property))) {
     addIssue(context, path, 'свойство нельзя одновременно добавить и удалить');
   }
+}
+
+function validateRequiredRecovery(
+  requirement: unknown,
+  recovery: RecoveryCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  if (requirement && !recovery) {
+    addIssue(context, path, 'нужна подсказка ведущему с конкретными действиями');
+  }
+}
+
+function validateAdverseEventRecovery(
+  event: ScenarioCandidate['rounds'][number]['eventRules'][number]['event'],
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const changesStage = event.stageChanges.some(({ state }) => state !== 'AI_ENABLED');
+  const removesProperty = Boolean(event.removeProperties?.length);
+  const lowersMetric = hasNegativeMetric(event.effect) || hasNegativeMetric(event.repeatEffect);
+  validateRequiredRecovery(
+    changesStage || removesProperty || lowersMetric,
+    event.recovery,
+    path,
+    context,
+  );
+}
+
+function validateRecovery(
+  scenario: ScenarioCandidate,
+  recovery: RecoveryCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+  expectedStage?: ScenarioCandidate['stageActions'][string]['stage'],
+) {
+  if (!recovery) return;
+  const known = new Set(Object.keys(scenario.stageActions));
+  validateKnown(recovery.prerequisiteActionIds, known, [...path, 'prerequisiteActionIds'], context);
+  validateKnown(recovery.repairActionIds, known, [...path, 'repairActionIds'], context);
+  const prerequisites = new Set(recovery.prerequisiteActionIds ?? []);
+  if (recovery.repairActionIds?.some((id) => prerequisites.has(id))) {
+    addIssue(context, path, 'одно действие нельзя указать как подготовку и ремонт');
+  }
+  recovery.repairActionIds?.forEach((id, index) => {
+    validateRepairAction(scenario, id, [...path, 'repairActionIds', index], context, expectedStage);
+  });
+}
+
+function validateRepairAction(
+  scenario: ScenarioCandidate,
+  id: string,
+  path: (string | number)[],
+  context: IssueContext,
+  expectedStage?: ScenarioCandidate['stageActions'][string]['stage'],
+) {
+  const action = scenario.stageActions[id];
+  if (!action) return;
+  if (!action.repeatable) addIssue(context, path, 'действие ремонта должно быть повторяемым');
+  if (!action.availableInStates.includes('BROKEN')) {
+    addIssue(context, path, 'действие ремонта должно быть доступно на сломанном этапе');
+  }
+  if (brokenResult(action) === 'BROKEN') {
+    addIssue(context, path, 'действие ремонта должно возвращать этап в рабочее состояние');
+  }
+  if (expectedStage && action.stage !== expectedStage) {
+    addIssue(context, path, 'действие ремонта должно относиться к тому же этапу');
+  }
+}
+
+function validateBrokenStageRepairs(
+  scenario: ScenarioCandidate,
+  event: ScenarioCandidate['rounds'][number]['eventRules'][number]['event'],
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const repairStages = new Set(
+    event.recovery?.repairActionIds?.map((id) => scenario.stageActions[id]?.stage),
+  );
+  for (const { stage, state } of event.stageChanges) {
+    if (state === 'BROKEN' && !repairStages.has(stage)) {
+      addIssue(context, path, `нужно указать ремонт для сломанного этапа ${stage}`);
+    }
+  }
+}
+
+function brokenResult(action: ScenarioCandidate['stageActions'][string]) {
+  return 'stageTransitions' in action ? action.stageTransitions.BROKEN : action.resultingStageState;
+}
+
+function hasNegativeMetric(effect: MetricDelta | undefined) {
+  return Object.values(effect ?? {}).some((value) => value < 0);
 }
 
 function validateEffectReasons(

@@ -10,6 +10,7 @@ import { GameHeader } from '../components/GameHeader';
 import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
 import { MetricChangeNotes } from '../components/MetricChangeNotes';
+import { RecoveryGuides } from '../components/RecoveryGuides';
 import { StageMap } from '../components/StageMap';
 import { useGameState } from '../realtime/useGameState';
 
@@ -85,6 +86,7 @@ function AdminGame({ code, game, token }: AdminGameProps) {
             <GameFocus state={state} />
             <MetricChangeNotes state={state} />
             <ActivatedActions state={state} />
+            <RecoveryGuides state={state} />
             <StageMap state={state} />
           </div>
           <aside>

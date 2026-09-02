@@ -141,8 +141,21 @@ export type ActivatedActionView = ActivatedAction & {
   title: string;
 };
 
+export type RecoveryActionView = {
+  actionId: string;
+  stage: StageKey;
+  title: string;
+};
+
+export type RecoveryGuideView = {
+  hostHint: string;
+  prerequisiteActions: RecoveryActionView[];
+  repairActions: RecoveryActionView[];
+};
+
 export type BlockedActivationView = BlockedActivation & {
   completedByTitle: string;
+  recovery?: RecoveryGuideView;
   title: string;
 };
 
@@ -196,6 +209,7 @@ export type RoundView = {
   metricImpact: MetricImpact | null;
   number: number;
   options: RoundOption[];
+  recovery?: RecoveryGuideView | null;
   selectedOptionId: string | null;
   situation: string;
   tiedOptionIds: string[];

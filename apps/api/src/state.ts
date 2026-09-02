@@ -15,6 +15,8 @@ import {
   type MetricValues,
   metricKeys,
   type ProcessProperty,
+  type RecoveryActionView,
+  type RecoveryGuideView,
   type RoundOption,
   type RoundView,
   type StageKey,
@@ -28,6 +30,7 @@ import type {
   EngineEvent,
   EngineOption,
   GameMechanics,
+  RecoveryGuide,
   ResolutionPlan,
   ScenarioMechanics,
 } from '@ai-sdlc/game-engine';
@@ -169,6 +172,7 @@ function buildRoundView(
     metricImpact: visibleMetricImpact(game, round),
     number: round.round_number,
     options,
+    recovery: visibleRecovery(database, game, round),
     selectedOptionId: selected,
     situation: round.situation,
     tiedOptionIds: tied,
@@ -400,7 +404,35 @@ function blockedActivationViews(
   gameId: string,
   activations: StoredBlockedActivation[],
 ): BlockedActivationView[] {
-  return activations.map((item) => activationWithTitles(database, gameId, item));
+  const applied = new Set(listAppliedActions(database, gameId).map(({ action_id }) => action_id));
+  return activations.map((item) => {
+    const view = activationWithTitles(database, gameId, item);
+    const action = parseAction(requiredAction(database, gameId, item.actionId));
+    const recovery = recoveryGuideView(database, gameId, action.recovery, applied);
+    return recovery ? { ...view, recovery } : view;
+  });
+}
+
+function recoveryGuideView(
+  database: GameDatabase,
+  gameId: string,
+  guide: RecoveryGuide | undefined,
+  applied: Set<string>,
+): RecoveryGuideView | null {
+  if (!guide) return null;
+  const prerequisites = (guide.prerequisiteActionIds ?? []).filter((id) => !applied.has(id));
+  return {
+    hostHint: guide.hostHint,
+    prerequisiteActions: recoveryActionViews(database, gameId, prerequisites),
+    repairActions: recoveryActionViews(database, gameId, guide.repairActionIds ?? []),
+  };
+}
+
+function recoveryActionViews(database: GameDatabase, gameId: string, ids: string[]) {
+  return ids.map((actionId): RecoveryActionView => {
+    const action = parseAction(requiredAction(database, gameId, actionId));
+    return { actionId, stage: action.stage, title: action.title };
+  });
 }
 
 function activationWithTitles<T extends StoredActivation>(
@@ -490,6 +522,18 @@ function visibleEvent(game: GameRow, round: RoundRow): GameEvent | null {
   if (!['EVENT', 'FEEDBACK', 'WON', 'BROKEN'].includes(game.phase)) return null;
   if (!round.shown_event_json) return null;
   return publicEvent(JSON.parse(round.shown_event_json) as EngineEvent);
+}
+
+function visibleRecovery(
+  database: GameDatabase,
+  game: GameRow,
+  round: RoundRow,
+): RecoveryGuideView | null {
+  if (!['EVENT', 'FEEDBACK', 'WON', 'BROKEN'].includes(game.phase)) return null;
+  if (!round.shown_event_json) return null;
+  const event = JSON.parse(round.shown_event_json) as EngineEvent;
+  const applied = new Set(listAppliedActions(database, game.id).map(({ action_id }) => action_id));
+  return recoveryGuideView(database, game.id, event.recovery, applied);
 }
 
 function publicEvent(event: EngineEvent): GameEvent {

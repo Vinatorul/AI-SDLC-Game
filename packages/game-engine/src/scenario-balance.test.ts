@@ -85,7 +85,7 @@ function repeatWithoutMetricGain(
   return { nextRound: firstRound + repeats + 1, snapshot: current };
 }
 
-describe('баланс сценария v17', () => {
+describe('баланс сценария v18', () => {
   it('не начисляет баллы повторно за прежнюю цепочку накопления', () => {
     let snapshot = initialSnapshot();
     let nextRound = 1;
@@ -299,9 +299,9 @@ function findEventWitnesses(maxDepth: number) {
   return { found, targets, visited: seen.size };
 }
 
-describe('достижимость событий сценария v17', () => {
+describe('достижимость событий сценария v18', () => {
   it('находит цепочку решений для каждого условного события', () => {
-    expect(defaultScenario.version).toBe(17);
+    expect(defaultScenario.version).toBe(18);
     const { found, targets, visited } = findEventWitnesses(4);
     expect(targets.size).toBe(63);
     const unreachable = [...targets].filter((eventId) => !found.has(eventId)).sort();
@@ -375,7 +375,7 @@ describe('диагностика сценария с фиксированным 
     const second = simulateBatch(17, 200, 16);
     expect(second).toEqual(first);
     expect(first.BROKEN + first.ONGOING + first.WON).toBe(200);
-    console.info('v17 fixed-seed diagnostic', first);
+    console.info('v18 fixed-seed diagnostic', first);
   });
 
   it('допускает раннее поражение только после двух опасных автономных релизов', () => {

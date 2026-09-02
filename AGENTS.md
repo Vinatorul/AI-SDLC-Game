@@ -45,8 +45,9 @@ template; its copy and balance are still a technical draft.
 - Applying another eligible action may extend an AI-enabled stage or repair a broken stage. Do not
   treat AI_ENABLED as a one-time lock.
 - When a later foundation completes an earlier AI setup, record the automatic activation explicitly.
-  If that AI setup is on a BROKEN stage, do not activate or repair it automatically: report the
-  blocked activation to the host so they can explain that the stage must be repaired first.
+  A foundation on another stage must not repair a BROKEN stage. An explicit action on the broken
+  stage that transitions BROKEN to AS_IS is enough: if the installed AI setup is now ready, activate
+  it in that same turn. Never require the players to select the installed AI action a second time.
 
 ## Content source of truth
 
@@ -140,8 +141,8 @@ discovery. Use properties and applied-action history to make foundations change 
 Do not equate the presence of a skill, MCP server, knowledge base, or graph with a working AI loop.
 Use ordered event rules to check the foundations supplied by the same or neighboring stages. The
 action may propose AI_ENABLED, while a missing prerequisite event overrides that stage to AS_IS or
-BROKEN. Keep the action repeatable when players must be able to prepare the missing foundations and
-try again. A successful rule should be reachable and covered by a focused combination test.
+BROKEN. Keep the action repeatable only when a new attempt is genuinely needed. A successful rule
+should be reachable and covered by a focused combination test.
 
 For a reusable process or foundation action, prefer a state-sensitive transition such as
 AS_IS -> AS_IS, AI_ENABLED -> AI_ENABLED, and BROKEN -> AS_IS, and make it available in all three
@@ -164,8 +165,24 @@ not as a second copy of the capability dependency graph.
 
 Automatic activation is an observable turn result. Expose successful and blocked activations to
 the host after consequences are applied. Never expose technical action ids in the UI. A blocked
-activation must name the still-broken stage and explain that the AI setup needs a repair and a new
-attempt; the newly added foundation alone must not turn that stage green.
+activation must name the still-broken stage and the concrete repair. Once that repair is applied on
+the same stage, activate an already-ready AI setup immediately; do not ask for another installation.
+
+Every adverse or partial event must define a structured **recovery** guide for the host. Every
+action with **activationRequirements** must define one as well. Store stable action ids in the
+scenario and enrich them with the snapshotted stage and title in the API:
+
+- **hostHint** says plainly what is missing and what the proposed actions will achieve;
+- **prerequisiteActionIds** lists preparation that is still needed; hide entries already present in
+  applied-action history;
+- **repairActionIds** lists repeatable actions that can move the affected stage from BROKEN to a
+  working state; keep these visible even when previously applied because the repair may need to run
+  again.
+
+For an action-level guide, repair actions must belong to the same stage. For a BROKEN outcome, list
+foundations before repairs. Do not repeat full action titles in **hostHint** because the host UI
+renders those titles separately. Recovery guides, activation details, and metric explanations are
+host-only; player and shared-screen views must not render them.
 
 Keep at least one action for each bundled stage choice repeatable and available in AS_IS,
 AI_ENABLED, and BROKEN. This keeps all eight stages selectable after earlier actions have been
@@ -196,9 +213,10 @@ playtest justifies a stronger conditional result.
 
 For an AI_ENABLED action, make the concrete AI task clear in the title and state the human decision
 or check in the title or first sentence. Make autonomous scope equally explicit. For an AS_IS
-process action, name the practice the team adds and say that it is not yet an AI integration. The
-final stage map reuses these titles, so never mark generic infrastructure as AI_ENABLED unless the
-final event leaves AI doing useful work in that stage.
+process action, name the practice the team adds and say that the action does not install AI by
+itself. Do not claim that AI remains absent from the stage: the same action may activate an earlier
+installation. The final stage map reuses these titles, so never mark generic infrastructure as
+AI_ENABLED unless the final event leaves AI doing useful work in that stage.
 
 ### Scenario copy style
 
@@ -248,7 +266,9 @@ After a content change:
 6. Verify that a round cannot lose all useful stage or action choices on reachable histories.
 7. Verify that conditional events follow from earlier decisions instead of acting as random
    penalties.
-8. Create a new room when checking the change; existing rooms use their stored snapshot.
+8. Verify that every configured recovery action is reachable, available in the relevant state, and
+   produces the result promised by **hostHint**.
+9. Create a new room when checking the change; existing rooms use their stored snapshot.
 
 To add another scenario, copy the JSON to
 **packages/game-engine/content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,

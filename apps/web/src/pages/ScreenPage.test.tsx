@@ -42,6 +42,7 @@ describe('ScreenGameView', () => {
     expect(html).not.toContain('Изменения ждут проверки дольше, чем раньше.');
     expect(html).not.toContain('Старое решение');
     expect(html).not.toContain('Скрытая активация для ведущего');
+    expect(html).not.toContain('Скрытая подсказка для ведущего');
   });
 
   it('не уточняет вид голосования внутри общей фазы', () => {
@@ -190,6 +191,11 @@ const eventRound: NonNullable<GameState['currentRound']> = {
   metricImpact: 'WORSENED',
   number: 1,
   options: [],
+  recovery: {
+    hostHint: 'Скрытая подсказка для ведущего',
+    prerequisiteActions: [],
+    repairActions: [],
+  },
   selectedOptionId: 'review-with-ai',
   situation: 'Код стал появляться быстрее.',
   tiedOptionIds: [],

@@ -610,7 +610,7 @@ describe('resolveRound', () => {
     expect(plan.stages.review).toBe('BROKEN');
   });
 
-  it('после ремонта сломанного этапа требует повторить AI-внедрение', () => {
+  it('включает установленный AI после ремонта того же этапа', () => {
     const failed = resolveAvailableScenarioAction(
       createScenarioSnapshot(),
       'productDiscovery.knowledge-skill',
@@ -622,14 +622,31 @@ describe('resolveRound', () => {
       'productDiscovery.knowledge-base',
       2,
     );
-    expect(repaired.stages.productDiscovery).toBe('AS_IS');
-    expect(repaired.activatedActions).toEqual([]);
-    expect(repaired.blockedActivations).toEqual([
+    expect(repaired.stages.productDiscovery).toBe('AI_ENABLED');
+    expect(repaired.activatedActions).toEqual([
       {
         actionId: 'productDiscovery.knowledge-skill',
         completedByActionId: 'productDiscovery.knowledge-base',
-        reason: 'STAGE_REPAIRED',
         stage: 'productDiscovery',
+      },
+    ]);
+    expect(repaired.blockedActivations).toEqual([]);
+  });
+
+  it('не включает AI, если основа на другом этапе не починила его этап', () => {
+    const { catalog, selected } = createActivationSetup();
+    const snapshot = createSnapshot();
+    snapshot.stages.review = 'BROKEN';
+    snapshot.appliedActions = [{ actionId: 'review-ai', roundNumber: 1, stage: 'review' }];
+    const plan = resolveRound(snapshot, fallbackOnlyRound(), selected, mechanics, catalog);
+    expect(plan.stages.review).toBe('BROKEN');
+    expect(plan.activatedActions).toEqual([]);
+    expect(plan.blockedActivations).toEqual([
+      {
+        actionId: 'review-ai',
+        completedByActionId: 'foundation',
+        reason: 'STAGE_BROKEN',
+        stage: 'review',
       },
     ]);
   });
@@ -900,7 +917,7 @@ describe('evaluateOutcome', () => {
     expect(Object.values(snapshot.stages)).toEqual(stageKeys.map(() => 'AI_ENABLED'));
   });
 
-  it('показывает, почему одна основа не включила два сломанных AI-контура', () => {
+  it('чинит только тот сломанный этап, на котором выбрали действие', () => {
     const actionIds = [
       'productDiscovery.knowledge-base',
       'testing.test-generation-skill',
@@ -909,13 +926,29 @@ describe('evaluateOutcome', () => {
       'testing.behavior-checks',
     ];
     const { plans, snapshot } = playScenarioActions(actionIds);
-    expect(snapshot.stages.testing).toBe('AS_IS');
+    expect(snapshot.stages.testing).toBe('AI_ENABLED');
     expect(snapshot.stages.review).toBe('BROKEN');
-    expect(plans.at(-1)?.blockedActivations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ actionId: 'testing.test-generation-skill' }),
-        expect.objectContaining({ actionId: 'review.review-skill' }),
-      ]),
+    expect(plans.at(-1)?.activatedActions).toContainEqual(
+      expect.objectContaining({ actionId: 'testing.test-generation-skill' }),
+    );
+    expect(plans.at(-1)?.blockedActivations).toEqual([
+      expect.objectContaining({ actionId: 'review.review-skill', reason: 'STAGE_BROKEN' }),
+    ]);
+  });
+
+  it('включает готовый скилл после отдельного ремонта его этапа', () => {
+    const { plans, snapshot } = playScenarioActions([
+      'testing.behavior-checks',
+      'testing.test-generation-skill',
+      'productDiscovery.knowledge-base',
+      'testing.behavior-checks',
+    ]);
+    expect(plans.at(-2)?.blockedActivations).toContainEqual(
+      expect.objectContaining({ actionId: 'testing.test-generation-skill' }),
+    );
+    expect(snapshot.stages.testing).toBe('AI_ENABLED');
+    expect(plans.at(-1)?.activatedActions).toContainEqual(
+      expect.objectContaining({ actionId: 'testing.test-generation-skill' }),
     );
   });
 

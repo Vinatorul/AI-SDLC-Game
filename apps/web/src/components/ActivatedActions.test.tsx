@@ -42,8 +42,7 @@ it('объясняет ведущему, почему старое решени�
   } as GameState;
   const html = renderToStaticMarkup(<ActivatedActions state={state} />);
   expect(html).toContain('Что пока не заработало');
-  expect(html).toContain('этап «Поддержка» всё ещё сломан');
-  expect(html).toContain('Сначала почините этап, затем снова выберите это решение.');
+  expect(html).toContain('этап «Поддержка» остался сломан');
 });
 
 it('объясняет ведущему, когда основа починила этап только до ручного процесса', () => {
@@ -63,6 +62,7 @@ it('объясняет ведущему, когда основа починил�
   } as GameState;
   const html = renderToStaticMarkup(<ActivatedActions state={state} />);
   expect(html).toContain('Этап «Продуктовая проработка» снова работает без AI');
-  expect(html).toContain('Чтобы включить «Собрать для AI скилл поиска по продуктовым решениям»');
-  expect(html).toContain('снова выберите это AI-решение');
+  expect(html).toContain(
+    'AI-решение «Собрать для AI скилл поиска по продуктовым решениям» не включилось',
+  );
 });

@@ -143,7 +143,18 @@ function resolveStages(
   const mutation = actionStageMutation(action, snapshot.stages[action.stage]);
   const decisionStages = applyStageChanges(snapshot.stages, [mutation]);
   const eventStages = applyStageChanges(decisionStages, event.stageChanges);
-  return activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog, action.id);
+  const repairedStage =
+    snapshot.stages[action.stage] === 'BROKEN' && decisionStages[action.stage] === 'AS_IS'
+      ? action.stage
+      : undefined;
+  return activateNewlyReadyActions(
+    eventStages,
+    snapshot,
+    appliedActions,
+    catalog,
+    action.id,
+    repairedStage,
+  );
 }
 
 function selectNarrative(
@@ -320,14 +331,16 @@ function activateNewlyReadyActions(
   appliedActions: EngineSnapshot['appliedActions'],
   catalog: StageActionCatalog,
   completedByActionId: string,
+  repairedStage?: StageKey,
 ) {
   const before = new Set(snapshot.appliedActions.map(({ actionId }) => actionId));
   const after = new Set(appliedActions.map(({ actionId }) => actionId));
-  const readyActions = newlyReadyOldActions(before, after, catalog, completedByActionId);
+  const readyActions = readyOldActions(before, after, catalog, completedByActionId, repairedStage);
   const { activatedActions, blockedActivations } = partitionActivations(
     readyActions,
     snapshot.stages,
     stages,
+    repairedStage,
   );
   const changes = activatedActions.map(({ stage }) => ({ stage, state: 'AI_ENABLED' as const }));
   return { activatedActions, blockedActivations, stages: applyStageChanges(stages, changes) };
@@ -337,10 +350,11 @@ function partitionActivations(
   activations: ActivatedAction[],
   before: EngineSnapshot['stages'],
   after: EngineSnapshot['stages'],
+  repairedStage?: StageKey,
 ) {
   const outcomes = activations.map((activation) => ({
     activation,
-    reason: activationBlockReason(activation.stage, before, after),
+    reason: activationBlockReason(activation.stage, before, after, repairedStage),
   }));
   return {
     activatedActions: outcomes.flatMap(({ activation, reason }) => (reason ? [] : [activation])),
@@ -354,22 +368,28 @@ function activationBlockReason(
   stage: StageKey,
   before: EngineSnapshot['stages'],
   after: EngineSnapshot['stages'],
+  repairedStage?: StageKey,
 ) {
   if (after[stage] === 'BROKEN') return 'STAGE_BROKEN' as const;
-  if (before[stage] === 'BROKEN' && after[stage] === 'AS_IS') return 'STAGE_REPAIRED' as const;
+  if (before[stage] === 'BROKEN' && after[stage] === 'AS_IS' && repairedStage !== stage) {
+    return 'STAGE_REPAIRED' as const;
+  }
   return null;
 }
 
-function newlyReadyOldActions(
+function readyOldActions(
   before: Set<string>,
   after: Set<string>,
   catalog: StageActionCatalog,
   completedByActionId: string,
+  repairedStage?: StageKey,
 ) {
   return Object.entries(catalog)
     .filter(
       ([id, action]) =>
-        before.has(id) && !isActionReady(id, action, before) && isActionReady(id, action, after),
+        before.has(id) &&
+        isActionReady(id, action, after) &&
+        (!isActionReady(id, action, before) || action.stage === repairedStage),
     )
     .map(([actionId, action]) => ({ actionId, completedByActionId, stage: action.stage }));
 }

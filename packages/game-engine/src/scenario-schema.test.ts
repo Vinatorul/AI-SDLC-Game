@@ -20,6 +20,20 @@ const processStageTransitions = {
   BROKEN: 'AS_IS',
 } as const;
 
+function scenarioWithNeutralFirstEvent() {
+  const source = structuredClone(defaultScenario);
+  const event = source.rounds[0]?.eventRules[0]?.event;
+  if (!event) throw new Error('В тестовом сценарии нет события');
+  event.effect = {};
+  event.effectReasons = undefined;
+  event.repeatEffect = undefined;
+  event.repeatEffectReasons = undefined;
+  event.removeProperties = undefined;
+  event.stageChanges = [];
+  delete event.recovery;
+  return { event, source };
+}
+
 describe('parseScenario', () => {
   it('принимает встроенный JSON-сценарий', () => {
     expect(parseScenario(defaultScenario)).toEqual(defaultScenario);
@@ -175,6 +189,138 @@ describe('parseScenario', () => {
     if (!action) throw new Error('Тестовый сценарий повреждён');
     action.activationRequirements = ['missing-action'];
     expect(() => parseScenario(source)).toThrow(/activationRequirements.*missing-action/);
+  });
+
+  it('требует подсказку для действия с отложенной активацией', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action?.activationRequirements) throw new Error('Нет действия с отложенной активацией');
+    delete action.recovery;
+    expect(() => parseScenario(source)).toThrow(/stageActions.*recovery.*подсказка ведущему/);
+  });
+
+  it('требует подсказку для события с негативным последствием', () => {
+    const { event, source } = scenarioWithNeutralFirstEvent();
+    event.effect = { quality: -1 };
+    event.effectReasons = { quality: 'Команда пропустила баг.' };
+    expect(() => parseScenario(source)).toThrow(/event\.recovery.*подсказка ведущему/);
+  });
+
+  it('требует подсказку для негативного повторного эффекта', () => {
+    const { event, source } = scenarioWithNeutralFirstEvent();
+    event.repeatEffect = { teamCapacity: -1 };
+    event.repeatEffectReasons = { teamCapacity: 'Команда повторила ручную работу.' };
+    expect(() => parseScenario(source)).toThrow(/event\.recovery.*подсказка ведущему/);
+  });
+
+  it('требует подсказку после удаления свойства процесса', () => {
+    const { event, source } = scenarioWithNeutralFirstEvent();
+    event.removeProperties = ['automatedTests'];
+    expect(() => parseScenario(source)).toThrow(/event\.recovery.*подсказка ведущему/);
+  });
+
+  it('требует подсказку после ухудшения состояния этапа', () => {
+    const { event, source } = scenarioWithNeutralFirstEvent();
+    event.stageChanges = [{ stage: 'testing', state: 'BROKEN' }];
+    expect(() => parseScenario(source)).toThrow(/event\.recovery.*подсказка ведущему/);
+  });
+
+  it('не принимает подсказку без конкретного действия', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = { hostHint: 'Почините тестирование.' };
+    expect(() => parseScenario(source)).toThrow(/prerequisiteActionIds или repairActionIds/);
+  });
+
+  it('не принимает одно действие как подготовку и ремонт', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = {
+      hostHint: 'Добавьте рабочие автотесты.',
+      prerequisiteActionIds: ['testing.behavior-checks'],
+      repairActionIds: ['testing.behavior-checks'],
+    };
+    expect(() => parseScenario(source)).toThrow(/подготовку и ремонт/);
+  });
+
+  it('не принимает повтор действия внутри одной подсказки', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = {
+      hostHint: 'Добавьте рабочие автотесты.',
+      repairActionIds: ['testing.behavior-checks', 'testing.behavior-checks'],
+    };
+    expect(() => parseScenario(source)).toThrow(/id действия должен быть уникальным/);
+  });
+
+  it('проверяет ссылки в подсказке на каталог действий', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = { hostHint: 'Почините тестирование.', repairActionIds: ['missing-action'] };
+    expect(() => parseScenario(source)).toThrow(/recovery\.repairActionIds.*missing-action/);
+  });
+
+  it('не предлагает для ремонта одноразовое действие', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = {
+      hostHint: 'Повторите проверку с QA.',
+      repairActionIds: ['testing.ai-checks-with-qa'],
+    };
+    expect(() => parseScenario(source)).toThrow(/ремонта должно быть повторяемым/);
+  });
+
+  it('предлагает для ремонта действие, доступное на сломанном этапе', () => {
+    const source = structuredClone(defaultScenario);
+    const repair = source.stageActions['testing.behavior-checks'];
+    if (!repair) throw new Error('В тестовом сценарии нет действия ремонта');
+    repair.availableInStates = ['AS_IS', 'AI_ENABLED'];
+    expect(() => parseScenario(source)).toThrow(/ремонта должно быть доступно на сломанном этапе/);
+  });
+
+  it('предлагает для ремонта действие, которое чинит этап', () => {
+    const source = structuredClone(defaultScenario);
+    const repair = source.stageActions['testing.behavior-checks'];
+    if (!repair?.stageTransitions) throw new Error('Нет действия ремонта');
+    repair.stageTransitions.BROKEN = 'BROKEN';
+    expect(() => parseScenario(source)).toThrow(/ремонта должно возвращать этап/);
+  });
+
+  it('предлагает для действия ремонт только на том же этапе', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['testing.test-generation-skill'];
+    if (!action) throw new Error('В тестовом сценарии нет действия');
+    action.recovery = {
+      hostHint: 'Запишите правила ревью.',
+      repairActionIds: ['review.risk-policy'],
+    };
+    expect(() => parseScenario(source)).toThrow(/ремонта должно относиться к тому же этапу/);
+  });
+
+  it('разрешает событию назвать ремонт на нескольких этапах', () => {
+    const source = structuredClone(defaultScenario);
+    const rule = source.rounds[0]?.eventRules[0];
+    if (!rule) throw new Error('В тестовом сценарии нет события');
+    rule.event.recovery = {
+      hostHint: 'Добавьте рабочие автотесты и правила ревью.',
+      repairActionIds: ['testing.behavior-checks', 'review.risk-policy'],
+    };
+    expect(parseScenario(source).rounds[0]?.eventRules[0]?.event.recovery).toBeDefined();
+  });
+
+  it('требует ремонт для каждого сломанного событием этапа', () => {
+    const { event, source } = scenarioWithNeutralFirstEvent();
+    event.stageChanges = [{ stage: 'testing', state: 'BROKEN' }];
+    event.recovery = {
+      hostHint: 'Почините тестирование.',
+      repairActionIds: ['review.risk-policy'],
+    };
+    expect(() => parseScenario(source)).toThrow(/ремонт для сломанного этапа testing/);
   });
 
   it('требует отдельную причину для каждого эффекта действия', () => {
