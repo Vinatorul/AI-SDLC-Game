@@ -7,24 +7,28 @@
   --deck-card-hover: #303030;
   --deck-line: #595959;
   --deck-line-soft: #343434;
+  --deck-border-width: 2px;
+  --deck-border-neutral: var(--deck-line);
+  --deck-border-purple: rgb(158 97 255 / 72%);
+  --deck-border-red: rgb(252 71 20 / 72%);
+  --deck-border-yellow: rgb(255 215 0 / 72%);
   --deck-white: #fff;
   --deck-muted: #d3d3d3;
   --deck-muted-dark: #969696;
-  --deck-purple: #9e61ff;
-  --deck-lilac: #bf8ed7;
+  --deck-purple: var(--brand-purple);
+  --deck-lilac: var(--brand-purple);
+  --deck-purple-text: #b88cff;
   --deck-purple-soft: rgb(158 97 255 / 18%);
-  --brand-red: #fc4714;
-  --brand-yellow: #ffd700;
-  --brand-purple: #9e61ff;
   --app-font-body: "YS Text", "YS Geo", Arial, Helvetica, sans-serif;
   --app-font-display: "YS Text Wide", "YS Text", Arial, Helvetica, sans-serif;
-  --deck-success: #72d4a0;
-  --deck-success-bg: #14261d;
-  --deck-ai-gradient: linear-gradient(160deg, #111 0 42%, #173725 72%, #3b9b69 118%);
-  --deck-danger: #ff7777;
-  --deck-danger-bg: #2a1719;
-  --deck-warning: #ffc852;
-  --deck-warning-bg: #2c2514;
+  --deck-success: var(--brand-purple);
+  --deck-success-bg: #1d1426;
+  --deck-ai-gradient: linear-gradient(160deg, #111 0 42%, #261941 72%, var(--brand-purple) 118%);
+  --deck-danger: var(--brand-red);
+  --deck-danger-bg: #3a160c;
+  --deck-broken-gradient: linear-gradient(160deg, #111 0 42%, #3a160c 72%, var(--brand-red) 118%);
+  --deck-warning: var(--brand-yellow);
+  --deck-warning-bg: #302904;
   --deck-gradient: linear-gradient(
     160deg,
     #000 0 42%,
@@ -90,7 +94,8 @@ h3,
 .ballot-round-context > p:last-child,
 .round-question > p:last-child,
 .control-panel > p:not(.eyebrow, .form-error),
-.recovery-guide > p {
+.recovery-guide > p,
+.recovery-actions h3 {
   color: var(--deck-muted);
 }
 
@@ -123,7 +128,7 @@ h3,
 .entry-card {
   width: min(680px, 100%);
   padding: clamp(28px, 6vw, 64px);
-  border-color: var(--deck-line);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 32px;
   background: var(--deck-ink);
   box-shadow: none;
@@ -148,7 +153,7 @@ h3,
 .primary-button {
   min-height: 54px;
   border-radius: 16px;
-  color: var(--deck-white);
+  color: var(--deck-black);
   background: linear-gradient(135deg, var(--deck-purple), var(--deck-lilac));
   font-weight: 700;
 }
@@ -174,15 +179,15 @@ h3,
 .control-panel,
 .share-panel,
 .applied-history {
-  border-color: var(--deck-line-soft);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 28px;
   background: rgb(27 27 27 / 94%);
 }
 
 .player-result-note {
-  border-color: rgb(191 142 215 / 48%);
+  border: var(--deck-border-width) solid var(--deck-border-purple);
   border-radius: 16px;
-  color: #e4c8f1;
+  color: var(--deck-white);
   background: var(--deck-purple-soft);
 }
 
@@ -215,7 +220,7 @@ h3,
 .metric-card {
   min-width: 0;
   padding: 22px;
-  border: 2px solid var(--deck-line);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 24px;
   background: rgb(0 0 0 / 82%);
 }
@@ -228,12 +233,12 @@ h3,
 .metric-label small,
 .option-votes,
 .stage-votes {
-  color: var(--deck-lilac);
+  color: var(--deck-white);
 }
 
 .metric-label .metric-delta-negative,
 .metric-note-card .metric-delta-negative {
-  color: var(--deck-danger);
+  color: var(--deck-white);
 }
 
 .metric-card > strong {
@@ -265,7 +270,7 @@ h3,
 
 .metric-note-card > header > strong,
 .metric-note-card li b {
-  color: var(--deck-lilac);
+  color: var(--deck-white);
 }
 
 .metric-negative .metric-track i,
@@ -274,7 +279,7 @@ h3,
 }
 
 .metric-danger {
-  border-color: rgb(255 200 82 / 60%);
+  border-color: var(--deck-border-yellow);
   background: var(--deck-warning-bg);
 }
 
@@ -283,7 +288,7 @@ h3,
 }
 
 .metric-critical {
-  border-color: rgb(255 119 119 / 68%);
+  border-color: var(--deck-border-red);
   background: var(--deck-danger-bg);
 }
 
@@ -308,7 +313,7 @@ h3,
 
 .ballot-step {
   padding: 12px 16px;
-  border-color: var(--deck-line-soft);
+  border-color: var(--deck-border-neutral);
   border-radius: 16px;
   background: var(--deck-card);
 }
@@ -334,7 +339,7 @@ h3,
 
 .action-stage-banner span,
 .action-stage-banner small {
-  color: #d8cbe6;
+  color: var(--deck-muted);
 }
 
 .option-grid {
@@ -347,18 +352,18 @@ h3,
 .option-card.stage-broken {
   min-height: 184px;
   padding: 22px;
-  border: 1px solid var(--deck-line-soft);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 24px;
   color: var(--deck-white);
   background: var(--deck-card);
 }
 
 .option-card.stage-ai_enabled {
-  border-color: rgb(114 212 160 / 56%);
+  border-color: var(--deck-border-purple);
 }
 
 .option-card.stage-broken {
-  border-color: rgb(255 119 119 / 56%);
+  border-color: var(--deck-border-red);
 }
 
 button.option-card:not(:disabled):hover,
@@ -383,53 +388,33 @@ button.option-card:not(:disabled):focus-visible {
   border-color: var(--deck-lilac);
 }
 
-/* Ballot colors follow card position after shuffling, not the meaning of an action. */
+/* Decision cards stay neutral until the player selects one. */
 .ballot-focus .option-grid > .option-card {
   --decision-accent: var(--brand-purple);
-  --decision-selected-ink: var(--deck-black);
-  --decision-selected-muted: rgb(0 0 0 / 82%);
   position: relative;
   overflow: hidden;
-  border-color: var(--decision-accent);
-  background: linear-gradient(145deg, rgb(158 97 255 / 28%), var(--deck-ink) 58%);
-  box-shadow: inset 0 7px 0 var(--decision-accent);
-}
-
-.ballot-focus .option-grid > .option-card:nth-child(3n + 2) {
-  --decision-accent: var(--brand-yellow);
-  background: linear-gradient(145deg, rgb(255 215 0 / 22%), var(--deck-ink) 58%);
-}
-
-.ballot-focus .option-grid > .option-card:nth-child(3n) {
-  --decision-accent: var(--brand-red);
-  background: linear-gradient(145deg, rgb(252 71 20 / 28%), var(--deck-ink) 58%);
+  border-color: var(--deck-border-neutral);
+  background: var(--deck-card);
+  box-shadow: none;
 }
 
 .ballot-focus .option-grid > button.option-card:not(:disabled):hover,
 .ballot-focus .option-grid > button.option-card:not(:disabled):focus-visible {
   border-color: var(--decision-accent);
   background: var(--deck-card-hover);
-  box-shadow: inset 0 9px 0 var(--decision-accent);
+  box-shadow: none;
 }
 
 .ballot-focus .option-grid > .option-card.is-selected,
 .ballot-focus .option-grid > .option-card.is-winner {
   border-color: var(--decision-accent);
-  color: var(--decision-selected-ink);
-  background: var(--decision-accent);
-  box-shadow: inset 0 0 0 3px var(--deck-white);
+  color: var(--deck-white);
+  background: var(--deck-card);
+  box-shadow: none;
 }
 
-.ballot-focus .option-grid > .option-card.is-selected .option-copy > small,
-.ballot-focus .option-grid > .option-card.is-selected .option-copy > span,
-.ballot-focus .option-grid > .option-card.is-winner .option-copy > small,
-.ballot-focus .option-grid > .option-card.is-winner .option-copy > span {
-  color: var(--decision-selected-muted);
-}
-
-.ballot-focus .option-grid > .option-card.is-selected .option-votes,
-.ballot-focus .option-grid > .option-card.is-winner .option-votes {
-  color: var(--decision-selected-ink);
+.ballot-focus .option-grid > .option-card.is-tied {
+  border-color: var(--decision-accent);
 }
 
 .option-copy small {
@@ -442,12 +427,7 @@ button.option-card:not(:disabled):focus-visible {
 
 .option-copy em,
 .vote-confirmation {
-  color: var(--deck-success);
-}
-
-.ballot-focus .option-grid > .option-card.is-selected .option-copy > em,
-.ballot-focus .option-grid > .option-card.is-winner .option-copy > em {
-  color: var(--decision-selected-ink);
+  color: var(--deck-muted);
 }
 
 .admin-potential,
@@ -473,29 +453,34 @@ button.option-card:not(:disabled):focus-visible {
 }
 
 .potential-chips span,
+.property-list strong,
 .applied-history-effects > span,
 .applied-history-effects li > span {
+  border: 1px solid var(--deck-line);
   border-radius: 999px;
-  color: #dadada;
+  color: var(--deck-white);
   background: var(--deck-card-hover);
 }
 
 .potential-chips .is-positive,
 .property-list strong,
 .applied-history-effects span.is-positive {
-  color: var(--deck-success);
+  color: var(--deck-white);
+  border-color: var(--deck-border-purple);
   background: var(--deck-success-bg);
 }
 
 .potential-chips .is-negative,
 .applied-history-effects span.is-negative {
-  color: var(--deck-danger);
+  color: var(--deck-white);
+  border-color: var(--deck-border-red);
   background: var(--deck-danger-bg);
 }
 
 .potential-chips .is-mixed {
-  color: #dfc4eb;
-  background: var(--deck-purple-soft);
+  color: var(--deck-white);
+  border-color: var(--deck-border-yellow);
+  background: var(--deck-warning-bg);
 }
 
 .condition-group li,
@@ -512,58 +497,54 @@ button.option-card:not(:disabled):focus-visible {
 }
 
 .influence-positive li.is-active {
-  color: var(--deck-success);
-  border-color: rgb(114 212 160 / 48%);
+  color: var(--deck-white);
+  border-color: var(--deck-border-purple);
   background: var(--deck-success-bg);
 }
 
 .influence-positive li.is-inactive {
-  color: var(--deck-danger);
-  border-color: rgb(255 119 119 / 48%);
+  color: var(--deck-white);
+  border-color: var(--deck-border-red);
   background: var(--deck-danger-bg);
 }
 
 .influence-improves .event-branch.is-selected {
-  color: #d9c4ff;
-  border-color: rgb(158 97 255 / 68%);
+  color: var(--deck-white);
+  border-color: var(--deck-border-purple);
   background: #261941;
 }
 
 .influence-worsens .event-branch.is-selected {
-  color: #ffad94;
-  border-color: rgb(252 71 20 / 68%);
+  color: var(--deck-white);
+  border-color: var(--deck-border-red);
   background: #3a160c;
 }
 
 .influence-mixed .event-branch.is-selected {
-  color: var(--brand-yellow);
-  border-color: rgb(255 215 0 / 68%);
+  color: var(--deck-white);
+  border-color: var(--deck-border-yellow);
   background: #302904;
 }
 
 .event-card {
-  border: 1px solid var(--deck-line);
-  border-left: 8px solid var(--deck-muted);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 26px;
   background: var(--deck-card);
 }
 
 /* Event colors are semantic: purple improves, red worsens, yellow mixes both. */
 .event-card.event-improved {
-  border-color: rgb(158 97 255 / 68%);
-  border-left-color: var(--brand-purple);
+  border-color: var(--deck-border-purple);
   background: linear-gradient(135deg, #1c152a, #35215c);
 }
 
 .event-card.event-worsened {
-  border-color: rgb(252 71 20 / 68%);
-  border-left-color: var(--brand-red);
+  border-color: var(--deck-border-red);
   background: linear-gradient(135deg, #24110b, #4a1c0f);
 }
 
 .event-card.event-mixed {
-  border-color: rgb(255 215 0 / 68%);
-  border-left-color: var(--brand-yellow);
+  border-color: var(--deck-border-yellow);
   background: linear-gradient(135deg, #211e0b, #3b3208);
 }
 
@@ -581,7 +562,7 @@ button.option-card:not(:disabled):focus-visible {
 }
 
 .metric-note-card {
-  border-color: var(--deck-line-soft);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 20px;
   background: var(--deck-card);
 }
@@ -594,27 +575,27 @@ button.option-card:not(:disabled):focus-visible {
 }
 
 .metric-limit-note {
-  color: var(--deck-warning);
+  color: var(--deck-muted);
 }
 
 .stage-card,
 .stage-card.stage-as_is {
-  border: 1px solid var(--deck-line-soft);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 24px;
   color: var(--deck-white);
   background: var(--deck-card);
 }
 
 .stage-card.stage-ai_enabled {
-  border-color: rgb(114 212 160 / 58%);
+  border-color: var(--deck-border-purple);
   color: var(--deck-white);
   background: var(--deck-ai-gradient);
 }
 
 .stage-card.stage-broken {
-  border-color: rgb(255 119 119 / 58%);
+  border-color: var(--deck-border-red);
   color: var(--deck-white);
-  background: var(--deck-danger-bg);
+  background: var(--deck-broken-gradient);
 }
 
 .stage-card span,
@@ -627,13 +608,11 @@ button.option-card:not(:disabled):focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.stage-card.stage-ai_enabled > span:first-child,
-.stage-card.stage-ai_enabled > .stage-card-main > small {
-  color: #e4d8f0;
-}
-
-.stage-card.stage-broken > .stage-card-main > small {
-  color: var(--deck-danger);
+.stage-card.stage-ai_enabled span,
+.stage-card.stage-ai_enabled small,
+.stage-card.stage-broken span,
+.stage-card.stage-broken small {
+  color: var(--deck-white);
 }
 
 button.stage-card:not(:disabled):hover,
@@ -641,7 +620,7 @@ button.stage-card:not(:disabled):focus-visible,
 .stage-card.is-selected,
 .stage-card.is-winner {
   border-color: var(--deck-lilac);
-  box-shadow: inset 0 0 0 2px var(--deck-lilac);
+  box-shadow: none;
 }
 
 .stage-card.is-tied {
@@ -653,7 +632,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .victory-map .stage-card {
-  border-color: rgb(114 212 160 / 54%);
+  border-color: var(--deck-border-purple);
   background: var(--deck-ai-gradient);
 }
 
@@ -663,7 +642,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .tie-buttons p {
-  color: var(--deck-lilac);
+  color: var(--deck-white);
 }
 
 .tie-buttons button {
@@ -686,7 +665,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .final-state {
-  border: 1px solid var(--deck-line);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 32px;
 }
 
@@ -697,8 +676,8 @@ button.stage-card:not(:disabled):focus-visible,
 
 .final-broken {
   color: var(--deck-white);
-  border-color: rgb(255 119 119 / 52%);
-  background: var(--deck-danger-bg);
+  border-color: var(--deck-border-red);
+  background: var(--deck-broken-gradient);
 }
 
 .screen-dashboard {
@@ -710,13 +689,13 @@ button.stage-card:not(:disabled):focus-visible,
 .screen-current-phase {
   min-height: 176px;
   padding: 30px 34px;
-  border: 0;
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 32px;
-  background: var(--deck-gradient);
+  background: var(--deck-black);
 }
 
 .screen-current-phase .eyebrow {
-  color: #dcc8eb;
+  color: var(--brand-purple);
 }
 
 .screen-current-phase h2 {
@@ -776,7 +755,7 @@ button.stage-card:not(:disabled):focus-visible,
 .role-card {
   min-height: 260px;
   padding: 30px;
-  border-color: var(--deck-line-soft);
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
   border-radius: 30px;
   color: var(--deck-white);
   background: var(--deck-card);
@@ -788,12 +767,12 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .role-card-primary {
-  border-color: rgb(191 142 215 / 54%);
+  border-color: var(--deck-border-purple);
   background: var(--deck-gradient);
 }
 
 .role-index {
-  color: var(--deck-lilac);
+  color: var(--deck-purple-text);
 }
 
 .role-card h2 {
