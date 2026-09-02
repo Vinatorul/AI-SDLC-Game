@@ -6,6 +6,7 @@ import {
   type StageState,
   stageKeys,
 } from '@ai-sdlc/contracts';
+import { activationRequirements, eventBranches, positiveRequirements } from './forecast-conditions';
 import { getAvailableActions, resolveRound } from './resolve';
 import type {
   EngineAction,
@@ -26,7 +27,10 @@ export function forecastAction(
   const plan = resolveRound(snapshot, round, action, mechanics, catalog);
   return {
     actionId: action.id,
+    activationRequirements: activationRequirements(action, snapshot, catalog),
+    eventBranches: eventBranches({ action, catalog, mechanics, plan, round, snapshot }),
     metricDelta: plan.breakdown.applied ?? plan.breakdown.total,
+    positiveEffectRequirements: positiveRequirements(action, plan, mechanics),
     stageChanges: changedStages(snapshot.stages, plan.stages),
   };
 }

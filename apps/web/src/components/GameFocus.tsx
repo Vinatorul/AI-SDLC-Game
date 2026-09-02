@@ -1,5 +1,5 @@
 import type { AdminForecast, GameState } from '@ai-sdlc/contracts';
-import { outcomeLabels, propertyLabels } from '../labels';
+import { outcomeLabels } from '../labels';
 import { BallotFocus } from './BallotFocus';
 import { OptionGrid } from './OptionGrid';
 
@@ -27,7 +27,6 @@ export function GameFocus({ forecast, selectedChoiceId, state }: GameFocusProps)
       </div>
       {round.event && <EventCard state={state} />}
       {!round.event && <OptionGrid disabled round={round} showResults={state.phase !== 'LOBBY'} />}
-      <PropertyList state={state} />
     </section>
   );
 }
@@ -49,18 +48,6 @@ export function EventCard({ state }: { state: GameState }) {
       <h3>{event.title}</h3>
       <p>{event.description}</p>
     </article>
-  );
-}
-
-function PropertyList({ state }: { state: GameState }) {
-  if (state.properties.length === 0) return null;
-  return (
-    <div className="property-list">
-      <span>Что команда уже подготовила</span>
-      {state.properties.map((property) => (
-        <strong key={property}>{propertyLabels[property]}</strong>
-      ))}
-    </div>
   );
 }
 

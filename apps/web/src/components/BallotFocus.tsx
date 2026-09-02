@@ -10,7 +10,6 @@ import {
 import { stageLabels, stageStateLabels } from '../labels';
 import { ActionPotential, StagePotential } from './AdminPotential';
 import { BallotProgress } from './BallotProgress';
-import { AppliedHistory } from './StageMap';
 
 type BallotFocusProps = {
   forecast?: AdminForecast | null;
@@ -51,7 +50,6 @@ function StageBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotVi
           <StageChoiceCard choice={choice} key={choice.id} {...props} />
         ))}
       </div>
-      {props.variant !== 'player' && <AppliedHistory state={props.state} />}
     </>
   );
 }
@@ -107,6 +105,21 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
   const ballot = props.state.currentBallot as BallotView;
   const tally = ballot.voteTallies.find((item) => item.choiceId === choice.id);
   const showFeedback = feedbackChoiceIds(props.state).has(choice.id);
+  const content = (
+    <ActionChoiceContent
+      choice={choice}
+      props={props}
+      showFeedback={showFeedback}
+      tally={tally?.count}
+    />
+  );
+  if (props.variant !== 'player') {
+    return (
+      <article className={actionChoiceClass(choice.id, props.state, props.selected)}>
+        {content}
+      </article>
+    );
+  }
   return (
     <button
       className={actionChoiceClass(choice.id, props.state, props.selected)}
@@ -114,21 +127,52 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
       onClick={() => props.onSelect?.(choice.id)}
       type="button"
     >
-      <span className="option-copy">
-        <small>{stageLabels[choice.stage]}</small>
-        <strong>{choice.title}</strong>
-        <span>{choice.description}</span>
-        {choice.shortFeedback && showFeedback && props.variant !== 'player' && (
-          <em>{choice.shortFeedback}</em>
-        )}
-        {props.variant !== 'player' && (
-          <ActionPotential actionId={choice.id} forecast={props.forecast} state={props.state} />
-        )}
-      </span>
-      {props.state.phase === 'RESULT' && <b className="option-votes">{tally?.count ?? 0}</b>}
+      {content}
     </button>
   );
 }
+
+function ActionChoiceContent({ choice, props, showFeedback, tally }: ActionChoiceContentProps) {
+  const host = props.variant !== 'player';
+  const copy = <ActionChoiceCopy choice={choice} host={host} showFeedback={showFeedback} />;
+  return (
+    <>
+      {host ? (
+        <div className="option-copy">
+          {copy}
+          <ActionPotential actionId={choice.id} forecast={props.forecast} state={props.state} />
+        </div>
+      ) : (
+        <span className="option-copy">{copy}</span>
+      )}
+      {props.state.phase === 'RESULT' && <b className="option-votes">{tally ?? 0}</b>}
+    </>
+  );
+}
+
+function ActionChoiceCopy({ choice, host, showFeedback }: ActionChoiceCopyProps) {
+  return (
+    <>
+      <small>{stageLabels[choice.stage]}</small>
+      <strong>{choice.title}</strong>
+      <span>{choice.description}</span>
+      {choice.shortFeedback && showFeedback && host && <em>{choice.shortFeedback}</em>}
+    </>
+  );
+}
+
+type ActionChoiceContentProps = {
+  choice: ActionBallotChoice;
+  props: BallotFocusProps;
+  showFeedback: boolean;
+  tally?: number;
+};
+
+type ActionChoiceCopyProps = {
+  choice: ActionBallotChoice;
+  host: boolean;
+  showFeedback: boolean;
+};
 
 function feedbackChoiceIds(state: GameState) {
   const ballot = state.currentBallot;

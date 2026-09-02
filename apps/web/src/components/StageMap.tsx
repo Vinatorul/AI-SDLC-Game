@@ -5,7 +5,7 @@ import {
   type StageKey,
   stageKeys,
 } from '@ai-sdlc/contracts';
-import { stageLabels, stageStateLabels } from '../labels';
+import { propertyLabels, stageLabels, stageStateLabels } from '../labels';
 
 export function StageMap({ compact = false, state }: { compact?: boolean; state: GameState }) {
   const won = state.phase === 'WON';
@@ -102,26 +102,51 @@ type StageCardProps = {
 
 export function AppliedHistory({ state }: { state: GameState }) {
   const actions = historyActions(state);
-  if (actions.length === 0) return null;
+  if (actions.length === 0 && state.properties.length === 0) return null;
   return (
-    <section className="applied-history">
-      <p className="eyebrow">История решений</p>
-      <ul className="applied-history-list">
-        {actions.map((action) => (
-          <li key={`${action.roundNumber}:${action.actionId}`}>
-            <div className="applied-history-heading">
-              <span>
-                {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
-              </span>
-              <strong>
-                {stageLabels[action.stage]} · {action.title}
-              </strong>
-            </div>
-            <HistoryImpact action={action} state={state} />
-          </li>
+    <>
+      <PreparedProperties state={state} />
+      {actions.length > 0 && (
+        <section className="applied-history">
+          <p className="eyebrow">История решений</p>
+          <ActionHistoryList actions={actions} state={state} />
+        </section>
+      )}
+    </>
+  );
+}
+
+function PreparedProperties({ state }: { state: GameState }) {
+  if (state.properties.length === 0) return null;
+  return (
+    <section className="prepared-properties">
+      <p className="eyebrow">Что команда уже подготовила</p>
+      <div className="property-list">
+        {state.properties.map((property) => (
+          <strong key={property}>{propertyLabels[property]}</strong>
         ))}
-      </ul>
+      </div>
     </section>
+  );
+}
+
+function ActionHistoryList({ actions, state }: { actions: AppliedActionView[]; state: GameState }) {
+  return (
+    <ul className="applied-history-list">
+      {actions.map((action) => (
+        <li key={`${action.roundNumber}:${action.actionId}`}>
+          <div className="applied-history-heading">
+            <span>
+              {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
+            </span>
+            <strong>
+              {stageLabels[action.stage]} · {action.title}
+            </strong>
+          </div>
+          <HistoryImpact action={action} state={state} />
+        </li>
+      ))}
+    </ul>
   );
 }
 

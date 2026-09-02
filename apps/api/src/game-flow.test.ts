@@ -182,6 +182,7 @@ it('отдаёт прогноз только ведущему и считает 
   const potential = actionForecast.actionPotentials.find((item) => item.actionId === actionId);
   expect(actionForecast.kind).toBe('ACTION');
   expect(actionForecast.stagePotentials).toEqual([]);
+  expectActionConditions(actionForecast);
   state = await finishAction(app, game, player, actionId, 3, state);
   expect(potential?.metricDelta).toEqual(state.currentRound?.effectBreakdown?.applied);
   expect(potential?.stageChanges).toEqual(changedStageState(game.state, state));
@@ -676,6 +677,27 @@ function rawAdminForecast(app: FastifyInstance, code: string, token?: string) {
 function changedStageState(before: GameState, after: GameState) {
   return stageKeys.flatMap((stage) =>
     before.stages[stage] === after.stages[stage] ? [] : [{ stage, state: after.stages[stage] }],
+  );
+}
+
+function expectActionConditions(forecast: AdminForecast) {
+  const action = forecast.actionPotentials.find(
+    ({ actionId }) => actionId === 'technicalDiscovery.ai-impact-analysis',
+  );
+  expect(action?.activationRequirements).toEqual([
+    {
+      actionId: 'technicalDiscovery.dependency-map',
+      satisfied: false,
+      title: defaultScenario.stageActions['technicalDiscovery.dependency-map']?.title,
+    },
+  ]);
+  expect(action?.eventBranches).toContainEqual(
+    expect.objectContaining({
+      eventId: 'event-impact-graph-missing',
+      influence: 'WORSENS',
+      matched: true,
+      selected: true,
+    }),
   );
 }
 

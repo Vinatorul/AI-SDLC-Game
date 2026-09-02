@@ -35,6 +35,12 @@ template; its copy and balance are still a technical draft.
 - Admin forecasts live behind the host token in `/api/games/:code/admin/forecast`. Build them from
   the saved room snapshot with the same game-engine resolver used for application. Never add them
   to public GameState, ballot choices, command errors, or WebSocket messages.
+- Host action forecasts expose snapshotted `activationRequirements`, positive-effect stage gates,
+  and every relevant ordered conditional event branch. The resolver and the explanation must use
+  the same predicate evaluator. Keep `satisfied`, `matched`, and `selected` distinct: several
+  conditional branches may match, but only the first one changes the ordinary outcome. No branch
+  is selected when the ordinary unconditional event applies. Do not duplicate this logic or
+  scenario copy in React.
 - Once an event is visible, public state may expose only the aggregate metricImpact needed to color
   its card. Keep numeric effects and contribution details hidden until consequences are applied.
 - **myVoteChoiceId** and the deprecated **myVoteOptionId** are returned only when the state request

@@ -12,9 +12,10 @@ import {
   type StageState,
   stageKeys,
 } from '@ai-sdlc/contracts';
+import { eventRuleMatches } from './event-conditions';
 import type {
-  CountRange,
   EngineAction,
+  EngineEvent,
   EngineSnapshot,
   EventRule,
   GameMechanics,
@@ -58,7 +59,19 @@ export function resolveRound(
   mechanics: GameMechanics,
   catalog: StageActionCatalog,
 ): ResolutionPlan {
-  const prepared = prepareRound(snapshot, round, action, catalog);
+  const event = selectEvent(round.eventRules, action, snapshot);
+  return resolveRoundWithEvent(snapshot, round, action, event, mechanics, catalog);
+}
+
+export function resolveRoundWithEvent(
+  snapshot: EngineSnapshot,
+  round: ScenarioRound,
+  action: EngineAction,
+  event: EngineEvent,
+  mechanics: GameMechanics,
+  catalog: StageActionCatalog,
+): ResolutionPlan {
+  const prepared = prepareRound(snapshot, round, action, event, catalog);
   const { narrative, ...plan } = prepared;
   const narrativeEffects = gateNarrativeEffects(narrative, action.stage, plan.stages, mechanics);
   const { breakdown, metrics } = calculateRoundMetrics(
@@ -74,21 +87,16 @@ export function resolveRound(
     narrativeEffects,
     mechanics,
   );
-  return {
-    ...plan,
-    breakdown,
-    effectContributions,
-    metrics,
-  };
+  return { ...plan, breakdown, effectContributions, metrics };
 }
 
 function prepareRound(
   snapshot: EngineSnapshot,
   round: ScenarioRound,
   action: EngineAction,
+  event: EngineEvent,
   catalog: StageActionCatalog,
 ): PreparedRound {
-  const event = selectEvent(round.eventRules, action, snapshot);
   const properties = mergeProperties(
     mergeProperties(snapshot.properties, action.addProperties),
     event.addProperties ?? [],
@@ -246,73 +254,6 @@ function selectEvent(rules: EventRule[], action: EngineAction, snapshot: EngineS
   const fallback = rules.at(-1);
   if (!matched && !fallback) throw new Error('У раунда нет события');
   return (matched ?? fallback)?.event as NonNullable<typeof fallback>['event'];
-}
-
-function eventRuleMatches(rule: EventRule, action: EngineAction, snapshot: EngineSnapshot) {
-  if (rule.actionIds && !rule.actionIds.includes(action.id)) return false;
-  if (rule.hasProperty && !snapshot.properties.includes(rule.hasProperty)) return false;
-  if (rule.missingProperty && snapshot.properties.includes(rule.missingProperty)) return false;
-  const resulting = mergeProperties(snapshot.properties, action.addProperties);
-  if (rule.hasResultingProperty && !resulting.includes(rule.hasResultingProperty)) return false;
-  if (rule.missingResultingProperty && resulting.includes(rule.missingResultingProperty)) {
-    return false;
-  }
-  if (!matchesActionHistory(rule, snapshot)) return false;
-  if (!matchesStageStates(rule, snapshot)) return false;
-  if (!countInRange(snapshot.appliedActions.length, rule.appliedActionCount)) return false;
-  if (!matchesAppliedActionCounts(rule, snapshot)) return false;
-  if (!matchesStageActionCounts(rule, snapshot)) return false;
-  if (!matchesStageActionCountsSinceLast(rule, snapshot)) return false;
-  return true;
-}
-
-function matchesActionHistory(rule: EventRule, snapshot: EngineSnapshot) {
-  const appliedIds = new Set(snapshot.appliedActions.map(({ actionId }) => actionId));
-  if (rule.hasAppliedActions?.some((id) => !appliedIds.has(id))) return false;
-  if (rule.missingAppliedActions?.some((id) => appliedIds.has(id))) return false;
-  return true;
-}
-
-function matchesStageStates(rule: EventRule, snapshot: EngineSnapshot) {
-  return (rule.stageStates ?? []).every(({ stage, state }) => snapshot.stages[stage] === state);
-}
-
-function matchesAppliedActionCounts(rule: EventRule, snapshot: EngineSnapshot) {
-  return (rule.appliedActionCounts ?? []).every(({ actionIds, ...range }) => {
-    const relevantIds = new Set(actionIds);
-    const count = snapshot.appliedActions.filter(({ actionId }) =>
-      relevantIds.has(actionId),
-    ).length;
-    return countInRange(count, range);
-  });
-}
-
-function matchesStageActionCounts(rule: EventRule, snapshot: EngineSnapshot) {
-  return (rule.stageActionCounts ?? []).every(({ stage, ...range }) => {
-    const count = snapshot.appliedActions.filter((action) => action.stage === stage).length;
-    return countInRange(count, range);
-  });
-}
-
-function matchesStageActionCountsSinceLast(rule: EventRule, snapshot: EngineSnapshot) {
-  return (rule.stageActionCountsSinceLast ?? []).every(
-    ({ actionIds, sinceStage, stage, ...range }) => {
-      const lastSince = snapshot.appliedActions.findLastIndex(({ stage }) => stage === sinceStage);
-      const actions =
-        lastSince === -1 ? snapshot.appliedActions : snapshot.appliedActions.slice(lastSince + 1);
-      const included = actionIds ? new Set(actionIds) : null;
-      const count = actions.filter(
-        (action) => action.stage === stage && (!included || included.has(action.actionId)),
-      ).length;
-      return countInRange(count, range);
-    },
-  );
-}
-
-function countInRange(count: number, range?: CountRange) {
-  if (range?.minimum !== undefined && count < range.minimum) return false;
-  if (range?.maximum !== undefined && count > range.maximum) return false;
-  return true;
 }
 
 function wasApplied(snapshot: EngineSnapshot, actionId: string) {
@@ -492,7 +433,8 @@ function gatePositiveEffect(
   for (const metric of metricKeys) {
     const value = source[metric];
     if (value === undefined) continue;
-    const blocked = value > 0 ? brokenRequirements(metric, actionStage, stages, mechanics) : [];
+    const required = positiveEffectStages(metric, actionStage, mechanics);
+    const blocked = value > 0 ? required.filter((stage) => stages[stage] === 'BROKEN') : [];
     if (blocked.length === 0) result.effect[metric] = value;
     else {
       result.blockedEffect[metric] = value;
@@ -502,17 +444,16 @@ function gatePositiveEffect(
   return result;
 }
 
-function brokenRequirements(
+export function positiveEffectStages(
   metric: MetricKey,
   actionStage: StageKey,
-  stages: EngineSnapshot['stages'],
   mechanics: GameMechanics,
 ) {
   const requirements = mechanics.positiveEffectRequirements;
   if (!requirements) return [];
   const configured = requirements.additionalStages?.[metric]?.[actionStage] ?? [];
   const required = requirements.requireActionStage ? [actionStage, ...configured] : configured;
-  return [...new Set(required)].filter((stage) => stages[stage] === 'BROKEN');
+  return [...new Set(required)];
 }
 
 function blockedEffectFields(effect: GatedEffect) {

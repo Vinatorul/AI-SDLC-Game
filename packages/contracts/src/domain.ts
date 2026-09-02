@@ -142,9 +142,78 @@ export type StageStatePotential = {
   states: StageState[];
 };
 
+export type ActivationRequirementView = {
+  actionId: string;
+  satisfied: boolean;
+  title: string;
+};
+
+export type ForecastInfluence = 'IMPROVES' | 'MIXED' | 'NEUTRAL' | 'WORSENS';
+
+export type ForecastPredicateView =
+  | {
+      actionIds: string[];
+      kind: 'ACTION_HISTORY';
+      satisfied: boolean;
+      titles: string[];
+      expected: 'APPLIED' | 'NOT_APPLIED';
+    }
+  | {
+      expected: 'ABSENT' | 'PRESENT';
+      kind: 'PROPERTY';
+      property: ProcessProperty;
+      satisfied: boolean;
+      timing: 'AFTER_ACTION' | 'BEFORE_ACTION';
+    }
+  | {
+      expected: StageState;
+      kind: 'STAGE_STATE';
+      satisfied: boolean;
+      stage: StageKey;
+    }
+  | {
+      actual: number;
+      kind: 'COUNT';
+      maximum?: number;
+      minimum?: number;
+      satisfied: boolean;
+      scope: ForecastCountScopeView;
+    };
+
+export type ForecastCountScopeView =
+  | { actionIds: string[]; kind: 'ACTIONS'; titles: string[] }
+  | { kind: 'ALL_ACTIONS' }
+  | { kind: 'STAGE'; stage: StageKey }
+  | {
+      actionIds?: string[];
+      kind: 'STAGE_SINCE_LAST';
+      sinceStage: StageKey;
+      sinceStageSeen: boolean;
+      stage: StageKey;
+      titles?: string[];
+    };
+
+export type EventBranchView = {
+  conditions: ForecastPredicateView[];
+  eventId: string;
+  influence: ForecastInfluence;
+  matched: boolean;
+  selected: boolean;
+  title: string;
+};
+
+export type PositiveEffectRequirementView = {
+  metric: MetricKey;
+  satisfied: boolean;
+  stage: StageKey;
+};
+
 export type ActionPotentialView = {
   actionId: string;
+  activationRequirements: ActivationRequirementView[];
+  eventBranches: EventBranchView[];
   metricDelta: MetricDelta;
+  positiveEffectRequirements: PositiveEffectRequirementView[];
   stageChanges: StageMutation[];
 };
 

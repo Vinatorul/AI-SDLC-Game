@@ -116,6 +116,21 @@ describe('PlayerGameView', () => {
     expect(html.indexOf('История решений')).toBeGreaterThan(html.indexOf('Что сделаем?'));
   });
 
+  it('показывает в истории, что команда уже подготовила', () => {
+    const html = render(
+      state({
+        properties: ['automatedTests', 'rollback'],
+        stageProgress: progressWithHistory,
+      }),
+    );
+    expect(html).toContain('Что команда уже подготовила');
+    expect(html).toContain('Автоматические тесты');
+    expect(html).toContain('Быстрый откат');
+    expect(html.indexOf('Что команда уже подготовила')).toBeLessThan(
+      html.indexOf('История решений'),
+    );
+  });
+
   it('в истории ставит свежий ход выше и объясняет изменение метрик', () => {
     const html = render(
       state({
