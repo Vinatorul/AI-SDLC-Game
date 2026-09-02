@@ -451,7 +451,10 @@ export class GameService {
     );
     const action = parseAction(assertFound(findAction(this.database, game.id, actionId)));
     insertAppliedAction(this.database, game.id, round.id, actionId, action.stage);
-    persistRound(this.database, round, { applied_at: new Date().toISOString() });
+    persistRound(this.database, round, {
+      activated_actions_json: JSON.stringify(plan.activatedActions ?? []),
+      applied_at: new Date().toISOString(),
+    });
     this.persistPlan(game, plan);
   }
 
@@ -516,7 +519,10 @@ export class GameService {
 
   private applyLegacyConsequences(game: GameRow) {
     const { plan, round } = this.pendingConsequences(game);
-    persistRound(this.database, round, { applied_at: new Date().toISOString() });
+    persistRound(this.database, round, {
+      activated_actions_json: '[]',
+      applied_at: new Date().toISOString(),
+    });
     this.persistPlan(game, plan);
   }
 

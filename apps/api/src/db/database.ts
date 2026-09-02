@@ -37,7 +37,12 @@ function configureDatabase(database: GameDatabase) {
 }
 
 function runMigrations(database: GameDatabase) {
-  const migrations = [migrateGameSnapshots, migrateDecisionBallots, migrateDecisionModelName];
+  const migrations = [
+    migrateGameSnapshots,
+    migrateDecisionBallots,
+    migrateDecisionModelName,
+    migrateActivatedActions,
+  ];
   const current = Number(database.prepare('PRAGMA user_version').get()?.user_version ?? 0);
   for (let index = current; index < migrations.length; index += 1) {
     withTransaction(database, () => {
@@ -65,6 +70,10 @@ function migrateDecisionModelName(database: GameDatabase) {
   database.exec(
     "UPDATE games SET decision_model = 'SINGLE_OPTION_V1' WHERE decision_model = 'LEGACY_OPTION'",
   );
+}
+
+function migrateActivatedActions(database: GameDatabase) {
+  addColumn(database, 'game_rounds', 'activated_actions_json', "TEXT NOT NULL DEFAULT '[]'");
 }
 
 function addColumn(database: GameDatabase, table: string, column: string, definition: string) {

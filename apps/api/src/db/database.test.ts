@@ -25,10 +25,14 @@ it('добавляет снимок механики в старую базу', 
   expect(JSON.parse(row.mechanics_json).initialMetrics.quality).toBe(60);
   expect(row.scenario_id).toBe('technical-mvp');
   expect(row.decision_model).toBe('SINGLE_OPTION_V1');
-  expect(database.prepare('PRAGMA user_version').get()?.user_version).toBe(3);
+  expect(database.prepare('PRAGMA user_version').get()?.user_version).toBe(4);
   expect(
     database.prepare("SELECT name FROM sqlite_master WHERE name = 'ballots'").get(),
   ).toBeDefined();
+  const roundColumns = database.prepare('PRAGMA table_info(game_rounds)').all() as unknown as {
+    name: string;
+  }[];
+  expect(roundColumns.map(({ name }) => name)).toContain('activated_actions_json');
   database.close();
 });
 
@@ -63,4 +67,19 @@ CREATE TABLE games (
   outcome_reason TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
+);
+
+CREATE TABLE game_rounds (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  round_number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  situation TEXT NOT NULL,
+  event_rules_json TEXT NOT NULL,
+  selected_option_id TEXT,
+  tied_option_ids_json TEXT NOT NULL DEFAULT '[]',
+  shown_event_json TEXT,
+  pending_plan_json TEXT,
+  applied_at TEXT,
+  UNIQUE(game_id, round_number)
 );`;

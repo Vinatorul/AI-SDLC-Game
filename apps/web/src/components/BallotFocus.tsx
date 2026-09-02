@@ -100,6 +100,7 @@ function ActionBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotV
 function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: ActionBallotChoice }) {
   const ballot = props.state.currentBallot as BallotView;
   const tally = ballot.voteTallies.find((item) => item.choiceId === choice.id);
+  const showFeedback = feedbackChoiceIds(props.state).has(choice.id);
   return (
     <button
       className={actionChoiceClass(choice.id, props.state, props.selected)}
@@ -111,13 +112,25 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
         <small>{stageLabels[choice.stage]}</small>
         <strong>{choice.title}</strong>
         <span>{choice.description}</span>
-        {choice.shortFeedback && props.state.phase === 'RESULT' && props.variant !== 'player' && (
+        {choice.shortFeedback && showFeedback && props.variant !== 'player' && (
           <em>{choice.shortFeedback}</em>
         )}
       </span>
       {props.state.phase === 'RESULT' && <b className="option-votes">{tally?.count ?? 0}</b>}
     </button>
   );
+}
+
+function feedbackChoiceIds(state: GameState) {
+  const ballot = state.currentBallot;
+  const winner = ballot?.selectedChoiceId;
+  if (state.phase !== 'RESULT' || ballot?.kind !== 'ACTION' || !winner) return new Set<string>();
+  const notableLosers = ballot.voteTallies
+    .filter(({ choiceId, share }) => choiceId !== winner && share >= state.rules.notableVoteShare)
+    .sort((left, right) => right.share - left.share)
+    .slice(0, 2)
+    .map(({ choiceId }) => choiceId);
+  return new Set([winner, ...notableLosers]);
 }
 
 function BallotHeading({ title }: { title: string }) {

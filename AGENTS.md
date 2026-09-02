@@ -44,6 +44,9 @@ template; its copy and balance are still a technical draft.
   summary; applied actions are stored as separate history records.
 - Applying another eligible action may extend an AI-enabled stage or repair a broken stage. Do not
   treat AI_ENABLED as a one-time lock.
+- When a later foundation completes an earlier AI setup, record the automatic activation explicitly.
+  If that AI setup is on a BROKEN stage, do not activate or repair it automatically: report the
+  blocked activation to the host so they can explain that the stage must be repaired first.
 
 ## Content source of truth
 
@@ -89,14 +92,17 @@ may be applied again. Each action must use exactly one form of stage transition:
   AS_IS, AI_ENABLED, and BROKEN, even when the action is unavailable in one of those states.
 
 Do not define both fields. Different actions on the same stage remain valid in later rounds. Event
-consequences belong in event.effect and event.stageChanges.
+consequences belong in event.effect, event.stageChanges, event.addProperties, and
+event.removeProperties. Use the event property fields when the outcome of the turn determines
+whether a proposed foundation is actually usable.
 
 Every action or event with a non-zero metric in **effect** must explain that metric in its sibling
 **effectReasons** map. The keys in **effectReasons** must match the non-zero effect keys exactly.
 These strings are the source of truth for the host's metric explanation: the engine and frontend
 must not invent a reason from the metric name, the sign of the delta, shortFeedback, or generic
 fallback copy. Each reason should name the concrete cause of that one metric change.
-The same rule applies to **mechanics.propertyEffects** / **propertyEffectReasons** and
+The same rule applies to **repeatEffect** / **repeatEffectReasons**,
+**mechanics.propertyEffects** / **propertyEffectReasons**, and
 **stageStateEffects** / **stageStateEffectReasons**.
 
 When an event changes a stage to BROKEN, its title and description must say what actually failed
@@ -156,10 +162,16 @@ event rules for the failed early attempt so players see what was missing. Cover 
 focused combination test. Use event.stageChanges only for a consequence specific to that event,
 not as a second copy of the capability dependency graph.
 
+Automatic activation is an observable turn result. Expose successful and blocked activations to
+the host after consequences are applied. Never expose technical action ids in the UI. A blocked
+activation must name the still-broken stage and explain that the AI setup needs a repair and a new
+attempt; the newly added foundation alone must not turn that stage green.
+
 Keep at least one action for each bundled stage choice repeatable and available in AS_IS,
 AI_ENABLED, and BROKEN. This keeps all eight stages selectable after earlier actions have been
-used. Remember that a repeatable action applies its numeric effect again, so treat repeatability as
-an explicit balance decision.
+used. Repeating an action is numerically neutral by default: both the action and its selected event
+use an empty effect on later applications. Add **repeatEffect** and **repeatEffectReasons** only when
+the recurring consequence is intentional, and cover that exception with a focused balance test.
 
 Use descriptive stable catalog ids such as **review.context-and-human-risk**. Do not encode the
 first round that happened to use an action in its id. A round references catalog ids and never owns
@@ -169,6 +181,12 @@ Event conditions may use the selected action, pre-action process properties and 
 the history of previously applied actions. Keep the last rule unconditional. Mark content as FACT
 only when it has a verified basis; mark simulations and hypotheses as SCENARIO. Give every action
 useful individual shortFeedback before treating the content as final.
+
+When the order of decisions matters, use **stageActionCountsSinceLast** instead of comparing
+lifetime totals. Add **actionIds** when only actions that produce work should count; process
+improvements on the same stage must not look like extra workload. Put the more specific
+chronological rule before broader queue or fallback rules, and add a witness test proving that each
+conditional event is reachable.
 
 The bundled scenario treats process properties as guards against specific bad events, not as
 recurring score income: its propertyEffects are deliberately empty. Its stageStateEffects are also

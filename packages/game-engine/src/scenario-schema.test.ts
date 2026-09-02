@@ -103,17 +103,23 @@ describe('parseScenario', () => {
     }
   });
 
-  it('связывает поздний долг с повторным кодингом без технической проработки', () => {
+  it('учитывает изменения кода после последней технической проработки', () => {
     const rule = defaultScenario.rounds[0]?.eventRules.find(
       ({ event }) => event.id === 'event-code-without-technical-context',
     );
-    expect(rule?.appliedActionCount).toEqual({ minimum: 6 });
-    expect(rule?.stageActionCounts).toEqual(
-      expect.arrayContaining([
-        { minimum: 2, stage: 'coding' },
-        { maximum: 1, stage: 'technicalDiscovery' },
-      ]),
-    );
+    expect(rule?.stageActionCountsSinceLast).toEqual([
+      {
+        actionIds: [
+          'coding.guided-implementation',
+          'coding.change-from-description',
+          'coding.parallel-agents',
+        ],
+        maximum: 1,
+        minimum: 1,
+        sinceStage: 'technicalDiscovery',
+        stage: 'coding',
+      },
+    ]);
   });
 
   it('проверяет соответствие числа шаблонов правилу', () => {
@@ -189,10 +195,79 @@ describe('parseScenario', () => {
 
   it('требует отдельную причину для каждого эффекта события', () => {
     const source = structuredClone(defaultScenario);
-    const event = source.rounds[0]?.eventRules[0]?.event;
+    const event = source.rounds[0]?.eventRules.find(({ event }) => event.effect.quality)?.event;
     if (!event?.effectReasons) throw new Error('В тестовом событии нет причин');
     delete event.effectReasons.quality;
     expect(() => parseScenario(source)).toThrow(/effectReasons.*ненулевого эффекта/);
+  });
+
+  it('сохраняет обратную совместимость без repeatEffect', () => {
+    const source = structuredClone(defaultScenario);
+    expect(
+      parseScenario(source).stageActions['coding.guided-implementation']?.repeatEffect,
+    ).toBeUndefined();
+  });
+
+  it('требует причины для repeatEffect действия и события', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['businessRequest.production-signals'];
+    const event = source.rounds[0]?.eventRules[0]?.event;
+    if (!action || !event) throw new Error('В тестовом сценарии нет действия или события');
+    action.repeatEffect = { quality: 1 };
+    event.repeatEffect = { controllability: -1 };
+    expect(() => parseScenario(source)).toThrow(/repeatEffectReasons.*ненулевого эффекта/);
+  });
+
+  it('отклоняет повтор свойства и конфликт addProperties с removeProperties', () => {
+    const source = structuredClone(defaultScenario);
+    const action = source.stageActions['businessRequest.production-signals'];
+    const event = source.rounds[0]?.eventRules[0]?.event;
+    if (!action || !event) throw new Error('В тестовом сценарии нет действия или события');
+    action.addProperties = ['humanReview', 'humanReview'];
+    event.addProperties = ['rollback'];
+    event.removeProperties = ['rollback'];
+    expect(() => parseScenario(source)).toThrow(/свойство/);
+  });
+
+  it('отклоняет повторяющуюся пару в stageActionCountsSinceLast', () => {
+    const source = structuredClone(defaultScenario);
+    const rule = source.rounds[0]?.eventRules[0];
+    if (!rule) throw new Error('В тестовом сценарии нет правила');
+    rule.stageActionCountsSinceLast = [
+      { minimum: 1, sinceStage: 'technicalDiscovery', stage: 'coding' },
+      { maximum: 2, sinceStage: 'technicalDiscovery', stage: 'coding' },
+    ];
+    expect(() => parseScenario(source)).toThrow(/stageActionCountsSinceLast.*уникальным/);
+  });
+
+  it('проверяет ссылки stageActionCountsSinceLast на каталог действий', () => {
+    const source = structuredClone(defaultScenario);
+    const rule = source.rounds[0]?.eventRules[0];
+    if (!rule) throw new Error('В тестовом сценарии нет правила');
+    rule.stageActionCountsSinceLast = [
+      {
+        actionIds: ['missing-action'],
+        minimum: 1,
+        sinceStage: 'technicalDiscovery',
+        stage: 'coding',
+      },
+    ];
+    expect(() => parseScenario(source)).toThrow(/stageActionCountsSinceLast.*неизвестный/);
+  });
+
+  it('не считает в stageActionCountsSinceLast действия другого этапа', () => {
+    const source = structuredClone(defaultScenario);
+    const rule = source.rounds[0]?.eventRules[0];
+    if (!rule) throw new Error('В тестовом сценарии нет правила');
+    rule.stageActionCountsSinceLast = [
+      {
+        actionIds: ['review.risk-policy'],
+        minimum: 1,
+        sinceStage: 'technicalDiscovery',
+        stage: 'coding',
+      },
+    ];
+    expect(() => parseScenario(source)).toThrow(/действие относится к другому этапу/);
   });
 
   it('проверяет границы начальных показателей', () => {
@@ -266,12 +341,12 @@ describe('parseScenario', () => {
     expect(parseScenario(source).mechanics.stageStateEffectReasons).toBeUndefined();
   });
 
-  it('не превращает скорость написания кода в ускорение TTM', () => {
+  it('проверяет положительный TTM кодинга по следующим этапам', () => {
     expect(defaultScenario.mechanics.propertyEffects.automatedTests.deliverySpeed).toBeUndefined();
     expect(defaultScenario.mechanics.propertyEffects.currentContext.deliverySpeed).toBeUndefined();
-    const codingActions = Object.values(defaultScenario.stageActions).filter(
-      ({ stage }) => stage === 'coding',
-    );
-    expect(codingActions.every(({ effect }) => effect.deliverySpeed === undefined)).toBe(true);
+    expect(defaultScenario.stageActions['coding.parallel-agents']?.effect.deliverySpeed).toBe(2);
+    expect(
+      defaultScenario.mechanics.positiveEffectRequirements?.additionalStages?.deliverySpeed?.coding,
+    ).toEqual(['review', 'testing', 'deployment']);
   });
 });

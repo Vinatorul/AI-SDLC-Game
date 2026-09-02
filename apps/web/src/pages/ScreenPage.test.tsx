@@ -2,6 +2,7 @@ import type { GameState, MetricDefinition } from '@ai-sdlc/contracts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { StageMap } from '../components/StageMap';
 import { ScreenGameView } from './ScreenPage';
 
 beforeAll(() => {
@@ -40,6 +41,7 @@ describe('ScreenGameView', () => {
     expect(html).not.toContain('Ревью не успевает за кодом');
     expect(html).not.toContain('Изменения ждут проверки дольше, чем раньше.');
     expect(html).not.toContain('Старое решение');
+    expect(html).not.toContain('Скрытая активация для ведущего');
   });
 
   it('не уточняет вид голосования внутри общей фазы', () => {
@@ -56,6 +58,41 @@ describe('ScreenGameView', () => {
     expect(stageVoting).not.toContain('Выбираем этап');
     expect(actionVoting).not.toContain('Проверить код с AI');
     expect(actionResult).not.toContain('Проверить код с AI');
+  });
+
+  it('в итоговой карте отделяет рабочее AI-решение от последней доработки', () => {
+    const reviewProgress = {
+      activeAiAction: {
+        actionId: 'review.ai',
+        roundNumber: 1,
+        stage: 'review' as const,
+        title: 'Проверять риски с AI',
+      },
+      appliedActions: [
+        {
+          actionId: 'review.ai',
+          roundNumber: 1,
+          stage: 'review' as const,
+          title: 'Проверять риски с AI',
+        },
+        {
+          actionId: 'review.rules',
+          roundNumber: 5,
+          stage: 'review' as const,
+          title: 'Записать правила ревью',
+        },
+      ],
+      state: 'AI_ENABLED' as const,
+    };
+    const html = renderToStaticMarkup(
+      <StageMap
+        state={state({ phase: 'WON', stageProgress: { ...stageProgress, review: reviewProgress } })}
+      />,
+    );
+    expect(html).toContain('AI-решение');
+    expect(html).toContain('Проверять риски с AI');
+    expect(html).toContain('Последнее решение на этапе');
+    expect(html).toContain('Записать правила ревью');
   });
 });
 
@@ -133,6 +170,15 @@ const actionBallot: NonNullable<GameState['currentBallot']> = {
 };
 
 const eventRound: NonNullable<GameState['currentRound']> = {
+  activatedActions: [
+    {
+      actionId: 'review-with-ai',
+      completedByActionId: 'review-rules',
+      completedByTitle: 'Добавить правила ревью',
+      stage: 'review',
+      title: 'Скрытая активация для ведущего',
+    },
+  ],
   effectBreakdown: null,
   event: {
     description: 'Изменения ждут проверки дольше, чем раньше.',

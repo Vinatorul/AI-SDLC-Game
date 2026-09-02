@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { adminTokenKey } from '../api/storage';
+import { ActivatedActions } from '../components/ActivatedActions';
 import { GameFocus } from '../components/GameFocus';
 import { GameHeader } from '../components/GameHeader';
 import { Layout } from '../components/Layout';
@@ -83,6 +84,7 @@ function AdminGame({ code, game, token }: AdminGameProps) {
           <div>
             <GameFocus state={state} />
             <MetricChangeNotes state={state} />
+            <ActivatedActions state={state} />
             <StageMap state={state} />
           </div>
           <aside>
@@ -198,10 +200,7 @@ function MissingAdminToken({ code }: { code: string }) {
         <section className="entry-card">
           <p className="eyebrow">Комната {code}</p>
           <h1>Эта вкладка не может управлять игрой</h1>
-          <p>
-            Пульт работает только в браузере, где создали комнату. Откройте его там или начните
-            новую игру.
-          </p>
+          <p>Вернитесь во вкладку, где создали комнату, или начните новую игру.</p>
           <Link className="primary-button" to="/admin">
             Создать новую игру
           </Link>

@@ -209,7 +209,7 @@ function legacyStageReason(
 ) {
   const subject =
     item.state === 'BROKEN'
-      ? `«${stage}» всё ещё сломан.`
+      ? `Этап «${stage}» всё ещё сломан.`
       : `Этап «${stage}» остаётся в том же состоянии.`;
   return `${subject} Из-за этого метрика «${metric}» ${scoreVerb(effect)} ${scoreAmount(effect)}.`;
 }

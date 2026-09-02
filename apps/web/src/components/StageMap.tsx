@@ -32,7 +32,7 @@ function StageMapHeading({ compact, won }: { compact: boolean; won: boolean }) {
   return (
     <div className="section-heading">
       <p className="eyebrow">{won ? 'Итоговая карта' : 'Карта SDLC'}</p>
-      <h2>{won ? 'Что делает AI и что решает человек' : 'Что уже поменяли'}</h2>
+      <h2>{won ? 'Как теперь работает SDLC' : 'Что уже поменяли'}</h2>
     </div>
   );
 }
@@ -41,7 +41,6 @@ function StageCard({ index, showActions, stage, state }: StageCardProps) {
   const progress = state.stageProgress?.[stage];
   const stageState = progress?.state ?? state.stages[stage];
   const actions = progress?.appliedActions ?? [];
-  const visibleActions = state.phase === 'WON' ? actions.slice(-1) : actions.slice(-2);
   return (
     <article
       className={`stage-card stage-${stageState.toLowerCase()}${showActions ? '' : ' stage-card-compact'}`}
@@ -51,18 +50,46 @@ function StageCard({ index, showActions, stage, state }: StageCardProps) {
         <strong>{stageLabels[stage]}</strong>
         <small>{stageStateLabels[stageState]}</small>
       </span>
-      {showActions && visibleActions.length > 0 && (
-        <span className="stage-actions">
-          <small>
-            {state.phase === 'WON' ? 'Как теперь работает этап' : `Решений: ${actions.length}`}
-          </small>
-          {visibleActions.map((action) => (
-            <b key={`${action.roundNumber}:${action.actionId}`}>{action.title}</b>
-          ))}
-        </span>
+      {showActions && (
+        <StageActionSummary actions={actions} progress={progress} won={state.phase === 'WON'} />
       )}
     </article>
   );
+}
+
+function StageActionSummary({ actions, progress, won }: StageActionSummaryProps) {
+  if (actions.length === 0) return null;
+  if (!won) {
+    return (
+      <span className="stage-actions">
+        <small>Решений: {actions.length}</small>
+        {actions.slice(-2).map((action) => (
+          <b key={`${action.roundNumber}:${action.actionId}`}>{action.title}</b>
+        ))}
+      </span>
+    );
+  }
+  const active = progress?.activeAiAction;
+  const latest = actions.at(-1);
+  const lastChange = latest && !sameAction(latest, active) ? latest : null;
+  return (
+    <span className="stage-actions">
+      <small>{active ? 'AI-решение' : 'Последнее решение'}</small>
+      <b>{active?.title ?? latest?.title}</b>
+      {lastChange && <small>Последнее решение на этапе</small>}
+      {lastChange && <b>{lastChange.title}</b>}
+    </span>
+  );
+}
+
+type StageActionSummaryProps = {
+  actions: AppliedActionView[];
+  progress?: GameState['stageProgress'][StageKey];
+  won: boolean;
+};
+
+function sameAction(left?: AppliedActionView, right?: AppliedActionView | null) {
+  return left?.actionId === right?.actionId && left?.roundNumber === right?.roundNumber;
 }
 
 type StageCardProps = {

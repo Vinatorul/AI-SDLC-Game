@@ -189,6 +189,9 @@ it('позволяет вернуться к этапу, но скрывает �
   expect(
     state.stageProgress.technicalDiscovery.appliedActions.map(({ actionId }) => actionId),
   ).toEqual(['technicalDiscovery.code-research', 'technicalDiscovery.sync-docs-and-contract']);
+  expect(state.stageProgress.technicalDiscovery.activeAiAction?.actionId).toBe(
+    'technicalDiscovery.sync-docs-and-contract',
+  );
 });
 
 it('чинит сломанный этап следующим решением и сохраняет историю', async () => {
@@ -198,8 +201,10 @@ it('чинит сломанный этап следующим решением �
   let state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 0);
   expect(state.stageProgress.review.state).toBe('AS_IS');
   state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 6);
+  expect(state.stageProgress.review.state).toBe('AS_IS');
+  state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 12);
   expect(state.stageProgress.review.state).toBe('BROKEN');
-  state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 12);
+  state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 18);
   expect(state.stageProgress.review.state).toBe('AI_ENABLED');
   expect(state.stageProgress.review.appliedActions[0]?.actionId).toBe(
     'review.context-and-human-risk',
@@ -219,7 +224,7 @@ it('активирует установленный MCP после добавл�
     'businessRequest.feedback-mcp',
     0,
   );
-  expect(state.stages.businessRequest).toBe('BROKEN');
+  expect(state.stages.businessRequest).toBe('AS_IS');
   state = await playRound(
     app,
     game,
@@ -228,10 +233,48 @@ it('активирует установленный MCP после добавл�
     'businessRequest.outcome-metrics',
     6,
   );
-  expect(state.stages.businessRequest).toBe('AI_ENABLED');
-  expect(
-    state.stageProgress.businessRequest.appliedActions.map(({ actionId }) => actionId),
-  ).toEqual(['businessRequest.feedback-mcp', 'businessRequest.outcome-metrics']);
+  expectBusinessActivation(state);
+});
+
+it('показывает последнее из одновременно активированных AI-решений этапа', async () => {
+  const app = await testApp();
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  const actions: [StageKey, string][] = [
+    ['deployment', 'deployment.mcp-tooling'],
+    ['deployment', 'deployment.autonomous-after-tests'],
+    ['deployment', 'deployment.rollback-drill'],
+    ['support', 'support.telemetry-baseline'],
+    ['testing', 'testing.behavior-checks'],
+  ];
+  let state = game.state;
+  for (const [index, [stage, actionId]] of actions.entries()) {
+    state = await playRound(app, game, player, stage, actionId, index * 6);
+  }
+  expect(state.currentRound?.activatedActions).toHaveLength(2);
+  expect(state.stageProgress.deployment.activeAiAction?.actionId).toBe(
+    'deployment.autonomous-after-tests',
+  );
+});
+
+it('объясняет, почему поздняя активация не починила сломанный этап', async () => {
+  const app = await testApp(':memory:', scenarioWithBlockedActivation());
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  let state = await playBusinessAction(app, game, player, 'businessRequest.feedback-mcp', 0);
+  expect(state.stages.businessRequest).toBe('BROKEN');
+  state = await playBusinessAction(app, game, player, 'businessRequest.outcome-metrics', 6);
+  expect(state.stages.businessRequest).toBe('BROKEN');
+  expect(state.currentRound?.activatedActions).toEqual([]);
+  expect(state.currentRound?.blockedActivations).toEqual([
+    expect.objectContaining({
+      actionId: 'businessRequest.feedback-mcp',
+      completedByActionId: 'businessRequest.outcome-metrics',
+      completedByTitle: defaultScenario.stageActions['businessRequest.outcome-metrics']?.title,
+      reason: 'STAGE_BROKEN',
+      title: defaultScenario.stageActions['businessRequest.feedback-mcp']?.title,
+    }),
+  ]);
 });
 
 it('продолжает игру, пока все восемь этапов не станут зелёными', async () => {
@@ -288,19 +331,16 @@ describe('восстановление SQLite', () => {
     const first = await testApp(databasePath);
     const game = await createGame(first);
     const player = await joinGame(first, game.state.code, 'Ира');
-    await playRound(
-      first,
-      game,
-      player,
-      'technicalDiscovery',
-      'technicalDiscovery.code-research',
-      0,
-    );
+    await playRound(first, game, player, 'businessRequest', 'businessRequest.feedback-mcp', 0);
+    await playRound(first, game, player, 'businessRequest', 'businessRequest.outcome-metrics', 6);
     await closeTrackedApp(first);
     const second = await testApp(databasePath);
     const state = await getState(second, game.state.code);
-    expect(state.stageProgress.technicalDiscovery.appliedActions[0]?.actionId).toBe(
-      'technicalDiscovery.code-research',
+    expect(state.stageProgress.businessRequest.activeAiAction?.actionId).toBe(
+      'businessRequest.feedback-mcp',
+    );
+    expect(state.currentRound?.activatedActions?.[0]?.completedByActionId).toBe(
+      'businessRequest.outcome-metrics',
     );
     await closeTrackedApp(second);
     rmSync(directory, { force: true, recursive: true });
@@ -394,10 +434,11 @@ it('после перезапуска использует сохранённу�
     'technicalDiscovery.code-research',
     0,
   );
-  expect(state.metrics.quality).toBe(4);
+  expect(state.metrics.quality).toBe(3);
   expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 6);
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 12);
+  state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 18);
   expect(state.currentRound?.effectBreakdown?.pipeline?.deliverySpeed).toBe(-4);
   expect(state.currentRound?.effectBreakdown?.decision.deliverySpeed ?? 0).toBe(0);
   expect(state.metrics.deliverySpeed).toBe(-5);
@@ -538,6 +579,38 @@ async function openActionBallot(
   return { stageBallot, state };
 }
 
+function playBusinessAction(
+  app: FastifyInstance,
+  game: CreateGameResponse,
+  player: JoinGameResponse,
+  actionId: string,
+  version: number,
+) {
+  return playRound(app, game, player, 'businessRequest', actionId, version);
+}
+
+function expectBusinessActivation(state: GameState) {
+  const activation = state.currentRound?.activatedActions?.[0];
+  expect(state.stages.businessRequest).toBe('AI_ENABLED');
+  expect(activation).toMatchObject({
+    actionId: 'businessRequest.feedback-mcp',
+    completedByActionId: 'businessRequest.outcome-metrics',
+    stage: 'businessRequest',
+  });
+  expect(activation?.title).toBe(
+    defaultScenario.stageActions['businessRequest.feedback-mcp']?.title,
+  );
+  expect(activation?.completedByTitle).toBe(
+    defaultScenario.stageActions['businessRequest.outcome-metrics']?.title,
+  );
+  expect(state.stageProgress.businessRequest.activeAiAction?.actionId).toBe(
+    'businessRequest.feedback-mcp',
+  );
+  expect(
+    state.stageProgress.businessRequest.appliedActions.map(({ actionId }) => actionId),
+  ).toEqual(['businessRequest.feedback-mcp', 'businessRequest.outcome-metrics']);
+}
+
 async function playRound(
   app: FastifyInstance,
   game: CreateGameResponse,
@@ -582,10 +655,10 @@ function noRoundsScenario(): Scenario {
 
 const winningActions: [StageKey, string][] = [
   ['businessRequest', 'businessRequest.expected-outcome'],
-  ['testing', 'testing.ai-checks-with-qa'],
   ['productDiscovery', 'productDiscovery.requirement-draft'],
   ['technicalDiscovery', 'technicalDiscovery.code-research'],
   ['coding', 'coding.guided-implementation'],
+  ['testing', 'testing.ai-checks-with-qa'],
   ['review', 'review.context-and-human-risk'],
   ['deployment', 'deployment.human-approved-plan'],
   ['support', 'support.change-linked-signals'],
@@ -603,6 +676,19 @@ function scenarioWithContextQuality(quality: number): Scenario {
       stageStateEffects: { AI_ENABLED: {}, AS_IS: {}, BROKEN: { deliverySpeed: -2 } },
     },
   };
+}
+
+function scenarioWithBlockedActivation(): Scenario {
+  const scenario = structuredClone(defaultScenario);
+  const foundation = scenario.stageActions['businessRequest.outcome-metrics'];
+  if (!foundation?.stageTransitions) throw new Error('Нет переходов подготовительного решения');
+  foundation.stageTransitions.BROKEN = 'BROKEN';
+  const rule = scenario.rounds[0]?.eventRules.find(
+    ({ event }) => event.id === 'event-feedback-mcp-without-metrics',
+  );
+  if (!rule) throw new Error('Нет события для MCP без продуктовых метрик');
+  rule.event.stageChanges = [{ stage: 'businessRequest', state: 'BROKEN' }];
+  return scenario;
 }
 
 function scenarioWithOneStage(): Scenario {

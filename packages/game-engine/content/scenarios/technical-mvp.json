@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "technical-mvp",
-  "version": 16,
+  "version": 17,
   "contentStatus": "TECHNICAL_DRAFT",
   "decisionModel": "STAGE_ACTION_V2",
   "rules": {
@@ -109,7 +109,7 @@
     "businessRequest.production-signals": {
       "key": "A",
       "title": "Попросить AI сгруппировать похожие обращения",
-      "description": "AI собирает похожие обращения и отзывы в одну тему. Команда сверяет обращения внутри каждой темы и решает, какую проблему брать в работу.",
+      "description": "AI группирует похожие обращения и отзывы по темам. Команда сверяет обращения внутри каждой темы и решает, какую проблему брать в работу.",
       "stage": "businessRequest",
       "evidence": "SCENARIO",
       "shortFeedback": "Команда увидела повторяющиеся проблемы. Что брать в работу, она всё равно решает сама.",
@@ -164,7 +164,7 @@
     "businessRequest.feedback-mcp": {
       "key": "D",
       "title": "Дать AI доступ к обращениям и метрикам через MCP",
-      "description": "Через MCP AI получает обращения, отзывы и продуктовые метрики. Если метрик нет, он посчитает частые темы, но не отличит проблему, которая заметно влияет на продукт, от просто громкой.",
+      "description": "Через MCP AI получает обращения, отзывы и продуктовые метрики. Если метрик нет, он покажет только самые частые темы и не отличит важную для продукта проблему от просто громкой.",
       "stage": "businessRequest",
       "evidence": "SCENARIO",
       "shortFeedback": "Одних обращений мало. Нужны продуктовые метрики, чтобы понять, какая тема действительно влияет на продукт.",
@@ -183,7 +183,7 @@
       "evidence": "SCENARIO",
       "shortFeedback": "Продакт начинает не с пустого листа, но цель и критерии всё равно проверяет сам.",
       "effect": {
-        "controllability": 2,
+        "controllability": 1,
         "deliverySpeed": 1
       },
       "effectReasons": {
@@ -238,7 +238,7 @@
       "description": "Скилл помогает AI находить актуальные термины, примеры и прошлые решения. Если базу не обновлять, AI будет ссылаться на старые договорённости.",
       "stage": "productDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "Без актуальной базы скилл лишь быстрее принесёт AI старое решение.",
+      "shortFeedback": "Без актуальной базы AI через скилл лишь быстрее найдёт старое решение.",
       "activationRequirements": ["productDiscovery.knowledge-base"],
       "effect": {},
       "addProperties": [],
@@ -274,11 +274,11 @@
       "evidence": "SCENARIO",
       "shortFeedback": "AI быстро нашёл расхождения, а инженер проверил каждое и обновил устаревшие документы.",
       "effect": {
-        "quality": 2,
+        "quality": 1,
         "controllability": 1
       },
       "effectReasons": {
-        "quality": "Инженер нашёл и исправил расхождения между кодом, контрактами и описанием до разработки.",
+        "quality": "AI нашёл расхождения между кодом, контрактами и описанием, а инженер проверил и устранил их до разработки.",
         "controllability": "Инженер сверил план с текущим кодом, поэтому команда знает, какие модули и контракты действительно придётся менять."
       },
       "addProperties": ["currentContext"],
@@ -306,10 +306,10 @@
     "technicalDiscovery.ai-impact-analysis": {
       "key": "D",
       "title": "Дать AI проверить, что заденет изменение",
-      "description": "AI смотрит по карте, какие сервисы, контракты и команды затронет изменение. Если карта устарела, те же пробелы останутся и в его ответе.",
+      "description": "AI смотрит по карте, какие сервисы, контракты и команды затронет изменение. Если карта устарела, AI не увидит сервисы и контракты, которых на ней нет.",
       "stage": "technicalDiscovery",
       "evidence": "SCENARIO",
-      "shortFeedback": "С актуальной картой AI найдёт соседние системы. Устаревшую карту он не исправит — только повторит её пробелы.",
+      "shortFeedback": "С актуальной картой AI покажет соседние системы. Устаревшую карту он сам не дополнит.",
       "activationRequirements": ["technicalDiscovery.dependency-map"],
       "effect": {},
       "addProperties": [],
@@ -328,7 +328,7 @@
         "teamCapacity": 1
       },
       "effectReasons": {
-        "teamCapacity": "AI написал первый вариант кода, поэтому разработчик успел проверить его и не отложил следующую задачу."
+        "teamCapacity": "AI написал первый вариант кода, поэтому разработчик потратил меньше времени на черновик и оставил больше времени на другую работу."
       },
       "addProperties": ["humanReview"],
       "repeatable": true,
@@ -341,12 +341,12 @@
       "description": "AI получает описание задачи и меняет сервис, не проверив сначала, как на самом деле устроен его код.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Это быстро только пока описание совпадает с кодом. Неточность в документе превратится в переделку.",
+      "shortFeedback": "Пока описание не сверили с кодом, команда не знает, туда ли попало изменение.",
       "effect": {
-        "quality": -1
+        "controllability": -1
       },
       "effectReasons": {
-        "quality": "AI изменил сервис по непроверенному описанию, поэтому в коде мог появиться баг."
+        "controllability": "Команда начала с непроверенного описания и до проверки кода не знает, туда ли попало изменение."
       },
       "addProperties": [],
       "repeatable": false,
@@ -355,16 +355,18 @@
     },
     "coding.parallel-agents": {
       "key": "C",
-      "title": "Поручить изменение нескольким AI-агентам",
-      "description": "Несколько AI-агентов одновременно пишут разные части изменения. Разработчик собирает их вместе и проверяет всё изменение и стыки.",
+      "title": "Разделить изменение между несколькими AI-агентами",
+      "description": "Несколько AI-агентов одновременно пишут разные части изменения. Затем разработчику нужно собрать их вместе и проверить поведение на стыках.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Агенты быстро написали отдельные части. Собрать их и найти противоречия всё равно должен разработчик.",
+      "shortFeedback": "Код появился быстрее, но свести части и проверить их вместе всё равно должен разработчик.",
       "effect": {
-        "teamCapacity": -2
+        "deliverySpeed": 2,
+        "teamCapacity": -1
       },
       "effectReasons": {
-        "teamCapacity": "Разработчику пришлось сводить параллельные изменения и вручную проверять противоречия на стыках."
+        "deliverySpeed": "AI-агенты написали несколько частей одновременно, поэтому код был готов раньше.",
+        "teamCapacity": "Разработчик потратил время на сборку частей и проверку поведения на стыках."
       },
       "addProperties": [],
       "repeatable": false,
@@ -391,12 +393,12 @@
     "coding.repository-mcp": {
       "key": "E",
       "title": "Подключить AI к репозиторию через MCP",
-      "description": "Через MCP AI ищет по коду, запускает точечные тесты и читает логи сборки. Если задача непонятна, а надёжных тестов нет, он лишь быстрее сделает неправильное изменение.",
+      "description": "Через MCP AI ищет по коду, запускает точечные тесты и читает логи сборки. Для работы ему нужны согласованная задача, надёжные автотесты и те же команды, которые запускает CI.",
       "stage": "coding",
       "evidence": "SCENARIO",
-      "shortFeedback": "Самого доступа к репозиторию мало. AI должен получить точную цель и запустить тесты, которые поймают неправильное изменение.",
+      "shortFeedback": "Доступа к репозиторию мало: AI нужны согласованная задача, рабочие автотесты и команды CI.",
       "activationRequirements": [
-        "productDiscovery.knowledge-base",
+        "productDiscovery.requirement-draft",
         "testing.behavior-checks",
         "coding.project-checks"
       ],
@@ -408,8 +410,8 @@
     },
     "review.context-and-human-risk": {
       "key": "A",
-      "title": "Попросить AI объяснить изменение и отметить опасные места",
-      "description": "AI перечисляет изменённые файлы и контракты и отмечает соседний код, который может сломаться. Ревьюер проверяет эти места и сам решает, сливать изменение или нет.",
+      "title": "Попросить AI подготовить обзор изменения для ревьюера",
+      "description": "AI перечисляет изменённые файлы и контракты и отмечает соседний код, который может перестать работать. Ревьюер проверяет эти места и сам решает, сливать изменение или нет.",
       "stage": "review",
       "evidence": "SCENARIO",
       "shortFeedback": "AI отметил места, которые могут сломать продукт. Ревьюер проверил и их, и остальной код.",
@@ -428,18 +430,18 @@
     },
     "review.risk-based-evidence": {
       "key": "B",
-      "title": "Попросить AI найти изменения, которые могут сломать продукт",
-      "description": "AI отмечает опасные изменения контрактов, данных и критичных сценариев и прикладывает связанные тесты и код. Ревьюер перепроверяет эти места.",
+      "title": "Попросить AI приложить к рискам тесты и код",
+      "description": "AI отмечает изменения контрактов, данных и критичных сценариев и прикладывает к каждому риску связанные тесты и код. Ревьюер перепроверяет эти места.",
       "stage": "review",
       "evidence": "SCENARIO",
       "shortFeedback": "AI приложил к каждому замечанию тест, контракт или связанное изменение. Ревьюер начал с мест, где баг может дойти до пользователя.",
       "effect": {
-        "quality": 2,
-        "controllability": 1
+        "quality": 1,
+        "teamCapacity": 1
       },
       "effectReasons": {
         "quality": "Ревьюер проверил отмеченные изменения по тестам и контрактам до слияния.",
-        "controllability": "К каждому замечанию приложен тест, контракт или связанное изменение, поэтому ревьюер может проверить вывод AI."
+        "teamCapacity": "AI приложил к замечаниям нужные тесты и код, поэтому ревьюер не собирал подтверждения вручную."
       },
       "addProperties": ["humanReview"],
       "repeatable": false,
@@ -466,10 +468,10 @@
     "review.review-skill": {
       "key": "D",
       "title": "Собрать для AI скилл ревью по правилам команды",
-      "description": "В скилл записывают, какие изменения опасны, кого звать на ревью и какие результаты тестов приложить. Без правил ревью и рабочих автотестов AI будет спорить о мелочах и легко пропустит проблему.",
+      "description": "Скилл подсказывает AI, какие изменения опасны, кого позвать на ревью и какие результаты тестов приложить. Без правил AI не выберет нужную команду, а без автотестов не приложит результаты нужных тестов.",
       "stage": "review",
       "evidence": "SCENARIO",
-      "shortFeedback": "Без правил ревью и рабочих автотестов скилл не сможет ни позвать нужную команду, ни проверить изменение.",
+      "shortFeedback": "Без правил ревью AI не позовёт нужную команду, а без рабочих автотестов не приложит результаты проверки.",
       "activationRequirements": ["review.risk-policy", "testing.behavior-checks"],
       "effect": {},
       "addProperties": [],
@@ -480,19 +482,17 @@
     "testing.ai-checks-with-qa": {
       "key": "A",
       "title": "Попросить AI подготовить тесты, а QA — выбрать нужные",
-      "description": "AI готовит тесты под изменение. QA оставляет тесты на критичные сценарии и сверяет каждый с риском, указанным в задаче.",
+      "description": "AI готовит тесты под изменение. QA оставляет тесты на критичные сценарии и проверяет, что каждый из них покрывает критерий из задачи.",
       "stage": "testing",
       "evidence": "SCENARIO",
       "shortFeedback": "AI быстро собрал черновик, а QA оставил тесты на критичные сценарии и убрал тесты, добавленные ради количества.",
       "effect": {
-        "quality": 2,
         "deliverySpeed": 1
       },
       "effectReasons": {
-        "quality": "QA оставил тесты на критичные сценарии и проверил, что они относятся к рискам из задачи.",
-        "deliverySpeed": "AI подготовил черновик тестов, поэтому QA начал не с пустого листа."
+        "deliverySpeed": "AI подготовил черновик тестов, поэтому QA не писал их с нуля."
       },
-      "addProperties": ["automatedTests"],
+      "addProperties": [],
       "repeatable": false,
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
@@ -522,14 +522,12 @@
       "evidence": "SCENARIO",
       "shortFeedback": "AI обновил регрессионные тесты, а команда сверила новые ожидания с требованиями и не превратила баг в новую норму.",
       "effect": {
-        "quality": 3,
-        "deliverySpeed": 1
+        "teamCapacity": 1
       },
       "effectReasons": {
-        "quality": "Команда сверила новые ожидания с требованиями и не позволила тестам считать баг правильным поведением.",
-        "deliverySpeed": "AI обновил регрессионные тесты вместе с изменением, поэтому ручной работы стало меньше."
+        "teamCapacity": "AI обновил регрессионные тесты, поэтому команда не переписывала их вручную."
       },
-      "addProperties": ["automatedTests"],
+      "addProperties": [],
       "repeatable": false,
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
@@ -542,14 +540,12 @@
       "evidence": "SCENARIO",
       "shortFeedback": "AI показал, какие критичные сценарии не проверены. Команда добавила тесты и задержала релиз.",
       "effect": {
-        "quality": 2,
         "deliverySpeed": -1
       },
       "effectReasons": {
-        "quality": "AI нашёл критичный сценарий без теста, и команда добавила автотест до релиза.",
         "deliverySpeed": "Команда остановила релиз, чтобы добавить недостающие тесты."
       },
-      "addProperties": ["automatedTests"],
+      "addProperties": [],
       "repeatable": false,
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
@@ -557,10 +553,10 @@
     "testing.test-generation-skill": {
       "key": "E",
       "title": "Собрать для AI скилл генерации тестов",
-      "description": "В скилл записывают правила написания тестов и примеры, которые уже ловят баги. Если в проекте есть такие автотесты и актуальные требования, AI сможет дописывать похожие проверки. Иначе он начнёт штамповать тесты ради количества.",
+      "description": "В скилл записывают правила и примеры тестов, которые уже ловят баги. С рабочими автотестами и актуальными продуктовыми решениями AI добавит похожие тесты; без них — тесты ради количества.",
       "stage": "testing",
       "evidence": "SCENARIO",
-      "shortFeedback": "Без рабочих автотестов и актуальных требований AI будет только увеличивать число бесполезных тестов.",
+      "shortFeedback": "Без рабочих автотестов и актуальных продуктовых решений AI будет только увеличивать число бесполезных тестов.",
       "activationRequirements": ["productDiscovery.knowledge-base", "testing.behavior-checks"],
       "effect": {},
       "addProperties": [],
@@ -577,7 +573,7 @@
       "shortFeedback": "AI заранее подготовил план релиза и отката. Инженер проверил оба и сам запустил релиз.",
       "effect": {
         "deliverySpeed": 1,
-        "controllability": 2
+        "controllability": 1
       },
       "effectReasons": {
         "deliverySpeed": "AI заранее собрал шаги релиза и отката, поэтому подготовка заняла меньше времени.",
@@ -590,7 +586,7 @@
     },
     "deployment.autonomous-after-tests": {
       "key": "B",
-      "title": "Разрешить AI запускать релиз, если тесты прошли и правила разрешают",
+      "title": "Разрешить AI запускать релиз по правилам команды",
       "description": "AI сверяет тип изменения и результаты тестов с правилами автоматического релиза. Если правила разрешают запуск, AI запускает релиз без подтверждения человека.",
       "stage": "deployment",
       "evidence": "SCENARIO",
@@ -601,16 +597,16 @@
         "support.telemetry-baseline"
       ],
       "effect": {
-        "deliverySpeed": 3,
-        "controllability": -2
+        "deliverySpeed": 2,
+        "controllability": -1
       },
       "effectReasons": {
         "deliverySpeed": "Изменение прошло заданные тесты и вышло без ожидания ручного запуска.",
         "controllability": "AI применил правила автоматического релиза и запустил его без подтверждения инженера."
       },
       "addProperties": [],
-      "repeatable": false,
-      "availableInStates": ["AS_IS", "AI_ENABLED"],
+      "repeatable": true,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
     },
     "deployment.fix-with-rollback-plan": {
@@ -621,12 +617,12 @@
       "evidence": "SCENARIO",
       "shortFeedback": "AI подготовил исправление и откат одновременно. Инженер проверил оба и запустил релиз, не дожидаясь отдельного плана отката.",
       "effect": {
-        "deliverySpeed": 1,
-        "quality": 2
+        "quality": 1,
+        "teamCapacity": -1
       },
       "effectReasons": {
-        "deliverySpeed": "AI подготовил исправление и откат параллельно, поэтому команде не пришлось вручную собирать план релиза.",
-        "quality": "Инженер проверил исправление и подготовил рабочий откат."
+        "quality": "Инженер проверил исправление и команды отката перед новым релизом.",
+        "teamCapacity": "Команда потратила время на проверку исправления и команд отката."
       },
       "addProperties": ["rollback"],
       "repeatable": false,
@@ -653,10 +649,10 @@
     "deployment.mcp-tooling": {
       "key": "E",
       "title": "Подключить AI к пайплайну через MCP",
-      "description": "MCP даёт AI результаты тестов, команды запуска релиза и отката, а после релиза — логи и метрики новой версии. Для работы нужны надёжные тесты, проверенный откат и версия релиза во всех сигналах. Запуск остаётся у инженера.",
+      "description": "Через MCP AI получает результаты тестов, готовит команды релиза и отката, а после запуска читает логи и метрики с номером релиза. Запуск подтверждает инженер.",
       "stage": "deployment",
       "evidence": "SCENARIO",
-      "shortFeedback": "Одного MCP мало: без тестов, рабочего отката и логов с версией AI не сможет подготовить релиз.",
+      "shortFeedback": "Одного MCP мало: без тестов, рабочего отката и номера релиза в логах и метриках AI не сможет подготовить релиз.",
       "activationRequirements": [
         "testing.behavior-checks",
         "deployment.rollback-drill",
@@ -670,20 +666,13 @@
     },
     "support.change-linked-signals": {
       "key": "A",
-      "title": "Попросить AI найти релиз, после которого начался инцидент",
-      "description": "AI сопоставляет начало инцидента с логами, метриками и недавними релизами. Инженер проверяет связь с найденным релизом и выбирает изменение для разбора.",
+      "title": "Попросить AI сопоставить инцидент с историей релизов",
+      "description": "AI сравнивает начало инцидента с логами, метриками и историей релизов. Инженер проверяет найденную связь. Если в сигналах нет номера релиза, данные придётся сначала собрать вручную.",
       "stage": "support",
       "evidence": "SCENARIO",
-      "shortFeedback": "AI указал на конкретный релиз, а инженер сверил время начала инцидента с логами и метриками.",
-      "effect": {
-        "controllability": 2,
-        "teamCapacity": 1
-      },
-      "effectReasons": {
-        "controllability": "AI указал на конкретный релиз, а инженер подтвердил связь по логам и метрикам.",
-        "teamCapacity": "Инженеру не пришлось вручную сопоставлять данные из нескольких систем."
-      },
-      "addProperties": ["observability"],
+      "shortFeedback": "AI сузит список релизов даже по ручной выгрузке. Номер релиза в сигналах уберёт ручной сбор данных.",
+      "effect": {},
+      "addProperties": [],
       "repeatable": true,
       "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
       "resultingStageState": "AI_ENABLED"
@@ -704,20 +693,18 @@
     },
     "support.autonomous-fix": {
       "key": "C",
-      "title": "Разрешить AI самому исправлять и запускать релиз",
+      "title": "Разрешить AI самому исправить баг и запустить релиз",
       "description": "AI выбирает вероятную причину, меняет код и сам запускает релиз — без ревью и проверки исправления человеком.",
       "stage": "support",
       "evidence": "SCENARIO",
       "shortFeedback": "AI может запустить релиз сразу, но баг в его изменении так же быстро попадёт в прод.",
       "effect": {
-        "deliverySpeed": 3,
-        "controllability": -1,
-        "quality": -1
+        "deliverySpeed": 2,
+        "controllability": -2
       },
       "effectReasons": {
         "deliverySpeed": "AI сам нашёл вероятную причину, изменил код и сразу запустил релиз.",
-        "controllability": "AI запустил релиз сам, инженер его не подтверждал.",
-        "quality": "Изменение не прошло ревью и проверку человеком перед продом."
+        "controllability": "AI выбрал исправление и запустил релиз без ревью и подтверждения инженера."
       },
       "addProperties": [],
       "repeatable": false,
@@ -751,49 +738,89 @@
       "eventRules": [
         {
           "actionIds": ["coding.change-from-description"],
-          "missingResultingProperty": "currentContext",
+          "hasAppliedActions": ["testing.behavior-checks"],
+          "missingAppliedActions": [
+            "technicalDiscovery.code-research",
+            "technicalDiscovery.sync-docs-and-contract"
+          ],
           "event": {
-            "id": "event-stale-description",
-            "title": "AI изменил сервис по старому описанию",
-            "description": "Описание сервиса не совпало с кодом. AI выбрал неверное место для правки, поэтому команде пришлось переделать изменение и заново разобраться в сервисе.",
+            "id": "event-stale-description-caught-by-tests",
+            "title": "Автотесты остановили неверное изменение",
+            "description": "Описание сервиса устарело, и AI изменил не тот модуль. Автотесты показали, что нужное поведение не изменилось, поэтому разработчик остановил работу и переписал код.",
             "evidence": "SCENARIO",
             "effect": {
               "deliverySpeed": -1,
-              "quality": -3,
-              "controllability": -2,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "deliverySpeed": "Переделка задержала релиз.",
-              "quality": "Изменение не совпало с реальным устройством сервиса и сломало ожидаемое поведение.",
-              "controllability": "Команда узнала о расхождении только после готового изменения и потеряла понятный план.",
-              "teamCapacity": "Разработчикам пришлось заново разбирать сервис и переделывать код."
+              "deliverySpeed": "Автотесты остановили изменение, и разработчик переписал код до релиза.",
+              "teamCapacity": "Разработчик заново разобрал сервис и переделал неверный код."
             },
             "stageChanges": [
               {
-                "stage": "technicalDiscovery",
-                "state": "BROKEN"
+                "stage": "coding",
+                "state": "AS_IS"
               }
             ]
           }
         },
         {
-          "actionIds": ["businessRequest.production-signals"],
-          "missingResultingProperty": "observability",
+          "actionIds": ["coding.change-from-description"],
+          "hasAppliedActions": ["review.risk-policy"],
+          "missingAppliedActions": [
+            "technicalDiscovery.code-research",
+            "technicalDiscovery.sync-docs-and-contract"
+          ],
           "event": {
-            "id": "event-production-feedback-without-signals",
-            "title": "AI сгруппировал обращения, но не связал их с релизом",
-            "description": "AI собрал похожие обращения, но без продуктовых метрик и номера версии в логах не смог связать их с конкретным релизом. Поддержка продолжила вручную сопоставлять обращения, логи и релизы.",
+            "id": "event-stale-description-caught-in-review",
+            "title": "Ревьюер остановил изменение не в том модуле",
+            "description": "Описание сервиса устарело, и AI изменил не тот модуль. Правила ревью потребовали проверить затронутые контракты. Ревьюер заметил неверный план и вернул код на доработку.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "deliverySpeed": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "У команды остался список симптомов без подтверждённой причины.",
-              "teamCapacity": "Поддержке пришлось вручную сопоставлять обращения, логи и релизы."
+              "deliverySpeed": "Ревьюер вернул неверное изменение на доработку, поэтому релиз задержался.",
+              "teamCapacity": "Разработчик заново разобрал сервис и переписал неверный код."
             },
-            "stageChanges": []
+            "stageChanges": [
+              {
+                "stage": "coding",
+                "state": "AS_IS"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["coding.change-from-description"],
+          "missingAppliedActions": [
+            "technicalDiscovery.code-research",
+            "technicalDiscovery.sync-docs-and-contract"
+          ],
+          "event": {
+            "id": "event-stale-description-reached-next-stage",
+            "title": "AI изменил не тот модуль, и баг прошёл дальше",
+            "description": "Описание сервиса устарело, а команда не сверила его с кодом. AI изменил не тот модуль, разработчик принял результат, и баг дошёл до следующего этапа.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": -1,
+              "quality": -2,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "deliverySpeed": "Неверное изменение вернули на доработку после следующей проверки.",
+              "quality": "AI изменил не тот модуль, а разработчик пропустил баг в готовом коде.",
+              "controllability": "Команда приняла изменение, не сверив описание с текущим кодом.",
+              "teamCapacity": "Разработчик заново разобрал сервис и переписал код."
+            },
+            "stageChanges": [
+              {
+                "stage": "coding",
+                "state": "BROKEN"
+              }
+            ]
           }
         },
         {
@@ -801,21 +828,29 @@
           "missingAppliedActions": ["businessRequest.outcome-metrics"],
           "event": {
             "id": "event-feedback-mcp-without-metrics",
-            "title": "AI принял самую частую тему за самую важную",
-            "description": "MCP передал AI обращения, но не продуктовые метрики. AI отсортировал темы только по частоте, поэтому команда выбрала проблему по числу обращений. После сверки с продуктовыми метриками приоритеты пришлось пересобрать.",
+            "title": "AI отсортировал обращения только по частоте",
+            "description": "MCP передал AI обращения, но продуктовых метрик ещё не было. Команда не стала принимать его рейтинг и выбрала приоритет вручную. AI пока не участвует в выборе задачи.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "controllability": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "Приоритет выбрали по числу обращений, а не по влиянию на продукт.",
-              "teamCapacity": "Команда повторно разбирала обращения и пересобирала приоритеты после сверки с продуктовыми метриками."
+              "controllability": "Без продуктовых метрик у команды не было данных, чтобы сравнить влияние разных тем на продукт.",
+              "teamCapacity": "Команда вручную сопоставила обращения и выбрала приоритет."
+            },
+            "repeatEffectReasons": {
+              "controllability": "Без продуктовых метрик у команды не было данных, чтобы сравнить влияние разных тем на продукт.",
+              "teamCapacity": "Команда вручную сопоставила обращения и выбрала приоритет."
             },
             "stageChanges": [
               {
                 "stage": "businessRequest",
-                "state": "BROKEN"
+                "state": "AS_IS"
               }
             ]
           }
@@ -832,9 +867,17 @@
               "quality": -1,
               "controllability": -2
             },
+            "repeatEffect": {
+              "quality": -1,
+              "controllability": -2
+            },
             "effectReasons": {
               "quality": "Команда спроектировала поведение по отменённой договорённости, поэтому результат не совпал с актуальным продуктовым решением.",
-              "controllability": "Команда не знает, какой найденный документ ещё действует, а какой уже отменён."
+              "controllability": "Без единой актуальной базы команда приняла старый документ за действующее решение."
+            },
+            "repeatEffectReasons": {
+              "quality": "Команда спроектировала поведение по отменённой договорённости, поэтому результат не совпал с актуальным продуктовым решением.",
+              "controllability": "Без единой актуальной базы команда приняла старый документ за действующее решение."
             },
             "stageChanges": [
               {
@@ -846,7 +889,7 @@
         },
         {
           "actionIds": ["coding.repository-mcp"],
-          "missingAppliedActions": ["productDiscovery.knowledge-base"],
+          "missingAppliedActions": ["productDiscovery.requirement-draft"],
           "event": {
             "id": "event-repository-mcp-without-context",
             "title": "AI изменил не тот модуль",
@@ -856,7 +899,15 @@
               "quality": -2,
               "controllability": -1
             },
+            "repeatEffect": {
+              "quality": -2,
+              "controllability": -1
+            },
             "effectReasons": {
+              "quality": "Изменение попало не в тот модуль и не решило задачу.",
+              "controllability": "Разработчик не может сверить решение с незаписанными ограничениями задачи."
+            },
+            "repeatEffectReasons": {
               "quality": "Изменение попало не в тот модуль и не решило задачу.",
               "controllability": "Разработчик не может сверить решение с незаписанными ограничениями задачи."
             },
@@ -873,21 +924,29 @@
           "missingAppliedActions": ["testing.behavior-checks"],
           "event": {
             "id": "event-repository-mcp-without-tests",
-            "title": "AI написал код, который нечем проверить",
-            "description": "MCP позволил AI изменить код и запустить команды проекта, но надёжных автотестов не было. Баг нашли только после того, как разработчик начал проверять готовое изменение.",
+            "title": "Разработчик нашёл баг при ручной проверке",
+            "description": "MCP позволил AI изменить код, но надёжных автотестов не было. Разработчик проверил готовое изменение вручную, нашёл баг и не отправил код дальше.",
             "evidence": "SCENARIO",
             "effect": {
-              "quality": -2,
+              "deliverySpeed": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "quality": "Без автотестов баг остался в готовом изменении.",
+              "deliverySpeed": "Ручная проверка и переделка задержали готовое изменение.",
+              "teamCapacity": "Разработчику пришлось вручную искать баг и переделывать код."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Ручная проверка и переделка задержали готовое изменение.",
               "teamCapacity": "Разработчику пришлось вручную искать баг и переделывать код."
             },
             "stageChanges": [
               {
                 "stage": "coding",
-                "state": "BROKEN"
+                "state": "AS_IS"
               }
             ]
           }
@@ -897,21 +956,29 @@
           "missingAppliedActions": ["coding.project-checks"],
           "event": {
             "id": "event-repository-mcp-without-project-checks",
-            "title": "AI не смог запустить сборку и тесты так же, как CI",
-            "description": "В проекте не было единых команд сборки и тестов. AI видел код через MCP, но проверял его не так, как затем проверяет CI.",
+            "title": "CI остановил изменение после других проверок",
+            "description": "В проекте не было единых команд сборки и тестов. AI проверил изменение своими командами, но CI запустил другие и остановил сборку. Команда вернулась к ручной работе.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "deliverySpeed": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "AI запустил другие команды: у него сборка и тесты прошли, а в CI — нет.",
+              "deliverySpeed": "CI остановил готовое изменение, и команде пришлось повторить проверки.",
+              "teamCapacity": "Команде пришлось вручную разбираться, почему команды AI и CI дали разный результат."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "CI остановил готовое изменение, и команде пришлось повторить проверки.",
               "teamCapacity": "Команде пришлось вручную разбираться, почему команды AI и CI дали разный результат."
             },
             "stageChanges": [
               {
                 "stage": "coding",
-                "state": "BROKEN"
+                "state": "AS_IS"
               }
             ]
           }
@@ -921,15 +988,23 @@
           "missingAppliedActions": ["review.risk-policy"],
           "event": {
             "id": "event-review-skill-without-policy",
-            "title": "AI проверил оформление, но не позвал команду затронутого сервиса",
-            "description": "В скилле не было правила, что критичный контракт должна проверить команда, отвечающая за затронутый сервис. AI оставил замечания по оформлению, но не позвал нужного ревьюера.",
+            "title": "AI не позвал нужного ревьюера, и баг прошёл дальше",
+            "description": "В скилле не было правила звать команду, которая отвечает за затронутый сервис. AI проверил оформление, но пропустил баг в критичном контракте. Изменение слили без нужного ревьюера.",
             "evidence": "SCENARIO",
             "effect": {
               "quality": -2,
               "controllability": -1
             },
+            "repeatEffect": {
+              "quality": -2,
+              "controllability": -1
+            },
             "effectReasons": {
-              "quality": "AI пропустил изменение критичного контракта, потому что не знал, что команда считает риском.",
+              "quality": "Баг в критичном контракте прошёл дальше без проверки команды, которая отвечает за сервис.",
+              "controllability": "В правилах ревью не было указано, какие изменения должна проверить команда затронутого сервиса."
+            },
+            "repeatEffectReasons": {
+              "quality": "Баг в критичном контракте прошёл дальше без проверки команды, которая отвечает за сервис.",
               "controllability": "В правилах ревью не было указано, какие изменения должна проверить команда затронутого сервиса."
             },
             "stageChanges": [
@@ -952,7 +1027,15 @@
               "quality": -2,
               "deliverySpeed": -1
             },
+            "repeatEffect": {
+              "quality": -2,
+              "deliverySpeed": -1
+            },
             "effectReasons": {
+              "quality": "Без автотестов AI не проверил поведение и пропустил баг в изменении.",
+              "deliverySpeed": "Когда баг нашли, изменение вернули на ревью, и ревьюер заново проверил выводы AI и весь код."
+            },
+            "repeatEffectReasons": {
               "quality": "Без автотестов AI не проверил поведение и пропустил баг в изменении.",
               "deliverySpeed": "Когда баг нашли, изменение вернули на ревью, и ревьюер заново проверил выводы AI и весь код."
             },
@@ -965,25 +1048,57 @@
           }
         },
         {
-          "actionIds": ["support.incident-mcp"],
+          "actionIds": ["support.change-linked-signals"],
           "missingAppliedActions": ["support.telemetry-baseline"],
           "event": {
-            "id": "event-incident-mcp-without-signals",
-            "title": "AI не смог связать логи с релизом",
-            "description": "MCP открыл AI доступ к логам и метрикам, но в них не было номера версии. AI не смог привязать начало инцидента к релизу, поэтому инженеры вручную сравнивали время инцидента со временем релизов.",
+            "id": "event-release-search-without-version",
+            "title": "Инженер собрал данные для AI вручную",
+            "description": "В логах и метриках не было номера релиза. Инженер выгрузил сигналы и историю релизов вручную, AI сузил список, а инженер проверил найденную связь.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
               "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "Инженеры не могут подтвердить причину инцидента по разрозненным логам и метрикам.",
-              "teamCapacity": "Инженеры вручную сопоставляли логи, метрики и время релизов."
+              "teamCapacity": "Инженер вручную собрал данные из логов, метрик и истории релизов."
+            },
+            "repeatEffectReasons": {
+              "teamCapacity": "Инженер вручную собрал данные из логов, метрик и истории релизов."
             },
             "stageChanges": [
               {
                 "stage": "support",
-                "state": "BROKEN"
+                "state": "AI_ENABLED"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["support.incident-mcp"],
+          "missingAppliedActions": ["support.telemetry-baseline"],
+          "event": {
+            "id": "event-incident-mcp-without-signals",
+            "title": "MCP передал данные без номера релиза",
+            "description": "MCP открыл AI доступ к логам, метрикам и трассировкам, но в них не было номера релиза. Инженер собрал историю релизов отдельно и продолжил разбор вручную. AI пока не участвует в разборе инцидента.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "teamCapacity": "Инженер отдельно собрал историю релизов и вручную сопоставил её с данными инцидента."
+            },
+            "repeatEffectReasons": {
+              "teamCapacity": "Инженер отдельно собрал историю релизов и вручную сопоставил её с данными инцидента."
+            },
+            "stageChanges": [
+              {
+                "stage": "support",
+                "state": "AS_IS"
               }
             ]
           }
@@ -994,7 +1109,51 @@
             "coding.change-from-description",
             "coding.parallel-agents"
           ],
-          "missingResultingProperty": "automatedTests",
+          "stageActionCountsSinceLast": [
+            {
+              "stage": "coding",
+              "sinceStage": "technicalDiscovery",
+              "actionIds": [
+                "coding.guided-implementation",
+                "coding.change-from-description",
+                "coding.parallel-agents"
+              ],
+              "minimum": 1,
+              "maximum": 1
+            }
+          ],
+          "event": {
+            "id": "event-code-without-technical-context",
+            "title": "Инженеры снова разбирались в связях между модулями",
+            "description": "После последней технической проработки код уже меняли. Перед новой правкой инженерам пришлось заново проверить, какие модули и сервисы связаны между собой.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "controllability": "После предыдущей правки команда уже не могла опираться на старый технический план.",
+              "teamCapacity": "Инженеры повторно проверили связи в уже изменённом коде."
+            },
+            "repeatEffectReasons": {
+              "controllability": "После предыдущей правки команда уже не могла опираться на старый технический план.",
+              "teamCapacity": "Инженеры повторно проверили связи в уже изменённом коде."
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "missingProperty": "automatedTests",
+          "missingAppliedActions": ["review.risk-policy"],
           "appliedActionCounts": [
             {
               "actionIds": [
@@ -1002,25 +1161,37 @@
                 "coding.change-from-description",
                 "coding.parallel-agents"
               ],
-              "minimum": 1
+              "minimum": 2
             }
           ],
           "event": {
-            "id": "event-code-outpaces-checks",
-            "title": "Код накопился в очереди на ревью и тесты",
-            "description": "Команда снова ускорила написание кода с AI, но не добавила автотесты и не выделила больше времени на ревью и QA. Новые изменения пришли быстрее, чем их успели проверить: на ревью и тестировании выросла очередь.",
+            "id": "event-code-outpaces-review-and-tests",
+            "title": "В ревью и тестировании скопились очереди",
+            "description": "Команда в третий раз ускорила написание кода с AI, но не подготовила рабочие автотесты и правила ревью. Изменения накопились в обеих очередях, часть проверок прошла поверхностно, и баги ушли дальше.",
             "evidence": "SCENARIO",
             "effect": {
               "deliverySpeed": -2,
               "quality": -2,
-              "controllability": -2,
+              "controllability": -1,
+              "teamCapacity": -2
+            },
+            "repeatEffect": {
+              "deliverySpeed": -2,
+              "quality": -2,
+              "controllability": -1,
               "teamCapacity": -2
             },
             "effectReasons": {
-              "deliverySpeed": "AI добавлял код быстрее, чем ревьюеры и QA успевали его проверять. Очередь на ревью и тестирование выросла, поэтому путь до релиза стал дольше.",
-              "quality": "Из-за растущей очереди часть изменений проверили поверхностно, и баги прошли дальше.",
-              "controllability": "В очереди смешались готовые и ещё не проверенные изменения, поэтому команда перестала понимать, что действительно можно отправлять в релиз.",
-              "teamCapacity": "Ревьюеры и QA переключились на разбор очереди AI-изменений и перестали успевать плановую работу."
+              "deliverySpeed": "В ревью и тестировании скопились очереди, поэтому путь до релиза стал дольше.",
+              "quality": "Часть изменений проверили поверхностно, и баги прошли дальше.",
+              "controllability": "Команда перестала понимать, какие изменения полностью проверены и готовы к релизу.",
+              "teamCapacity": "Ревьюеры и QA разбирали очередь вместо плановой работы."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "В ревью и тестировании скопились очереди, поэтому путь до релиза стал дольше.",
+              "quality": "Часть изменений проверили поверхностно, и баги прошли дальше.",
+              "controllability": "Команда перестала понимать, какие изменения полностью проверены и готовы к релизу.",
+              "teamCapacity": "Ревьюеры и QA разбирали очередь вместо плановой работы."
             },
             "stageChanges": [
               {
@@ -1035,16 +1206,122 @@
           }
         },
         {
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "missingProperty": "automatedTests",
+          "hasAppliedActions": ["review.risk-policy"],
+          "appliedActionCounts": [
+            {
+              "actionIds": [
+                "coding.guided-implementation",
+                "coding.change-from-description",
+                "coding.parallel-agents"
+              ],
+              "minimum": 2
+            }
+          ],
+          "event": {
+            "id": "event-code-outpaces-tests",
+            "title": "В тестировании скопилась очередь",
+            "description": "Правила ревью помогли разобрать изменения, но рабочих автотестов не было. К третьему AI-изменению в тестировании выросла очередь, и QA пропустил баг в одном из критичных сценариев.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": -2,
+              "quality": -1,
+              "teamCapacity": -2
+            },
+            "repeatEffect": {
+              "deliverySpeed": -2,
+              "quality": -1,
+              "teamCapacity": -2
+            },
+            "effectReasons": {
+              "deliverySpeed": "В тестировании скопилась очередь, поэтому путь до релиза стал дольше.",
+              "quality": "Из-за очереди QA пропустил баг в критичном сценарии.",
+              "teamCapacity": "QA разбирал очередь AI-изменений вместо плановой работы."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "В тестировании скопилась очередь, поэтому путь до релиза стал дольше.",
+              "quality": "Из-за очереди QA пропустил баг в критичном сценарии.",
+              "teamCapacity": "QA разбирал очередь AI-изменений вместо плановой работы."
+            },
+            "stageChanges": [
+              {
+                "stage": "testing",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": [
+            "coding.guided-implementation",
+            "coding.change-from-description",
+            "coding.parallel-agents"
+          ],
+          "hasProperty": "automatedTests",
+          "missingAppliedActions": ["review.risk-policy"],
+          "appliedActionCounts": [
+            {
+              "actionIds": [
+                "coding.guided-implementation",
+                "coding.change-from-description",
+                "coding.parallel-agents"
+              ],
+              "minimum": 2
+            }
+          ],
+          "event": {
+            "id": "event-code-outpaces-review",
+            "title": "На ревью скопилась очередь",
+            "description": "Автотесты проверили известные сценарии, но у команды не было правил для критичных контрактов и ответственных команд. К третьему AI-изменению на ревью скопилась очередь, и баг в контракте не заметили до слияния.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "deliverySpeed": -1,
+              "quality": -1,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
+              "quality": -1,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "deliverySpeed": "Очередь на ревью задержала готовые изменения.",
+              "quality": "Без правил ревью баг в контракте не заметили до слияния.",
+              "controllability": "Команда не назначила обязательную проверку критичных контрактов.",
+              "teamCapacity": "Ревьюеры разбирали очередь вместо плановой работы."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Очередь на ревью задержала готовые изменения.",
+              "quality": "Без правил ревью баг в контракте не заметили до слияния.",
+              "controllability": "Команда не назначила обязательную проверку критичных контрактов.",
+              "teamCapacity": "Ревьюеры разбирали очередь вместо плановой работы."
+            },
+            "stageChanges": [
+              {
+                "stage": "review",
+                "state": "BROKEN"
+              }
+            ]
+          }
+        },
+        {
           "actionIds": ["coding.parallel-agents"],
-          "missingResultingProperty": "humanReview",
+          "missingAppliedActions": ["review.risk-policy"],
           "event": {
             "id": "event-parallel-work-without-review",
             "title": "Изменение собрали из частей, но целиком не проверили",
-            "description": "Каждый AI-агент закончил свою часть, но разработчик не проверил собранное изменение целиком. Противоречие между модулями осталось незамеченным.",
+            "description": "Каждый AI-агент закончил свою часть, но разработчик не проверил собранное изменение целиком. Части по-разному использовали один контракт, и общий сценарий перестал работать.",
             "evidence": "SCENARIO",
             "effect": {
               "quality": -2,
-              "controllability": -2
+              "controllability": -1
             },
             "effectReasons": {
               "quality": "Части изменения не совпали на стыке и сломали общее поведение.",
@@ -1064,47 +1341,91 @@
           "event": {
             "id": "event-manual-review-queue",
             "title": "Ревьюер вручную перепроверял выводы AI",
-            "description": "AI отметил места для проверки, но рабочих тестов не было. Ревьюер прошёл по связанному коду вручную; ревью затянулось, а часть багов всё равно осталась незамеченной.",
+            "description": "AI отметил места для проверки, но рабочих автотестов не было. Ревьюер вручную прошёл по связанному коду и задержал слияние, чтобы не пропустить баг.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -2,
-              "quality": -2
+              "deliverySpeed": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
+              "teamCapacity": -1
             },
             "effectReasons": {
-              "deliverySpeed": "Без автотестов ревьюер проверял каждый сценарий вручную, и слияние задержалось.",
-              "quality": "Даже после ручной проверки часть багов осталась незамеченной."
+              "deliverySpeed": "Без автотестов ревьюер проверял критичные сценарии вручную, и слияние задержалось.",
+              "teamCapacity": "Ревьюер потратил время на ручную проверку поведения, которое могли бы проверить автотесты."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Без автотестов ревьюер проверял критичные сценарии вручную, и слияние задержалось.",
+              "teamCapacity": "Ревьюер потратил время на ручную проверку поведения, которое могли бы проверить автотесты."
             },
             "stageChanges": []
           }
         },
         {
-          "actionIds": [
-            "testing.ai-checks-with-qa",
-            "testing.regression-maintenance",
-            "testing.release-checks"
-          ],
-          "missingResultingProperty": "currentContext",
+          "actionIds": ["testing.ai-checks-with-qa"],
+          "missingAppliedActions": ["productDiscovery.requirement-draft"],
           "event": {
-            "id": "event-tests-use-old-context",
-            "title": "Тесты написали не на то поведение",
-            "description": "AI подготовил тесты по устаревшему описанию. Тесты приняли баг в актуальном сценарии за правильное поведение. Продукт и разработка спорят, что система должна делать, а тесты приходится переписывать.",
+            "id": "event-ai-tests-without-task-criteria",
+            "title": "QA отклонил тесты: в задаче не было критериев",
+            "description": "В задаче не было согласованных критериев готовности. AI подготовил тесты по своей трактовке, а QA не нашёл в задаче ожидаемого поведения и отклонил черновик. Команда продолжила писать тесты вручную.",
             "evidence": "SCENARIO",
             "effect": {
               "deliverySpeed": -1,
-              "quality": -2,
-              "controllability": -2,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "deliverySpeed": "Команда остановила работу и переписывала тесты под согласованное поведение.",
-              "quality": "Тесты проверяли устаревшее ожидание и пропустили баг в актуальном сценарии.",
-              "controllability": "Продукт и разработка не договорились, какой результат считать правильным.",
-              "teamCapacity": "Команде пришлось спорить об ожиданиях и переписывать тесты."
+              "deliverySpeed": "QA отклонил черновик, и тесты пришлось писать заново после уточнения задачи.",
+              "teamCapacity": "QA разобрал неподходящие тесты, а затем команда подготовила новые вручную."
             },
             "stageChanges": [
               {
                 "stage": "testing",
-                "state": "BROKEN"
+                "state": "AS_IS"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["testing.regression-maintenance"],
+          "missingAppliedActions": ["productDiscovery.knowledge-base"],
+          "event": {
+            "id": "event-regression-tests-without-current-decisions",
+            "title": "AI добавил в тесты отменённое поведение",
+            "description": "Актуальные продуктовые решения не были собраны в одном месте. AI обновил регрессионные тесты по старому документу, а команда заметила отменённое поведение и переписала тесты вручную.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "teamCapacity": "Команда нашла в тестах отменённое поведение и вручную переписала их по актуальному решению."
+            },
+            "stageChanges": [
+              {
+                "stage": "testing",
+                "state": "AS_IS"
+              }
+            ]
+          }
+        },
+        {
+          "actionIds": ["testing.release-checks"],
+          "missingAppliedActions": ["testing.behavior-checks"],
+          "event": {
+            "id": "event-release-checks-without-baseline",
+            "title": "Перед релизом пришлось вручную сверить критичные сценарии",
+            "description": "Критичные пользовательские сценарии не были записаны. AI собрал результаты тестов, но без этого списка не показал, каких автотестов не хватает. Команда остановила релиз и составила список вручную.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "teamCapacity": -1
+            },
+            "effectReasons": {
+              "teamCapacity": "Команда вручную составила список критичных сценариев и сопоставила его с тестами."
+            },
+            "stageChanges": [
+              {
+                "stage": "testing",
+                "state": "AS_IS"
               }
             ]
           }
@@ -1115,14 +1436,22 @@
           "event": {
             "id": "event-test-skill-without-baseline",
             "title": "Тестов стало больше, но критичные сценарии остались без проверки",
-            "description": "В проекте не было рабочих автотестов, на которые мог опереться скилл. AI повторил несвязанные примеры, но ни один из них не проверял критичные сценарии. Критичный баг остался незамеченным.",
+            "description": "В проекте не было рабочих автотестов, на которые мог опереться скилл. AI написал тесты по разрозненным примерам, но ни один не проверил критичный сценарий. Баг остался незамеченным.",
             "evidence": "SCENARIO",
             "effect": {
               "quality": -2,
               "controllability": -2
             },
+            "repeatEffect": {
+              "quality": -2,
+              "controllability": -2
+            },
             "effectReasons": {
-              "quality": "Критичный баг не попал ни в один сгенерированный тест и остался незамеченным.",
+              "quality": "Сгенерированные тесты не проверили критичный сценарий и пропустили баг.",
+              "controllability": "Тестов стало больше, но команда не может понять, проверяют ли они критичные сценарии."
+            },
+            "repeatEffectReasons": {
+              "quality": "Сгенерированные тесты не проверили критичный сценарий и пропустили баг.",
               "controllability": "Тестов стало больше, но команда не может понять, проверяют ли они критичные сценарии."
             },
             "stageChanges": [
@@ -1139,13 +1468,21 @@
           "event": {
             "id": "event-test-skill-without-context",
             "title": "AI закрепил в тестах неверное поведение",
-            "description": "AI умел писать тесты, но команда не записала ожидаемое поведение. AI принял свою догадку за требование, поэтому новый тест падает на правильном поведении.",
+            "description": "Актуальные продуктовые решения не были собраны в одном месте. AI взял ожидание из старого документа, поэтому новый тест падает на правильном поведении.",
             "evidence": "SCENARIO",
             "effect": {
               "quality": -2,
               "controllability": -1
             },
+            "repeatEffect": {
+              "quality": -2,
+              "controllability": -1
+            },
             "effectReasons": {
+              "quality": "AI взял отменённое ожидание из старого документа, поэтому тест закрепил неверное поведение.",
+              "controllability": "Команда не может доверять новому тесту, пока не сверит каждое ожидание вручную."
+            },
+            "repeatEffectReasons": {
               "quality": "AI закрепил в тесте свою догадку вместо согласованного поведения.",
               "controllability": "Команда не может доверять новому тесту, пока не сверит каждое ожидание вручную."
             },
@@ -1166,12 +1503,24 @@
             "description": "Автотесты не покрывали критичные сценарии, но правило автоматического релиза всё равно разрешило запуск. AI отправил в прод изменение с багом.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -3,
+              "deliverySpeed": -2,
               "quality": -3,
-              "controllability": -2,
+              "controllability": -1,
+              "teamCapacity": -2
+            },
+            "repeatEffect": {
+              "deliverySpeed": -2,
+              "quality": -3,
+              "controllability": -1,
               "teamCapacity": -2
             },
             "effectReasons": {
+              "deliverySpeed": "Баг попал в прод, и время ушло не на новый релиз, а на срочное исправление.",
+              "quality": "Ни один тест не проверил критичный сценарий, поэтому пользователи получили сломанное поведение.",
+              "controllability": "Правила разрешили AI запустить релиз, хотя ни один тест не проверил критичные сценарии.",
+              "teamCapacity": "Команда бросила плановую работу и занялась инцидентом и исправлением."
+            },
+            "repeatEffectReasons": {
               "deliverySpeed": "Баг попал в прод, и время ушло не на новый релиз, а на срочное исправление.",
               "quality": "Ни один тест не проверил критичный сценарий, поэтому пользователи получили сломанное поведение.",
               "controllability": "Правила разрешили AI запустить релиз, хотя ни один тест не проверил критичные сценарии.",
@@ -1194,12 +1543,24 @@
             "description": "После релиза начался инцидент, а проверенного отката не было. Команда вручную готовила откат, пока пользователи продолжали сталкиваться с багом.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -3,
-              "quality": -3,
-              "controllability": -2,
-              "teamCapacity": -2
+              "deliverySpeed": -2,
+              "quality": -2,
+              "controllability": -1,
+              "teamCapacity": -3
+            },
+            "repeatEffect": {
+              "deliverySpeed": -2,
+              "quality": -2,
+              "controllability": -1,
+              "teamCapacity": -3
             },
             "effectReasons": {
+              "deliverySpeed": "Ручной откат занял больше времени, потому что готового сценария не было.",
+              "quality": "Пользователи дольше оставались на версии с багом.",
+              "controllability": "У команды не было проверенного плана отката.",
+              "teamCapacity": "Инженерам пришлось вручную готовить и проводить откат вместо плановой работы."
+            },
+            "repeatEffectReasons": {
               "deliverySpeed": "Ручной откат занял больше времени, потому что готового сценария не было.",
               "quality": "Пользователи дольше оставались на версии с багом.",
               "controllability": "У команды не было проверенного плана отката.",
@@ -1218,20 +1579,32 @@
           "missingAppliedActions": ["support.telemetry-baseline"],
           "event": {
             "id": "event-autonomous-release-without-signals",
-            "title": "Об инциденте узнали от пользователей",
-            "description": "AI запустил релиз, но в логах и метриках не было номера версии. Команда узнала об инциденте только из обращений пользователей и вручную искала релиз, после которого он начался.",
+            "title": "Команда вручную искала релиз, после которого начался инцидент",
+            "description": "Мониторинг показал ухудшение, но в логах и метриках не было номера релиза. Инженеры вручную сравнивали время релизов и сигналов, пока инцидент продолжался.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -3,
+              "deliverySpeed": -2,
               "quality": -2,
-              "controllability": -2,
-              "teamCapacity": -2
+              "controllability": -1,
+              "teamCapacity": -3
+            },
+            "repeatEffect": {
+              "deliverySpeed": -2,
+              "quality": -2,
+              "controllability": -1,
+              "teamCapacity": -3
             },
             "effectReasons": {
-              "deliverySpeed": "Ухудшение заметили поздно, поэтому исправление тоже вышло позже.",
-              "quality": "Инцидент затронул пользователей раньше, чем команда начала реагировать.",
-              "controllability": "Логи и метрики не содержали номер версии, поэтому команда не заметила ухудшение сразу после релиза.",
-              "teamCapacity": "Инженеры разбирали обращения и вручную искали релиз, после которого всё началось."
+              "deliverySpeed": "Ручной поиск нужного релиза задержал исправление.",
+              "quality": "Пользователи сталкивались с багом, пока инженеры сопоставляли инцидент с релизами.",
+              "controllability": "В логах и метриках не было номера релиза, поэтому AI не связал ухудшение с конкретным изменением.",
+              "teamCapacity": "Инженеры вручную сравнивали время релизов и сигналов вместо плановой работы."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Ручной поиск нужного релиза задержал исправление.",
+              "quality": "Пользователи сталкивались с багом, пока инженеры сопоставляли инцидент с релизами.",
+              "controllability": "В логах и метриках не было номера релиза, поэтому AI не связал ухудшение с конкретным изменением.",
+              "teamCapacity": "Инженеры вручную сравнивали время релизов и сигналов вместо плановой работы."
             },
             "stageChanges": [
               {
@@ -1250,10 +1623,20 @@
             "description": "MCP дал AI доступ к пайплайну релиза. Сборка и имеющиеся автотесты прошли, но критичные сценарии остались без тестов. Команда остановила релиз.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2
+              "deliverySpeed": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
+              "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "Зелёный статус показывал только сборку и имеющиеся автотесты, поэтому команда не знала, можно ли запускать релиз."
+              "deliverySpeed": "Команда остановила релиз и сначала добавила автотесты на критичные сценарии.",
+              "teamCapacity": "Инженерам пришлось вручную определить, какие сценарии ещё не проверены."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Команда остановила релиз и сначала добавила автотесты на критичные сценарии.",
+              "teamCapacity": "Инженерам пришлось вручную определить, какие сценарии ещё не проверены."
             },
             "stageChanges": [
               {
@@ -1272,10 +1655,18 @@
             "description": "AI собрал шаги релиза, но проверенного отката не было. Инженерам пришлось вручную готовить его перед запуском.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "controllability": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
+              "controllability": "План релиза не содержит проверенного отката.",
+              "teamCapacity": "Команде пришлось вручную готовить откат перед релизом."
+            },
+            "repeatEffectReasons": {
               "controllability": "План релиза не содержит проверенного отката.",
               "teamCapacity": "Команде пришлось вручную готовить откат перед релизом."
             },
@@ -1292,16 +1683,24 @@
           "missingAppliedActions": ["support.telemetry-baseline"],
           "event": {
             "id": "event-deploy-mcp-without-signals",
-            "title": "В логах и метриках не было номера новой версии",
-            "description": "Инженер запустил релиз, но логи и метрики не содержали номера новой версии. AI не смог связать признаки инцидента и изменения метрик с этим релизом, поэтому команда проверяла состояние продукта вручную.",
+            "title": "В логах и метриках не было номера релиза",
+            "description": "Инженер запустил релиз, но в логах и метриках не было его номера. AI не связал состояние продукта с этим релизом, поэтому команда вручную сравнила сигналы до и после запуска.",
             "evidence": "SCENARIO",
             "effect": {
-              "controllability": -2,
+              "controllability": -1,
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "controllability": -1,
               "teamCapacity": -1
             },
             "effectReasons": {
-              "controllability": "Без номера версии в логах и метриках AI не смог связать изменения после релиза с новой версией.",
-              "teamCapacity": "Команде пришлось вручную проверять состояние продукта после релиза."
+              "controllability": "Без номера релиза в логах и метриках AI не связал новые сигналы с запущенным изменением.",
+              "teamCapacity": "Команда вручную сравнила логи и метрики до и после релиза."
+            },
+            "repeatEffectReasons": {
+              "controllability": "Без номера релиза в логах и метриках AI не связал новые сигналы с запущенным изменением.",
+              "teamCapacity": "Команда вручную сравнила логи и метрики до и после релиза."
             },
             "stageChanges": [
               {
@@ -1313,23 +1712,23 @@
         },
         {
           "actionIds": ["support.autonomous-fix"],
-          "missingResultingProperty": "observability",
+          "missingAppliedActions": ["support.telemetry-baseline"],
           "event": {
             "id": "event-no-observability",
-            "title": "Сервис снова отвечает, но команда не знает почему",
-            "description": "AI запустил релиз с исправлением без достаточных логов и метрик. Сервис снова отвечает, но команда не знает, исправлен ли баг или его симптомы исчезли только на время.",
+            "title": "Сервис снова отвечает, но исправление не подтверждено",
+            "description": "AI запустил релиз с исправлением, но в логах и метриках не было номера релиза. Команда не отделила сигналы до и после изменения и не подтвердила, что баг исправлен, а не исчез на время.",
             "evidence": "SCENARIO",
             "effect": {
-              "deliverySpeed": -3,
+              "deliverySpeed": -2,
               "quality": -2,
-              "controllability": -2,
-              "teamCapacity": -2
+              "controllability": -1,
+              "teamCapacity": -3
             },
             "effectReasons": {
-              "deliverySpeed": "Без данных команда не знает, завершать работу или готовить ещё одно исправление.",
-              "quality": "Команда не может проверить, исправлен ли баг или сервис восстановился только на время.",
-              "controllability": "После релиза нет логов и метрик, по которым команда могла бы проверить исправление.",
-              "teamCapacity": "Инженеры вручную проверяли сервис и продолжали искать причину инцидента."
+              "deliverySpeed": "Инженеры вручную сравнивали сигналы и отложили решение, нужно ли ещё одно исправление.",
+              "quality": "Без сигналов, привязанных к релизу, команда не подтвердила, что баг исправлен.",
+              "controllability": "В логах и метриках не было номера релиза, поэтому их нельзя было связать с исправлением.",
+              "teamCapacity": "Инженеры вручную сопоставляли время релиза, логи и метрики."
             },
             "stageChanges": [
               {
@@ -1340,60 +1739,33 @@
           }
         },
         {
-          "actionIds": [
-            "coding.guided-implementation",
-            "coding.change-from-description",
-            "coding.parallel-agents"
-          ],
-          "appliedActionCount": {
-            "minimum": 6
-          },
-          "stageActionCounts": [
-            {
-              "stage": "coding",
-              "minimum": 2
-            },
-            {
-              "stage": "technicalDiscovery",
-              "maximum": 1
-            }
-          ],
-          "event": {
-            "id": "event-code-without-technical-context",
-            "title": "Инженерам пришлось заново разбираться в связях между модулями",
-            "description": "Код уже меняли несколько раз, а связи и зависимости не обновляли. Перед следующей задачей инженерам пришлось заново разбираться, как устроена система.",
-            "evidence": "SCENARIO",
-            "effect": {
-              "controllability": -1,
-              "teamCapacity": -1
-            },
-            "effectReasons": {
-              "controllability": "После нескольких изменений карта связей устарела, и стало трудно предсказывать последствия следующей правки.",
-              "teamCapacity": "Инженерам пришлось заново разбирать зависимости уже изменённого кода."
-            },
-            "stageChanges": []
-          }
-        },
-        {
           "actionIds": ["technicalDiscovery.ai-impact-analysis"],
           "missingAppliedActions": ["technicalDiscovery.dependency-map"],
           "event": {
             "id": "event-impact-graph-missing",
-            "title": "AI не учёл соседний сервис",
-            "description": "Команда не подготовила карту зависимостей. AI не включил соседний сервис в план, поэтому инженеру пришлось вручную искать затронутые системы и переделывать технический план.",
+            "title": "Инженер дополнил технический план вручную",
+            "description": "Карты зависимостей не было, и AI не включил соседний сервис в план. Инженер проверил связи по коду, добавил сервис и закончил техническую проработку вручную. AI пока не участвует в этой работе.",
             "evidence": "SCENARIO",
             "effect": {
               "deliverySpeed": -1,
-              "controllability": -2
+              "teamCapacity": -1
+            },
+            "repeatEffect": {
+              "deliverySpeed": -1,
+              "teamCapacity": -1
             },
             "effectReasons": {
               "deliverySpeed": "Инженеру пришлось вручную искать затронутые сервисы и переделывать технический план.",
-              "controllability": "Без карты зависимостей команда не могла проверить, все ли затронутые сервисы попали в план."
+              "teamCapacity": "Инженер вручную проверил связи по коду и дополнил план."
+            },
+            "repeatEffectReasons": {
+              "deliverySpeed": "Инженеру пришлось вручную искать затронутые сервисы и переделывать технический план.",
+              "teamCapacity": "Инженер вручную проверил связи по коду и дополнил план."
             },
             "stageChanges": [
               {
                 "stage": "technicalDiscovery",
-                "state": "BROKEN"
+                "state": "AS_IS"
               }
             ]
           }
@@ -1402,15 +1774,10 @@
           "actionIds": ["businessRequest.production-signals"],
           "event": {
             "id": "event-production-signals-in-request",
-            "title": "Команда добавила повторяющуюся проблему в следующую задачу",
-            "description": "AI собрал похожие обращения в одну тему. Команда сверила обращения внутри темы и добавила повторяющуюся проблему в критерии следующей задачи.",
+            "title": "Команда выбрала повторяющуюся проблему для следующей задачи",
+            "description": "AI собрал похожие обращения в одну тему. Команда сверила их и добавила повторяющуюся проблему в описание следующей задачи.",
             "evidence": "SCENARIO",
-            "effect": {
-              "quality": 1
-            },
-            "effectReasons": {
-              "quality": "Повторяющаяся проблема из реальных обращений вошла в критерии задачи."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1421,12 +1788,7 @@
             "title": "Заказчик подтвердил цель и способ проверки",
             "description": "AI собрал цель, ограничения и способ проверки в один черновик. Заказчик поправил его и подтвердил, что именно должно измениться.",
             "evidence": "SCENARIO",
-            "effect": {
-              "controllability": 1
-            },
-            "effectReasons": {
-              "controllability": "Заказчик и команда подтвердили одну цель и один способ проверить результат."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1448,7 +1810,12 @@
             "title": "AI связал обращения с продуктовыми метриками",
             "description": "Через MCP AI сопоставил темы из обращений с продуктовыми метриками. Команда сравнила их влияние и выбрала одну проблему для работы.",
             "evidence": "SCENARIO",
-            "effect": {},
+            "effect": {
+              "controllability": 1
+            },
+            "effectReasons": {
+              "controllability": "Приоритет подтверждён и обращениями, и продуктовыми метриками."
+            },
             "stageChanges": []
           }
         },
@@ -1459,12 +1826,7 @@
             "title": "Продакт подготовил задачу к разработке",
             "description": "Продакт проверил черновик AI, поправил цель и условия и подтвердил критерии готовности.",
             "evidence": "SCENARIO",
-            "effect": {
-              "controllability": 1
-            },
-            "effectReasons": {
-              "controllability": "Продакт проверил цель и критерии готовности до передачи задачи разработке."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1475,12 +1837,7 @@
             "title": "Пользователи не поняли один шаг в прототипе",
             "description": "Пользователи не поняли один из шагов в прототипе. Команда поправила сценарий до начала разработки.",
             "evidence": "SCENARIO",
-            "effect": {
-              "quality": 1
-            },
-            "effectReasons": {
-              "quality": "Пользователи указали на непонятный шаг, и команда исправила его до разработки."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1502,26 +1859,34 @@
             "title": "AI нашёл действующее продуктовое решение",
             "description": "Через скилл AI нашёл ответ в актуальной базе и показал источник. Продакт проверил документ, а не поверил готовому ответу.",
             "evidence": "SCENARIO",
+            "effect": {
+              "teamCapacity": 1
+            },
+            "effectReasons": {
+              "teamCapacity": "AI нашёл решение и источник, поэтому продакт не собирал прошлые договорённости вручную."
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["technicalDiscovery.code-research"],
+          "event": {
+            "id": "event-code-links-checked",
+            "title": "Инженер проверил связи, найденные AI",
+            "description": "AI перечислил связанные с задачей модули, вызовы и контракты. Инженер проверил их по коду и оставил в плане только подтверждённые связи.",
+            "evidence": "SCENARIO",
             "effect": {},
             "stageChanges": []
           }
         },
         {
-          "actionIds": [
-            "technicalDiscovery.code-research",
-            "technicalDiscovery.sync-docs-and-contract"
-          ],
+          "actionIds": ["technicalDiscovery.sync-docs-and-contract"],
           "event": {
-            "id": "event-plan-checked-against-code",
-            "title": "Инженер убрал из плана несуществующие связи",
-            "description": "AI перечислил связанные с задачей модули, вызовы и контракты. Инженер сверил их с кодом и убрал из плана связи, которых в системе не оказалось.",
+            "id": "event-docs-and-contracts-updated",
+            "title": "Инженер обновил устаревшие документы",
+            "description": "AI сравнил код, контракты и описание. Инженер проверил найденные несоответствия и обновил устаревшие документы до начала разработки.",
             "evidence": "SCENARIO",
-            "effect": {
-              "quality": 1
-            },
-            "effectReasons": {
-              "quality": "Инженер убрал из плана предположения, которые не подтвердились в коде."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1582,10 +1947,15 @@
           "actionIds": ["coding.repository-mcp"],
           "event": {
             "id": "event-repository-mcp-ready",
-            "title": "AI нашёл код и сам запустил точечные тесты",
+            "title": "AI нашёл нужные файлы и запустил точечные тесты",
             "description": "Через MCP AI нашёл нужные файлы, запустил точечные тесты и приложил их результаты. Разработчик проверил и изменение, и вывод команд.",
             "evidence": "SCENARIO",
-            "effect": {},
+            "effect": {
+              "teamCapacity": 1
+            },
+            "effectReasons": {
+              "teamCapacity": "AI сам нашёл нужные файлы и запустил проверки, поэтому разработчик не собирал их вручную."
+            },
             "stageChanges": []
           }
         },
@@ -1596,12 +1966,7 @@
             "title": "Ревьюер нашёл баг в месте, которое отметил AI",
             "description": "AI отметил участок, где изменение могло задеть соседний код. Ревьюер проверил его и нашёл баг до слияния.",
             "evidence": "SCENARIO",
-            "effect": {
-              "quality": 1
-            },
-            "effectReasons": {
-              "quality": "Ревьюер проверил место, на которое указал AI, и нашёл баг до слияния."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1623,27 +1988,63 @@
             "title": "AI позвал нужного ревьюера",
             "description": "AI применил правила из скилла, приложил результаты тестов и позвал на ревью команду, которая отвечает за затронутый сервис. Решение о слиянии принял ревьюер.",
             "evidence": "SCENARIO",
-            "effect": {},
+            "effect": {
+              "teamCapacity": 1
+            },
+            "effectReasons": {
+              "teamCapacity": "AI собрал подтверждения и выбрал ревьюера, поэтому автор изменения не делал это вручную."
+            },
             "stageChanges": []
           }
         },
         {
-          "actionIds": [
-            "testing.ai-checks-with-qa",
-            "testing.regression-maintenance",
-            "testing.release-checks"
-          ],
+          "actionIds": ["testing.ai-checks-with-qa"],
           "event": {
-            "id": "event-test-found-error",
-            "title": "Автотест упал на изменении до релиза",
-            "description": "Команда увидела, что изменение ломает ожидаемое поведение, и исправила код до релиза.",
+            "id": "event-ai-tests-checked-by-qa",
+            "title": "QA оставил тесты на критичные сценарии",
+            "description": "AI подготовил черновик тестов. QA сверил их с критериями задачи, убрал проверки ради количества и оставил тесты, которые ловят баги в критичных сценариях.",
             "evidence": "SCENARIO",
             "effect": {
               "quality": 1
             },
             "effectReasons": {
-              "quality": "Команда увидела упавший тест и исправила баг до релиза."
+              "quality": "QA оставил тесты, которые проверяют критичные сценарии из задачи."
             },
+            "addProperties": ["automatedTests"],
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["testing.regression-maintenance"],
+          "event": {
+            "id": "event-regression-tests-updated",
+            "title": "AI обновил регрессионные тесты вместе с продуктом",
+            "description": "AI обновил регрессионные тесты по актуальным продуктовым решениям. Команда проверила новые ожидания и не приняла баг за правильное поведение.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "quality": 1
+            },
+            "effectReasons": {
+              "quality": "Команда сверила новые ожидания с актуальными решениями и не закрепила баг в тестах."
+            },
+            "addProperties": ["automatedTests"],
+            "stageChanges": []
+          }
+        },
+        {
+          "actionIds": ["testing.release-checks"],
+          "event": {
+            "id": "event-release-test-gaps-closed",
+            "title": "Команда добавила недостающие тесты до релиза",
+            "description": "AI сопоставил критичные сценарии с результатами тестов. Команда добавила недостающие автотесты и только после этого разрешила релиз.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "controllability": 1
+            },
+            "effectReasons": {
+              "controllability": "Перед релизом команда увидела непроверенные критичные сценарии и добавила для них автотесты."
+            },
+            "addProperties": ["automatedTests"],
             "stageChanges": []
           }
         },
@@ -1665,7 +2066,12 @@
             "title": "AI написал тесты по правилам команды",
             "description": "AI использовал правила команды, рабочие примеры и актуальное описание поведения. Он добавил тесты, а QA сверил их с ожидаемым поведением и оставил нужные.",
             "evidence": "SCENARIO",
-            "effect": {},
+            "effect": {
+              "deliverySpeed": 1
+            },
+            "effectReasons": {
+              "deliverySpeed": "AI применил готовые правила и примеры, поэтому черновик тестов появился быстрее."
+            },
             "stageChanges": []
           }
         },
@@ -1676,12 +2082,7 @@
             "title": "Инженер проверил релиз и откат",
             "description": "AI подготовил план релиза и отката. Инженер проверил оба сценария и сам запустил релиз.",
             "evidence": "SCENARIO",
-            "effect": {
-              "controllability": 1
-            },
-            "effectReasons": {
-              "controllability": "Инженер заранее проверил шаги релиза и рабочий откат."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1689,15 +2090,10 @@
           "actionIds": ["deployment.autonomous-after-tests"],
           "event": {
             "id": "event-auto-release-completed",
-            "title": "AI сам запустил релиз после успешных тестов и проверки правил",
-            "description": "Правила автоматического релиза разрешили запуск для этого изменения. AI дождался успешных тестов и запустил релиз без подтверждения инженера.",
+            "title": "AI запустил релиз по правилам команды",
+            "description": "Правила автоматического релиза разрешили запуск для этого изменения. AI дождался успешных тестов, запустил релиз и проверил привязанные к нему логи и метрики. Проверенный откат был готов заранее.",
             "evidence": "SCENARIO",
-            "effect": {
-              "deliverySpeed": 1
-            },
-            "effectReasons": {
-              "deliverySpeed": "Изменение прошло тесты и вышло без ожидания ручного запуска."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1706,14 +2102,9 @@
           "event": {
             "id": "event-rollback-ready",
             "title": "Инженер запустил релиз с готовым откатом",
-            "description": "AI подготовил исправление и откат. Инженер проверил оба и запустил релиз. Если инцидент повторится, можно сразу запустить откат.",
+            "description": "AI подготовил исправление и откат. Инженер проверил оба сценария и запустил релиз с уже готовыми командами отката.",
             "evidence": "SCENARIO",
-            "effect": {
-              "teamCapacity": 1
-            },
-            "effectReasons": {
-              "teamCapacity": "Если инцидент повторится, инженерам не придётся заново собирать команды и права для отката."
-            },
+            "effect": {},
             "stageChanges": []
           }
         },
@@ -1733,9 +2124,14 @@
           "event": {
             "id": "event-deploy-mcp-ready",
             "title": "AI подготовил релиз через MCP",
-            "description": "AI получил результаты тестов, подготовил план релиза и отката и после запуска проверил логи и метрики новой версии. Инженер проверил план и сам запустил релиз.",
+            "description": "AI получил результаты тестов, подготовил план релиза и отката и после запуска проверил логи и метрики этого релиза. Инженер проверил план и сам запустил релиз.",
             "evidence": "SCENARIO",
-            "effect": {},
+            "effect": {
+              "controllability": 1
+            },
+            "effectReasons": {
+              "controllability": "Инженер получил в одном месте результаты тестов, план релиза, откат и данные этого релиза."
+            },
             "stageChanges": []
           }
         },
@@ -1759,14 +2155,14 @@
           "actionIds": ["support.incident-mcp"],
           "event": {
             "id": "event-incident-mcp-ready",
-            "title": "AI связал данные инцидента и релизы через MCP",
-            "description": "AI сопоставил логи, трассировки и недавние релизы. Инженер проверил данные и подтвердил причину инцидента без ручного поиска по разным системам.",
+            "title": "AI сопоставил данные инцидента с историей релизов через MCP",
+            "description": "AI сопоставил логи, трассировки и недавние релизы. Инженер проверил данные и выбрал изменение для дальнейшего разбора без ручного поиска по разным системам.",
             "evidence": "SCENARIO",
             "effect": {
               "teamCapacity": 1
             },
             "effectReasons": {
-              "teamCapacity": "AI сопоставил логи, трассировки и последние релизы, поэтому инженеру не пришлось искать их вручную."
+              "teamCapacity": "AI собрал логи, трассировки и историю релизов, поэтому инженеру не пришлось искать их в разных системах."
             },
             "stageChanges": []
           }
@@ -1787,7 +2183,7 @@
           "event": {
             "id": "event-telemetry-linked",
             "title": "Команда добавила номер релиза в логи и метрики",
-            "description": "Команда добавила номер релиза в логи, метрики и трассировки. При следующем инциденте инженер сможет проверить, после какого релиза началась проблема. AI пока не участвует.",
+            "description": "Команда добавила номер релиза в логи, метрики и трассировки. При следующем инциденте инженер сможет проверить, после какого релиза он начался. AI пока не участвует.",
             "evidence": "SCENARIO",
             "effect": {},
             "stageChanges": []
@@ -1796,8 +2192,8 @@
         {
           "event": {
             "id": "event-fallback",
-            "title": "Дополнительной переделки не понадобилось",
-            "description": "Команда выполнила выбранное решение, и после него ничего не пришлось чинить или переделывать.",
+            "title": "Команда продолжила работу по плану",
+            "description": "Выбранное решение не потребовало дополнительной переделки.",
             "evidence": "SCENARIO",
             "effect": {},
             "stageChanges": []

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS game_rounds (
   tied_option_ids_json TEXT NOT NULL DEFAULT '[]',
   shown_event_json TEXT,
   pending_plan_json TEXT,
+  activated_actions_json TEXT NOT NULL DEFAULT '[]',
   applied_at TEXT,
   UNIQUE(game_id, round_number)
 );

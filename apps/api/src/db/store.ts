@@ -30,6 +30,7 @@ export type GameRow = {
 };
 
 export type RoundRow = {
+  activated_actions_json: string;
   applied_at: string | null;
   event_rules_json: string;
   game_id: string;
@@ -70,6 +71,7 @@ export type GamePatch = Partial<
 export type RoundPatch = Partial<
   Pick<
     RoundRow,
+    | 'activated_actions_json'
     | 'applied_at'
     | 'pending_plan_json'
     | 'selected_option_id'
@@ -210,7 +212,8 @@ export function persistGameTransition(database: GameDatabase, game: GameRow, pat
 
 export function persistRound(database: GameDatabase, round: RoundRow, patch: RoundPatch) {
   const sql = `UPDATE game_rounds SET selected_option_id = ?, tied_option_ids_json = ?,
-    shown_event_json = ?, pending_plan_json = ?, applied_at = ? WHERE id = ?`;
+    shown_event_json = ?, pending_plan_json = ?, activated_actions_json = ?, applied_at = ?
+    WHERE id = ?`;
   database
     .prepare(sql)
     .run(
@@ -218,9 +221,19 @@ export function persistRound(database: GameDatabase, round: RoundRow, patch: Rou
       patch.tied_option_ids_json ?? round.tied_option_ids_json,
       patch.shown_event_json === undefined ? round.shown_event_json : patch.shown_event_json,
       patch.pending_plan_json === undefined ? round.pending_plan_json : patch.pending_plan_json,
+      patch.activated_actions_json ?? round.activated_actions_json,
       patch.applied_at === undefined ? round.applied_at : patch.applied_at,
       round.id,
     );
+}
+
+export function listRoundActivations(database: GameDatabase, gameId: string) {
+  const sql = `SELECT round_number, activated_actions_json FROM game_rounds
+    WHERE game_id = ? AND activated_actions_json != '[]' ORDER BY round_number`;
+  return database.prepare(sql).all(gameId) as unknown as {
+    activated_actions_json: string;
+    round_number: number;
+  }[];
 }
 
 export function bumpRevision(database: GameDatabase, gameId: string) {

@@ -126,7 +126,28 @@ export type AppliedActionView = {
   title: string;
 };
 
+export type ActivatedAction = {
+  actionId: string;
+  completedByActionId: string;
+  stage: StageKey;
+};
+
+export type BlockedActivation = ActivatedAction & {
+  reason: 'STAGE_BROKEN' | 'STAGE_REPAIRED';
+};
+
+export type ActivatedActionView = ActivatedAction & {
+  completedByTitle: string;
+  title: string;
+};
+
+export type BlockedActivationView = BlockedActivation & {
+  completedByTitle: string;
+  title: string;
+};
+
 export type StageProgress = {
+  activeAiAction?: AppliedActionView | null;
   appliedActions: AppliedActionView[];
   state: StageState;
 };
@@ -166,6 +187,8 @@ export type EffectContribution = EffectContributionBase &
   );
 
 export type RoundView = {
+  activatedActions?: ActivatedActionView[];
+  blockedActivations?: BlockedActivationView[];
   effectBreakdown: EffectBreakdown | null;
   effectContributions?: EffectContribution[];
   event: GameEvent | null;

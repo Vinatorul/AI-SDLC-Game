@@ -98,7 +98,7 @@ const infrastructurePaths = [
   {
     actionId: 'businessRequest.feedback-mcp',
     badEventId: 'event-feedback-mcp-without-metrics',
-    failedState: 'BROKEN',
+    failedState: 'AS_IS',
     goodEventId: 'event-feedback-mcp-ready',
     setupActionIds: ['businessRequest.outcome-metrics'],
     stage: 'businessRequest',
@@ -114,7 +114,7 @@ const infrastructurePaths = [
   {
     actionId: 'technicalDiscovery.ai-impact-analysis',
     badEventId: 'event-impact-graph-missing',
-    failedState: 'BROKEN',
+    failedState: 'AS_IS',
     goodEventId: 'event-impact-graph-used',
     setupActionIds: ['technicalDiscovery.dependency-map'],
     stage: 'technicalDiscovery',
@@ -125,7 +125,7 @@ const infrastructurePaths = [
     failedState: 'BROKEN',
     goodEventId: 'event-repository-mcp-ready',
     setupActionIds: [
-      'productDiscovery.knowledge-base',
+      'productDiscovery.requirement-draft',
       'testing.behavior-checks',
       'coding.project-checks',
     ],
@@ -148,6 +148,18 @@ const infrastructurePaths = [
     stage: 'testing',
   },
   {
+    actionId: 'deployment.autonomous-after-tests',
+    badEventId: 'event-autonomous-release-without-tests',
+    failedState: 'BROKEN',
+    goodEventId: 'event-auto-release-completed',
+    setupActionIds: [
+      'testing.behavior-checks',
+      'deployment.rollback-drill',
+      'support.telemetry-baseline',
+    ],
+    stage: 'deployment',
+  },
+  {
     actionId: 'deployment.mcp-tooling',
     badEventId: 'event-deploy-mcp-without-tests',
     failedState: 'AS_IS',
@@ -162,7 +174,7 @@ const infrastructurePaths = [
   {
     actionId: 'support.incident-mcp',
     badEventId: 'event-incident-mcp-without-signals',
-    failedState: 'BROKEN',
+    failedState: 'AS_IS',
     goodEventId: 'event-incident-mcp-ready',
     setupActionIds: ['support.telemetry-baseline'],
     stage: 'support',
@@ -319,33 +331,114 @@ describe('resolveRound', () => {
     );
   });
 
-  it('добавляет позднее последствие только после перекоса в кодинг', () => {
-    const template = defaultScenario.rounds[0] as ScenarioRound;
-    const selected = getStageAction(defaultScenario.stageActions, 'coding.guided-implementation');
-    const plan = resolveRound(
-      lateCodingSnapshot(1),
-      { ...template, number: 7 },
-      selected,
-      defaultScenario.mechanics,
-      defaultScenario.stageActions,
+  it('не повторяет обычные эффекты у повторного действия без repeatEffect', () => {
+    const repeated = { ...action, repeatable: true };
+    const snapshot = createSnapshot();
+    snapshot.appliedActions = [{ actionId: action.id, roundNumber: 1, stage: action.stage }];
+    const plan = resolveRound(snapshot, round, repeated, mechanics, testCatalog);
+    expect(plan.breakdown.decision).toEqual({});
+    expect(plan.breakdown.event).toEqual({});
+    expect(plan.effectContributions).toEqual([
+      { effect: { quality: 1 }, kind: 'PROPERTY', property: 'humanReview' },
+    ]);
+  });
+
+  it('берёт repeatEffect и причины при повторном действии', () => {
+    const repeated = {
+      ...action,
+      repeatEffect: { quality: 1 },
+      repeatEffectReasons: { quality: 'Второй проход нашёл ещё один дефект.' },
+      repeatable: true,
+    };
+    const repeatedRound = structuredClone(round);
+    const event = repeatedRound.eventRules[0]?.event;
+    if (!event) throw new Error('Нет события для повторного действия');
+    event.repeatEffect = { controllability: -1 };
+    event.repeatEffectReasons = { controllability: 'Команда обошла прежнюю договорённость.' };
+    const snapshot = createSnapshot();
+    snapshot.appliedActions = [{ actionId: action.id, roundNumber: 1, stage: action.stage }];
+    const plan = resolveRound(snapshot, repeatedRound, repeated, mechanics, testCatalog);
+    expect(plan.breakdown).toMatchObject({
+      decision: { quality: 1 },
+      event: { controllability: -1 },
+    });
+    expect(plan.effectContributions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ effectReasons: repeated.repeatEffectReasons, kind: 'DECISION' }),
+        expect.objectContaining({ effectReasons: event.repeatEffectReasons, kind: 'EVENT' }),
+      ]),
     );
-    expect(plan.event.id).toBe('event-code-without-technical-context');
+  });
+
+  it('применяет свойства действия, события и удаления в заданном порядке', () => {
+    const propertyRound = structuredClone(round);
+    const event = propertyRound.eventRules[0]?.event;
+    if (!event) throw new Error('Нет события для свойств');
+    event.addProperties = ['automatedTests', 'rollback'];
+    event.removeProperties = ['humanReview'];
+    const snapshot = createSnapshot();
+    snapshot.properties = ['currentContext'];
+    const plan = resolveRound(snapshot, propertyRound, action, mechanics, testCatalog);
+    expect(plan.properties).toEqual(['currentContext', 'automatedTests', 'rollback']);
+  });
+
+  it('считает действия после последнего выбранного этапа', () => {
+    const conditional = structuredClone(round);
+    const firstRule = conditional.eventRules[0];
+    if (!firstRule) throw new Error('Нет тестового правила');
+    firstRule.stageActionCountsSinceLast = [
+      { minimum: 2, sinceStage: 'technicalDiscovery', stage: 'coding' },
+    ];
+    const snapshot = createSnapshot();
+    snapshot.appliedActions = [
+      { actionId: 'before', roundNumber: 1, stage: 'coding' },
+      { actionId: 'marker', roundNumber: 2, stage: 'technicalDiscovery' },
+      { actionId: 'after-1', roundNumber: 3, stage: 'coding' },
+      { actionId: 'after-2', roundNumber: 4, stage: 'coding' },
+    ];
+    expect(resolveRound(snapshot, conditional, action, mechanics, testCatalog).event.id).toBe(
+      'event-selected',
+    );
+    snapshot.appliedActions.pop();
+    expect(resolveRound(snapshot, conditional, action, mechanics, testCatalog).event.id).toBe(
+      'event-fallback',
+    );
+  });
+
+  it('добавляет позднее последствие только после перекоса в кодинг', () => {
+    const first = resolveScenarioAction(
+      createScenarioSnapshot(),
+      'coding.guided-implementation',
+      1,
+    );
+    const second = resolveScenarioAction(
+      snapshotFromPlan(first),
+      'coding.guided-implementation',
+      2,
+    );
+    expect(second.event.id).toBe('event-code-without-technical-context');
   });
 
   it('не добавляет позднее последствие после возврата в техническую проработку', () => {
-    const template = defaultScenario.rounds[0] as ScenarioRound;
-    const selected = getStageAction(defaultScenario.stageActions, 'coding.guided-implementation');
-    const plan = resolveRound(
-      lateCodingSnapshot(2),
-      { ...template, number: 7 },
-      selected,
-      defaultScenario.mechanics,
-      defaultScenario.stageActions,
+    const first = resolveScenarioAction(
+      createScenarioSnapshot(),
+      'coding.guided-implementation',
+      1,
     );
-    expect(plan.event.id).toBe('event-code-ready');
+    const refreshed = resolveScenarioAction(
+      snapshotFromPlan(first),
+      'technicalDiscovery.sync-docs-and-contract',
+      2,
+    );
+    const next = resolveScenarioAction(
+      snapshotFromPlan(refreshed),
+      'coding.guided-implementation',
+      3,
+    );
+    expect(next.event.id).toBe('event-code-ready');
   });
 
-  it('позволяет TTM дойти до критического порога на рискованной ветке', () => {
+  it('не начисляет обычные эффекты за повторные решения на рискованной ветке', () => {
     let snapshot = createScenarioSnapshot();
     const actionIds = [
       'review.risk-based-evidence',
@@ -367,45 +460,27 @@ describe('resolveRound', () => {
         ),
       );
     }
-    expect(snapshot.metrics.deliverySpeed).toBe(defaultScenario.rules.criticalThreshold);
+    expect(snapshot.metrics.deliverySpeed).toBe(-4);
   });
 
-  it('ломает ревью и тестирование только после повторного ускорения кодинга', () => {
-    const riskyAction = getStageAction(
-      defaultScenario.stageActions,
-      'coding.guided-implementation',
-    );
-    const scenarioRound = defaultScenario.rounds[0] as ScenarioRound;
-    const first = resolveRound(
-      createScenarioSnapshot(),
-      scenarioRound,
-      riskyAction,
-      defaultScenario.mechanics,
-      defaultScenario.stageActions,
-    );
-    expect(first.event.id).toBe('event-code-ready');
-    expect(first.stages.review).toBe('AS_IS');
-    expect(first.stages.testing).toBe('AS_IS');
-    const plan = resolveRound(
-      snapshotFromPlan(first),
-      { ...scenarioRound, number: 2 },
-      riskyAction,
-      defaultScenario.mechanics,
-      defaultScenario.stageActions,
-    );
-    expect(plan.event.id).toBe('event-code-outpaces-checks');
-    expect(plan.stages.review).toBe('BROKEN');
-    expect(plan.stages.testing).toBe('BROKEN');
-    expect(plan.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
-    expect(plan.metrics.deliverySpeed).toBe(-2);
-    expect(plan.event.effectReasons?.deliverySpeed).toContain('ревьюеры и QA');
+  it('ломает ревью и тестирование только после третьего изменения кода без подготовки', () => {
+    const actionId = 'coding.guided-implementation';
+    const first = resolveScenarioAction(createScenarioSnapshot(), actionId, 1);
+    expectQueueStages(first, 'event-code-ready', 'AS_IS');
+    const second = resolveScenarioAction(snapshotFromPlan(first), actionId, 2);
+    expectQueueStages(second, 'event-code-without-technical-context', 'AS_IS');
+    const overloaded = resolveScenarioAction(snapshotFromPlan(second), actionId, 3);
+    expectQueueStages(overloaded, 'event-code-outpaces-review-and-tests', 'BROKEN');
+    expect(overloaded.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
+    expect(overloaded.metrics.deliverySpeed).toBe(-2);
+    expect(overloaded.event.effectReasons?.deliverySpeed).toContain('скопились очереди');
     const next = resolveScenarioAction(
-      snapshotFromPlan(plan),
+      snapshotFromPlan(overloaded),
       'technicalDiscovery.sync-docs-and-contract',
-      3,
+      4,
     );
     expect(next.breakdown.pipeline).toMatchObject({ deliverySpeed: 0 });
-    expect(next.metrics.deliverySpeed).toBe(-2);
+    expect(next.metrics.deliverySpeed).toBe(overloaded.metrics.deliverySpeed);
   });
 
   it('не считает настройку проверок прошлым ускорением кодинга', () => {
@@ -482,13 +557,100 @@ describe('resolveRound', () => {
       'businessRequest.feedback-mcp',
       1,
     );
-    expect(plan.stages.businessRequest).toBe('BROKEN');
+    expect(plan.stages.businessRequest).toBe('AS_IS');
     plan = resolveAvailableScenarioAction(
       snapshotFromPlan(plan),
       'businessRequest.outcome-metrics',
       2,
     );
     expect(plan.stages.businessRequest).toBe('AI_ENABLED');
+    expect(plan.activatedActions).toEqual([
+      {
+        actionId: 'businessRequest.feedback-mcp',
+        completedByActionId: 'businessRequest.outcome-metrics',
+        stage: 'businessRequest',
+      },
+    ]);
+  });
+
+  it('активирует несколько ранее установленных контуров одной основой', () => {
+    const { catalog, selected } = createActivationSetup();
+    const snapshot = createSnapshot();
+    snapshot.appliedActions = [
+      { actionId: 'review-ai', roundNumber: 1, stage: 'review' },
+      { actionId: 'testing-ai', roundNumber: 2, stage: 'testing' },
+    ];
+    const plan = resolveRound(snapshot, fallbackOnlyRound(), selected, mechanics, catalog);
+    expect(plan.activatedActions).toEqual([
+      { actionId: 'review-ai', completedByActionId: 'foundation', stage: 'review' },
+      { actionId: 'testing-ai', completedByActionId: 'foundation', stage: 'testing' },
+    ]);
+    expect(plan.stages.review).toBe('AI_ENABLED');
+    expect(plan.stages.testing).toBe('AI_ENABLED');
+  });
+
+  it('не восстанавливает контур, который событие этого хода сломало', () => {
+    const { catalog, selected } = createActivationSetup();
+    const snapshot = createSnapshot();
+    snapshot.appliedActions = [{ actionId: 'review-ai', roundNumber: 1, stage: 'review' }];
+    const brokenRound = fallbackOnlyRound();
+    const event = brokenRound.eventRules[0]?.event;
+    if (!event) throw new Error('Нет события для сломанного контура');
+    event.stageChanges = [{ stage: 'review', state: 'BROKEN' }];
+    const plan = resolveRound(snapshot, brokenRound, selected, mechanics, catalog);
+    expect(plan.activatedActions).toEqual([]);
+    expect(plan.blockedActivations).toEqual([
+      {
+        actionId: 'review-ai',
+        completedByActionId: 'foundation',
+        reason: 'STAGE_BROKEN',
+        stage: 'review',
+      },
+    ]);
+    expect(plan.stages.review).toBe('BROKEN');
+  });
+
+  it('после ремонта сломанного этапа требует повторить AI-внедрение', () => {
+    const failed = resolveAvailableScenarioAction(
+      createScenarioSnapshot(),
+      'productDiscovery.knowledge-skill',
+      1,
+    );
+    expect(failed.stages.productDiscovery).toBe('BROKEN');
+    const repaired = resolveAvailableScenarioAction(
+      snapshotFromPlan(failed),
+      'productDiscovery.knowledge-base',
+      2,
+    );
+    expect(repaired.stages.productDiscovery).toBe('AS_IS');
+    expect(repaired.activatedActions).toEqual([]);
+    expect(repaired.blockedActivations).toEqual([
+      {
+        actionId: 'productDiscovery.knowledge-skill',
+        completedByActionId: 'productDiscovery.knowledge-base',
+        reason: 'STAGE_REPAIRED',
+        stage: 'productDiscovery',
+      },
+    ]);
+  });
+
+  it('не блокирует старое решение, если текущее действие само включило AI на этапе', () => {
+    const { catalog } = createActivationSetup();
+    const foundation = catalog.foundation;
+    if (!foundation) throw new Error('Нет подготовительного действия');
+    catalog.foundation = { ...foundation, stage: 'review' };
+    const snapshot = createSnapshot();
+    snapshot.stages.review = 'BROKEN';
+    snapshot.appliedActions = [{ actionId: 'review-ai', roundNumber: 1, stage: 'review' }];
+    const selected = getStageAction(catalog, 'foundation');
+    const plan = resolveRound(snapshot, fallbackOnlyRound(), selected, mechanics, catalog);
+    expect(plan.stages.review).toBe('AI_ENABLED');
+    expect(plan.blockedActivations).toEqual([]);
+    expect(plan.activatedActions).toContainEqual({
+      actionId: 'review-ai',
+      completedByActionId: 'foundation',
+      stage: 'review',
+    });
   });
 
   it.each(infrastructurePaths)('$actionId становится рабочим только после подготовки основы', ({
@@ -510,6 +672,21 @@ describe('resolveRound', () => {
       expectScenarioContinues(plan, roundNumber);
     }
     plan = resolveAvailableScenarioAction(snapshotFromPlan(plan), actionId, roundNumber + 1);
+    expect(plan.event.id).toBe(goodEventId);
+    expect(plan.stages[stage]).toBe('AI_ENABLED');
+  });
+
+  it.each(infrastructurePaths)('$actionId работает, если сначала подготовить все основы', ({
+    actionId,
+    goodEventId,
+    setupActionIds,
+    stage,
+  }) => {
+    let snapshot = createScenarioSnapshot();
+    for (const [index, setupActionId] of setupActionIds.entries()) {
+      snapshot = snapshotFromPlan(resolveScenarioAction(snapshot, setupActionId, index + 1));
+    }
+    const plan = resolveAvailableScenarioAction(snapshot, actionId, setupActionIds.length + 1);
     expect(plan.event.id).toBe(goodEventId);
     expect(plan.stages[stage]).toBe('AI_ENABLED');
   });
@@ -540,6 +717,32 @@ function withBrokenStageEffect(effect: MetricDelta) {
     ...mechanics,
     stageStateEffects: { AI_ENABLED: {}, AS_IS: {}, BROKEN: effect },
   } as ScenarioMechanics;
+}
+
+function fallbackOnlyRound() {
+  const fallback = round.eventRules[1];
+  if (!fallback) throw new Error('Нет резервного события');
+  return { ...round, eventRules: [structuredClone(fallback)] };
+}
+
+function createActivationSetup() {
+  const { id: _, ...base } = action;
+  const catalog: StageActionCatalog = {
+    foundation: { ...base, key: 'F', stage: 'technicalDiscovery' },
+    'review-ai': {
+      ...base,
+      activationRequirements: ['foundation'],
+      key: 'R',
+      stage: 'review',
+    },
+    'testing-ai': {
+      ...base,
+      activationRequirements: ['foundation'],
+      key: 'T',
+      stage: 'testing',
+    },
+  };
+  return { catalog, selected: getStageAction(catalog, 'foundation') };
 }
 
 describe('getAvailableActions', () => {
@@ -656,10 +859,10 @@ describe('evaluateOutcome', () => {
   it('позволяет позеленить все восемь этапов за восемь ходов', () => {
     const actionIds = [
       'businessRequest.expected-outcome',
-      'testing.ai-checks-with-qa',
       'productDiscovery.requirement-draft',
       'technicalDiscovery.code-research',
       'coding.guided-implementation',
+      'testing.ai-checks-with-qa',
       'review.context-and-human-risk',
       'deployment.human-approved-plan',
       'support.change-linked-signals',
@@ -678,6 +881,7 @@ describe('evaluateOutcome', () => {
       'businessRequest.feedback-mcp',
       'productDiscovery.knowledge-base',
       'productDiscovery.knowledge-skill',
+      'productDiscovery.requirement-draft',
       'technicalDiscovery.dependency-map',
       'technicalDiscovery.ai-impact-analysis',
       'testing.behavior-checks',
@@ -696,7 +900,7 @@ describe('evaluateOutcome', () => {
     expect(Object.values(snapshot.stages)).toEqual(stageKeys.map(() => 'AI_ENABLED'));
   });
 
-  it('одна основа может активировать AI в нескольких соседних этапах', () => {
+  it('показывает, почему одна основа не включила два сломанных AI-контура', () => {
     const actionIds = [
       'productDiscovery.knowledge-base',
       'testing.test-generation-skill',
@@ -704,9 +908,15 @@ describe('evaluateOutcome', () => {
       'review.review-skill',
       'testing.behavior-checks',
     ];
-    const { snapshot } = playScenarioActions(actionIds);
-    expect(snapshot.stages.testing).toBe('AI_ENABLED');
-    expect(snapshot.stages.review).toBe('AI_ENABLED');
+    const { plans, snapshot } = playScenarioActions(actionIds);
+    expect(snapshot.stages.testing).toBe('AS_IS');
+    expect(snapshot.stages.review).toBe('BROKEN');
+    expect(plans.at(-1)?.blockedActivations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actionId: 'testing.test-generation-skill' }),
+        expect.objectContaining({ actionId: 'review.review-skill' }),
+      ]),
+    );
   });
 
   it('не завершает игру поражением в первые два хода', () => {
@@ -721,6 +931,16 @@ function snapshotFromPlan(plan: ReturnType<typeof resolveRound>): EngineSnapshot
     properties: plan.properties,
     stages: plan.stages,
   };
+}
+
+function expectQueueStages(
+  plan: ReturnType<typeof resolveRound>,
+  eventId: string,
+  state: 'AS_IS' | 'BROKEN',
+) {
+  expect(plan.event.id).toBe(eventId);
+  expect(plan.stages.review).toBe(state);
+  expect(plan.stages.testing).toBe(state);
 }
 
 function resolveScenarioAction(snapshot: EngineSnapshot, actionId: string, roundNumber: number) {
@@ -754,38 +974,23 @@ function expectScenarioContinues(plan: ReturnType<typeof resolveRound>, roundNum
   expect(outcome.phase).toBe('FEEDBACK');
 }
 
-function lateCodingSnapshot(technicalDiscoveryCount: number) {
-  const snapshot = createScenarioSnapshot();
-  const stages: EngineAction['stage'][] = ['coding', 'coding'];
-  for (let index = 0; index < technicalDiscoveryCount; index += 1) {
-    stages.push('technicalDiscovery');
-  }
-  while (stages.length < 6) stages.push('businessRequest');
-  snapshot.appliedActions = stages.map((stage, index) => ({
-    actionId: `previous-${index}`,
-    roundNumber: index + 1,
-    stage,
-  }));
-  snapshot.properties = ['automatedTests', 'currentContext', 'humanReview'];
-  return snapshot;
-}
-
 function playScenarioActions(actionIds: string[]) {
   let snapshot = createScenarioSnapshot();
   const phases: string[] = [];
+  const plans: ReturnType<typeof resolveRound>[] = [];
   actionIds.forEach((actionId, index) => {
     const template = defaultScenario.rounds[index % defaultScenario.rounds.length];
     const round = { ...template, number: index + 1 } as ScenarioRound;
     const action = getStageAction(defaultScenario.stageActions, actionId);
-    snapshot = snapshotFromPlan(
-      resolveRound(
-        snapshot,
-        round,
-        action,
-        defaultScenario.mechanics,
-        defaultScenario.stageActions,
-      ),
+    const plan = resolveRound(
+      snapshot,
+      round,
+      action,
+      defaultScenario.mechanics,
+      defaultScenario.stageActions,
     );
+    snapshot = snapshotFromPlan(plan);
+    plans.push(plan);
     const outcome = evaluateOutcome(
       snapshot.metrics,
       snapshot.stages,
@@ -794,7 +999,7 @@ function playScenarioActions(actionIds: string[]) {
     );
     phases.push(outcome.phase);
   });
-  return { phases, snapshot };
+  return { phases, plans, snapshot };
 }
 
 function findEarlyLosses(maxTurns: number) {

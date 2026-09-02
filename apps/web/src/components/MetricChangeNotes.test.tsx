@@ -24,9 +24,9 @@ describe('MetricChangeNotes', () => {
         {
           description: 'Нашли ошибку.',
           effect: { quality: -2 },
-          effectReasons: { quality: 'Ошибка сломала важный сценарий.' },
+          effectReasons: { quality: 'Баг сломал важный сценарий.' },
           kind: 'EVENT',
-          title: 'Ошибка',
+          title: 'Баг',
         },
         {
           effect: { deliverySpeed: -1 },
@@ -45,7 +45,7 @@ describe('MetricChangeNotes', () => {
     expect(html).toContain('Качество и стабильность');
     expect(html).toContain('Итого: без изменений');
     expect(html).toContain('Выбрали: Проверка');
-    expect(html).toContain('Событие: Ошибка');
+    expect(html).toContain('Событие: Баг');
     expect(html).toContain('Ревьюер проверил рискованное место.');
     expect(html).not.toContain('Баланс Run / Change');
   });

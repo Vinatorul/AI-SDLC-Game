@@ -122,6 +122,17 @@ const stageActionCountSchema = z
   .strict()
   .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
 
+const stageActionCountSinceLastSchema = z
+  .object({
+    actionIds: z.array(z.string().min(1)).min(1).optional(),
+    maximum: z.number().int().min(0).optional(),
+    minimum: z.number().int().min(0).optional(),
+    sinceStage: stageSchema,
+    stage: stageSchema,
+  })
+  .strict()
+  .refine((range) => isValidRange(range), 'minimum не должен быть больше maximum');
+
 const eventSchema = z
   .object({
     description: z.string().min(1),
@@ -129,6 +140,10 @@ const eventSchema = z
     effectReasons: metricReasonsSchema.optional(),
     evidence: z.enum(['FACT', 'SCENARIO']),
     id: z.string().min(1),
+    addProperties: z.array(propertySchema).optional(),
+    removeProperties: z.array(propertySchema).optional(),
+    repeatEffect: metricDeltaSchema.optional(),
+    repeatEffectReasons: metricReasonsSchema.optional(),
     stageChanges: z.array(stageMutationSchema),
     title: z.string().min(1),
   })
@@ -147,6 +162,7 @@ const eventRuleSchema = z
     missingProperty: propertySchema.optional(),
     missingResultingProperty: propertySchema.optional(),
     stageActionCounts: z.array(stageActionCountSchema).min(1).optional(),
+    stageActionCountsSinceLast: z.array(stageActionCountSinceLastSchema).min(1).optional(),
     stageStates: z.array(stageMutationSchema).min(1).optional(),
   })
   .strict();
@@ -162,6 +178,8 @@ const stageActionBaseSchema = z
     evidence: z.enum(['FACT', 'SCENARIO']),
     key: z.string().min(1),
     repeatable: z.boolean(),
+    repeatEffect: metricDeltaSchema.optional(),
+    repeatEffectReasons: metricReasonsSchema.optional(),
     shortFeedback: z.string().min(1).nullable(),
     stage: stageSchema,
     title: z.string().min(1),
@@ -396,6 +414,13 @@ function validateAction(
     ['stageActions', id, 'effectReasons'],
     context,
   );
+  validateOptionalEffectReasons(
+    action.repeatEffect,
+    action.repeatEffectReasons,
+    ['stageActions', id, 'repeatEffectReasons'],
+    context,
+  );
+  validateUnique(action.addProperties, ['stageActions', id, 'addProperties'], 'свойство', context);
 }
 
 function validateRound(
@@ -462,7 +487,27 @@ function validateEventRules(
       [...path, 'event', 'effectReasons'],
       context,
     );
+    validateOptionalEffectReasons(
+      rule.event.repeatEffect,
+      rule.event.repeatEffectReasons,
+      [...path, 'event', 'repeatEffectReasons'],
+      context,
+    );
+    validateEventProperties(rule.event, [...path, 'event'], context);
   });
+}
+
+function validateEventProperties(
+  event: ScenarioCandidate['rounds'][number]['eventRules'][number]['event'],
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  validateUnique(event.addProperties ?? [], [...path, 'addProperties'], 'свойство', context);
+  validateUnique(event.removeProperties ?? [], [...path, 'removeProperties'], 'свойство', context);
+  const added = new Set(event.addProperties ?? []);
+  if ((event.removeProperties ?? []).some((property) => added.has(property))) {
+    addIssue(context, path, 'свойство нельзя одновременно добавить и удалить');
+  }
 }
 
 function validateEffectReasons(
@@ -475,6 +520,16 @@ function validateEffectReasons(
   const reasonKeys = metricKeys.filter((key) => reasons?.[key] !== undefined);
   if (sameKeys(effectKeys, reasonKeys)) return;
   addIssue(context, path, 'нужна отдельная причина для каждого ненулевого эффекта');
+}
+
+function validateOptionalEffectReasons(
+  effect: MetricDelta | undefined,
+  reasons: MetricReasons | undefined,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  if (effect !== undefined) validateEffectReasons(effect, reasons, path, context);
+  else if (reasons !== undefined) addIssue(context, path, 'причины требуют repeatEffect');
 }
 
 function sameKeys(left: string[], right: string[]) {
@@ -503,6 +558,12 @@ function validateRuleConditions(
     context,
   );
   validateUnique(
+    rule.stageActionCountsSinceLast?.map(({ sinceStage, stage }) => `${stage}/${sinceStage}`) ?? [],
+    path,
+    'пара этапов в stageActionCountsSinceLast',
+    context,
+  );
+  validateUnique(
     rule.stageActionCounts?.map(({ stage }) => stage) ?? [],
     path,
     'этап в stageActionCounts',
@@ -510,6 +571,14 @@ function validateRuleConditions(
   );
   rule.appliedActionCounts?.forEach(({ actionIds }, index) => {
     validateUnique(actionIds, [...path, 'appliedActionCounts', index], 'actionId', context);
+  });
+  rule.stageActionCountsSinceLast?.forEach(({ actionIds }, index) => {
+    validateUnique(
+      actionIds ?? [],
+      [...path, 'stageActionCountsSinceLast', index, 'actionIds'],
+      'actionId',
+      context,
+    );
   });
 }
 
@@ -525,6 +594,13 @@ function validateRuleReferences(
   const catalogIds = new Set(Object.keys(scenario.stageActions));
   rule.appliedActionCounts?.forEach(({ actionIds }, index) => {
     validateKnown(actionIds, catalogIds, [...path, 'appliedActionCounts', index], context);
+  });
+  rule.stageActionCountsSinceLast?.forEach(({ actionIds, stage }, index) => {
+    const conditionPath = [...path, 'stageActionCountsSinceLast', index, 'actionIds'];
+    validateKnown(actionIds, catalogIds, conditionPath, context);
+    if (actionIds?.some((id) => scenario.stageActions[id]?.stage !== stage)) {
+      addIssue(context, conditionPath, 'действие относится к другому этапу');
+    }
   });
   validateKnown(rule.hasAppliedActions, catalogIds, [...path, 'hasAppliedActions'], context);
   validateKnown(
@@ -568,6 +644,7 @@ function hasCondition(rule: ScenarioCandidate['rounds'][number]['eventRules'][nu
       rule.missingProperty ||
       rule.missingResultingProperty ||
       rule.stageActionCounts ||
+      rule.stageActionCountsSinceLast ||
       rule.stageStates,
   );
 }

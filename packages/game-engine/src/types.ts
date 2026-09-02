@@ -1,4 +1,6 @@
 import type {
+  ActivatedAction,
+  BlockedActivation,
   EffectBreakdown,
   EffectContribution,
   GameEvent,
@@ -33,6 +35,8 @@ export type StageAction = Omit<RoundOption, 'id'> &
     availableInStates: StageState[];
     effect: MetricDelta;
     effectReasons?: MetricReasons;
+    repeatEffect?: MetricDelta;
+    repeatEffectReasons?: MetricReasons;
     repeatable: boolean;
   };
 
@@ -45,8 +49,12 @@ export type PositiveEffectRequirements = {
 };
 
 export type EngineEvent = GameEvent & {
+  addProperties?: ProcessProperty[];
   effect: MetricDelta;
   effectReasons?: MetricReasons;
+  removeProperties?: ProcessProperty[];
+  repeatEffect?: MetricDelta;
+  repeatEffectReasons?: MetricReasons;
   stageChanges: StageMutation[];
 };
 
@@ -62,12 +70,18 @@ export type EventRule = {
   missingProperty?: ProcessProperty;
   missingResultingProperty?: ProcessProperty;
   stageActionCounts?: StageActionCountCondition[];
+  stageActionCountsSinceLast?: StageActionCountSinceLastCondition[];
   stageStates?: StageMutation[];
 };
 
 export type AppliedActionCountCondition = CountRange & { actionIds: string[] };
 export type CountRange = { maximum?: number; minimum?: number };
 export type StageActionCountCondition = CountRange & { stage: StageKey };
+export type StageActionCountSinceLastCondition = CountRange & {
+  actionIds?: string[];
+  sinceStage: StageKey;
+  stage: StageKey;
+};
 
 export type ScenarioStageChoice = {
   actionIds: string[];
@@ -126,7 +140,9 @@ export type EngineSnapshot = {
 };
 
 export type ResolutionPlan = {
+  activatedActions: ActivatedAction[];
   appliedActions: AppliedAction[];
+  blockedActivations: BlockedActivation[];
   breakdown: EffectBreakdown;
   effectContributions: EffectContribution[];
   event: EngineEvent;

@@ -1,10 +1,12 @@
 import {
   type ActionBallotChoice,
+  type ActivatedActionView,
   type AdminCommandName,
   type AppliedActionView,
   type BallotChoice,
   type BallotTally,
   type BallotView,
+  type BlockedActivationView,
   type GameEvent,
   type GameRules,
   type GameState,
@@ -46,6 +48,7 @@ import {
   findRound,
   type GameRow,
   listOptions,
+  listRoundActivations,
   listVoteCounts,
   parseOption,
   parsePlan,
@@ -157,6 +160,8 @@ function buildRoundView(
   const tied =
     ballot?.kind === 'ACTION' ? ballot.tiedChoiceIds : parseIds(round.tied_option_ids_json);
   return {
+    activatedActions: activationViews(database, game.id, planActivations(plan)),
+    blockedActivations: blockedActivationViews(database, game.id, planBlockedActivations(plan)),
     effectBreakdown: plan?.breakdown ?? null,
     effectContributions: plan?.effectContributions,
     event: visibleEvent(game, round),
@@ -328,12 +333,138 @@ function buildStageProgress(
   stages: Record<StageKey, StageState>,
 ): Record<StageKey, StageProgress> {
   const history = listAppliedActions(database, game.id).map((row) => appliedAction(database, row));
+  const activations = recordedActivations(database, game.id);
   return Object.fromEntries(
     stageKeys.map((stage) => [
       stage,
-      { appliedActions: history.filter((item) => item.stage === stage), state: stages[stage] },
+      {
+        activeAiAction: activeAiAction(
+          database,
+          game.id,
+          stage,
+          stages[stage],
+          history,
+          activations,
+        ),
+        appliedActions: history.filter((item) => item.stage === stage),
+        state: stages[stage],
+      },
     ]),
   ) as Record<StageKey, StageProgress>;
+}
+
+type StoredActivation = {
+  actionId: string;
+  completedByActionId: string;
+  stage: StageKey;
+};
+
+type TimedActivation = StoredActivation & { roundNumber: number };
+type StoredBlockedActivation = StoredActivation & {
+  reason: 'STAGE_BROKEN' | 'STAGE_REPAIRED';
+};
+
+function planActivations(plan: ResolutionPlan | null): StoredActivation[] {
+  return (
+    (plan as (ResolutionPlan & { activatedActions?: StoredActivation[] }) | null)
+      ?.activatedActions ?? []
+  );
+}
+
+function planBlockedActivations(plan: ResolutionPlan | null): StoredBlockedActivation[] {
+  return (
+    (plan as (ResolutionPlan & { blockedActivations?: StoredBlockedActivation[] }) | null)
+      ?.blockedActivations ?? []
+  );
+}
+
+function recordedActivations(database: GameDatabase, gameId: string): TimedActivation[] {
+  return listRoundActivations(database, gameId).flatMap((row) =>
+    (JSON.parse(row.activated_actions_json) as StoredActivation[]).map((item) => ({
+      ...item,
+      roundNumber: row.round_number,
+    })),
+  );
+}
+
+function activationViews(
+  database: GameDatabase,
+  gameId: string,
+  activations: StoredActivation[],
+): ActivatedActionView[] {
+  return activations.map((item) => activationWithTitles(database, gameId, item));
+}
+
+function blockedActivationViews(
+  database: GameDatabase,
+  gameId: string,
+  activations: StoredBlockedActivation[],
+): BlockedActivationView[] {
+  return activations.map((item) => activationWithTitles(database, gameId, item));
+}
+
+function activationWithTitles<T extends StoredActivation>(
+  database: GameDatabase,
+  gameId: string,
+  item: T,
+) {
+  const completedBy = parseAction(requiredAction(database, gameId, item.completedByActionId));
+  const activated = parseAction(requiredAction(database, gameId, item.actionId));
+  return { ...item, completedByTitle: completedBy.title, title: activated.title };
+}
+
+function activeAiAction(
+  database: GameDatabase,
+  gameId: string,
+  stage: StageKey,
+  state: StageState,
+  history: AppliedActionView[],
+  activations: TimedActivation[],
+) {
+  if (state !== 'AI_ENABLED') return null;
+  const direct = latestDirectAiAction(database, gameId, stage, history);
+  const automatic = latestAutomaticAiAction(stage, history, activations);
+  if (!direct) return automatic?.action ?? null;
+  if (!automatic || direct.roundNumber >= automatic.roundNumber) return direct.action;
+  return automatic.action;
+}
+
+function latestDirectAiAction(
+  database: GameDatabase,
+  gameId: string,
+  stage: StageKey,
+  history: AppliedActionView[],
+) {
+  return history
+    .filter((item) => item.stage === stage)
+    .filter((item) => actionEnablesAi(parseAction(requiredAction(database, gameId, item.actionId))))
+    .map((action) => ({ action, roundNumber: action.roundNumber }))
+    .at(-1);
+}
+
+function latestAutomaticAiAction(
+  stage: StageKey,
+  history: AppliedActionView[],
+  activations: TimedActivation[],
+) {
+  return activations
+    .filter((item) => item.stage === stage)
+    .flatMap((item) => {
+      const action = [...history].reverse().find(({ actionId }) => actionId === item.actionId);
+      return action ? [{ action, roundNumber: item.roundNumber }] : [];
+    })
+    .sort(
+      (left, right) =>
+        left.roundNumber - right.roundNumber || left.action.roundNumber - right.action.roundNumber,
+    )
+    .at(-1);
+}
+
+function actionEnablesAi(action: EngineAction) {
+  if (action.resultingStageState === 'AI_ENABLED') return true;
+  return Object.entries(action.stageTransitions ?? {}).some(
+    ([from, to]) => from !== 'AI_ENABLED' && to === 'AI_ENABLED',
+  );
 }
 
 function appliedAction(

@@ -28,4 +28,5 @@ export type {
   StageAction,
   StageActionCatalog,
   StageActionCountCondition,
+  StageActionCountSinceLastCondition,
 } from './types';

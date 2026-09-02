@@ -133,6 +133,8 @@ describe('PlayerGameView', () => {
     expect(html).toContain('aria-label="Метрики SDLC"');
     expect(html).not.toContain('Откуда взялись баллы');
     expect(html).not.toContain('Очередь на ревью задержала релиз.');
+    expect(html).not.toContain('Скрытая активация для ведущего');
+    expect(html).not.toContain('Скрытая причина для ведущего');
     expect(html).not.toContain('Карта SDLC');
     expect(html).not.toContain('class="metric-description"');
     expect(html).not.toContain('0 — исходный процесс');
@@ -172,6 +174,8 @@ function eventRound(metricImpact: MetricImpact): RoundView {
 function feedbackRound(): RoundView {
   return {
     ...eventRound('WORSENED'),
+    activatedActions: [activation('Скрытая активация для ведущего')],
+    blockedActivations: [{ ...activation('Скрытая причина для ведущего'), reason: 'STAGE_BROKEN' }],
     effectBreakdown: {
       applied: { deliverySpeed: -1 },
       decision: {},
@@ -180,6 +184,16 @@ function feedbackRound(): RoundView {
       properties: {},
       total: { deliverySpeed: -1 },
     },
+  };
+}
+
+function activation(title: string) {
+  return {
+    actionId: 'review-with-ai',
+    completedByActionId: 'review-rules',
+    completedByTitle: 'Добавить правила ревью',
+    stage: 'review' as const,
+    title,
   };
 }
 

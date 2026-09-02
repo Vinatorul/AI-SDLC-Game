@@ -1,4 +1,5 @@
 import {
+  type ActivatedAction,
   type EffectContribution,
   type GameRules,
   type MetricDelta,
@@ -30,6 +31,18 @@ type GatedEffect = {
   effect: MetricDelta;
 };
 
+type Narrative = {
+  actionEffect: MetricDelta;
+  actionReasons?: EngineAction['effectReasons'];
+  eventEffect: MetricDelta;
+  eventReasons?: ResolutionPlan['event']['effectReasons'];
+};
+
+type PreparedRound = Pick<
+  ResolutionPlan,
+  'activatedActions' | 'appliedActions' | 'blockedActivations' | 'event' | 'properties' | 'stages'
+> & { narrative: Narrative };
+
 export function createInitialMetrics(mechanics: GameMechanics): MetricValues {
   return { ...mechanics.initialMetrics };
 }
@@ -45,27 +58,59 @@ export function resolveRound(
   mechanics: GameMechanics,
   catalog: StageActionCatalog,
 ): ResolutionPlan {
-  const event = selectEvent(round.eventRules, action, snapshot);
-  const properties = mergeProperties(snapshot.properties, action.addProperties);
-  const appliedActions = appendAppliedAction(snapshot, action, round.number);
-  const stages = resolveStages(snapshot, action, event, appliedActions, catalog);
-  const narrativeEffects = gateNarrativeEffects(action, event, stages, mechanics);
+  const prepared = prepareRound(snapshot, round, action, catalog);
+  const { narrative, ...plan } = prepared;
+  const narrativeEffects = gateNarrativeEffects(narrative, action.stage, plan.stages, mechanics);
   const { breakdown, metrics } = calculateRoundMetrics(
     snapshot,
-    properties,
-    stages,
+    plan.properties,
+    plan.stages,
     narrativeEffects,
     mechanics,
   );
   const effectContributions = createEffectContributions(
     action,
-    event,
+    prepared,
     narrativeEffects,
-    properties,
-    stages,
     mechanics,
   );
-  return { appliedActions, breakdown, effectContributions, event, metrics, properties, stages };
+  return {
+    ...plan,
+    breakdown,
+    effectContributions,
+    metrics,
+  };
+}
+
+function prepareRound(
+  snapshot: EngineSnapshot,
+  round: ScenarioRound,
+  action: EngineAction,
+  catalog: StageActionCatalog,
+): PreparedRound {
+  const event = selectEvent(round.eventRules, action, snapshot);
+  const properties = mergeProperties(
+    mergeProperties(snapshot.properties, action.addProperties),
+    event.addProperties ?? [],
+    event.removeProperties,
+  );
+  const appliedActions = appendAppliedAction(snapshot, action, round.number);
+  const { activatedActions, blockedActivations, stages } = resolveStages(
+    snapshot,
+    action,
+    event,
+    appliedActions,
+    catalog,
+  );
+  return {
+    activatedActions,
+    appliedActions,
+    blockedActivations,
+    event,
+    narrative: selectNarrative(action, event, wasApplied(snapshot, action.id)),
+    properties,
+    stages,
+  };
 }
 
 function calculateRoundMetrics(
@@ -98,7 +143,28 @@ function resolveStages(
   const mutation = actionStageMutation(action, snapshot.stages[action.stage]);
   const decisionStages = applyStageChanges(snapshot.stages, [mutation]);
   const eventStages = applyStageChanges(decisionStages, event.stageChanges);
-  return activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog);
+  return activateNewlyReadyActions(eventStages, snapshot, appliedActions, catalog, action.id);
+}
+
+function selectNarrative(
+  action: EngineAction,
+  event: ResolutionPlan['event'],
+  repeated: boolean,
+): Narrative {
+  if (!repeated) {
+    return {
+      actionEffect: action.effect,
+      actionReasons: action.effectReasons,
+      eventEffect: event.effect,
+      eventReasons: event.effectReasons,
+    };
+  }
+  return {
+    actionEffect: action.repeatEffect ?? {},
+    actionReasons: action.repeatEffectReasons,
+    eventEffect: event.repeatEffect ?? {},
+    eventReasons: event.repeatEffectReasons,
+  };
 }
 
 export function getAvailableActions(
@@ -185,6 +251,7 @@ function eventRuleMatches(rule: EventRule, action: EngineAction, snapshot: Engin
   if (!countInRange(snapshot.appliedActions.length, rule.appliedActionCount)) return false;
   if (!matchesAppliedActionCounts(rule, snapshot)) return false;
   if (!matchesStageActionCounts(rule, snapshot)) return false;
+  if (!matchesStageActionCountsSinceLast(rule, snapshot)) return false;
   return true;
 }
 
@@ -216,6 +283,21 @@ function matchesStageActionCounts(rule: EventRule, snapshot: EngineSnapshot) {
   });
 }
 
+function matchesStageActionCountsSinceLast(rule: EventRule, snapshot: EngineSnapshot) {
+  return (rule.stageActionCountsSinceLast ?? []).every(
+    ({ actionIds, sinceStage, stage, ...range }) => {
+      const lastSince = snapshot.appliedActions.findLastIndex(({ stage }) => stage === sinceStage);
+      const actions =
+        lastSince === -1 ? snapshot.appliedActions : snapshot.appliedActions.slice(lastSince + 1);
+      const included = actionIds ? new Set(actionIds) : null;
+      const count = actions.filter(
+        (action) => action.stage === stage && (!included || included.has(action.actionId)),
+      ).length;
+      return countInRange(count, range);
+    },
+  );
+}
+
 function countInRange(count: number, range?: CountRange) {
   if (range?.minimum !== undefined && count < range.minimum) return false;
   if (range?.maximum !== undefined && count > range.maximum) return false;
@@ -237,15 +319,59 @@ function activateNewlyReadyActions(
   snapshot: EngineSnapshot,
   appliedActions: EngineSnapshot['appliedActions'],
   catalog: StageActionCatalog,
+  completedByActionId: string,
 ) {
   const before = new Set(snapshot.appliedActions.map(({ actionId }) => actionId));
   const after = new Set(appliedActions.map(({ actionId }) => actionId));
-  const changes = Object.entries(catalog)
+  const readyActions = newlyReadyOldActions(before, after, catalog, completedByActionId);
+  const { activatedActions, blockedActivations } = partitionActivations(
+    readyActions,
+    snapshot.stages,
+    stages,
+  );
+  const changes = activatedActions.map(({ stage }) => ({ stage, state: 'AI_ENABLED' as const }));
+  return { activatedActions, blockedActivations, stages: applyStageChanges(stages, changes) };
+}
+
+function partitionActivations(
+  activations: ActivatedAction[],
+  before: EngineSnapshot['stages'],
+  after: EngineSnapshot['stages'],
+) {
+  const outcomes = activations.map((activation) => ({
+    activation,
+    reason: activationBlockReason(activation.stage, before, after),
+  }));
+  return {
+    activatedActions: outcomes.flatMap(({ activation, reason }) => (reason ? [] : [activation])),
+    blockedActivations: outcomes.flatMap(({ activation, reason }) =>
+      reason ? [{ ...activation, reason }] : [],
+    ),
+  };
+}
+
+function activationBlockReason(
+  stage: StageKey,
+  before: EngineSnapshot['stages'],
+  after: EngineSnapshot['stages'],
+) {
+  if (after[stage] === 'BROKEN') return 'STAGE_BROKEN' as const;
+  if (before[stage] === 'BROKEN' && after[stage] === 'AS_IS') return 'STAGE_REPAIRED' as const;
+  return null;
+}
+
+function newlyReadyOldActions(
+  before: Set<string>,
+  after: Set<string>,
+  catalog: StageActionCatalog,
+  completedByActionId: string,
+) {
+  return Object.entries(catalog)
     .filter(
-      ([id, action]) => !isActionReady(id, action, before) && isActionReady(id, action, after),
+      ([id, action]) =>
+        before.has(id) && !isActionReady(id, action, before) && isActionReady(id, action, after),
     )
-    .map(([, action]) => ({ stage: action.stage, state: 'AI_ENABLED' as const }));
-  return applyStageChanges(stages, changes);
+    .map(([actionId, action]) => ({ actionId, completedByActionId, stage: action.stage }));
 }
 
 function isActionReady(id: string, action: StageActionCatalog[string], applied: Set<string>) {
@@ -259,8 +385,12 @@ function appendAppliedAction(snapshot: EngineSnapshot, action: EngineAction, rou
   return [...snapshot.appliedActions, { actionId: action.id, roundNumber, stage: action.stage }];
 }
 
-function mergeProperties(current: ProcessProperty[], added: ProcessProperty[]) {
-  return [...new Set([...current, ...added])];
+function mergeProperties(
+  current: ProcessProperty[],
+  added: ProcessProperty[],
+  removed: ProcessProperty[] = [],
+) {
+  return [...new Set([...current, ...added])].filter((property) => !removed.includes(property));
 }
 
 function collectPropertyEffects(
@@ -279,14 +409,13 @@ function collectStageStateEffects(
 
 function createEffectContributions(
   action: EngineAction,
-  event: ResolutionPlan['event'],
+  prepared: PreparedRound,
   narrativeEffects: { decision: GatedEffect; event: GatedEffect },
-  properties: EngineSnapshot['properties'],
-  stages: EngineSnapshot['stages'],
   mechanics: GameMechanics,
 ) {
+  const { event, narrative, properties, stages } = prepared;
   const contributions: EffectContribution[] = [
-    ...narrativeContributions(action, event, narrativeEffects),
+    ...narrativeContributions(action, event, narrative, narrativeEffects),
     ...propertyContributions(properties, mechanics),
     ...stageContributions(stages, mechanics),
   ];
@@ -298,6 +427,7 @@ function createEffectContributions(
 function narrativeContributions(
   action: EngineAction,
   event: ResolutionPlan['event'],
+  narrative: Narrative,
   effects: { decision: GatedEffect; event: GatedEffect },
 ): EffectContribution[] {
   return [
@@ -305,7 +435,7 @@ function narrativeContributions(
       ...blockedEffectFields(effects.decision),
       description: action.shortFeedback ?? action.description,
       effect: effects.decision.effect,
-      ...(action.effectReasons ? { effectReasons: action.effectReasons } : {}),
+      ...(narrative.actionReasons ? { effectReasons: narrative.actionReasons } : {}),
       kind: 'DECISION',
       title: action.title,
     },
@@ -313,7 +443,7 @@ function narrativeContributions(
       ...blockedEffectFields(effects.event),
       description: event.description,
       effect: effects.event.effect,
-      ...(event.effectReasons ? { effectReasons: event.effectReasons } : {}),
+      ...(narrative.eventReasons ? { effectReasons: narrative.eventReasons } : {}),
       kind: 'EVENT',
       title: event.title,
     },
@@ -321,14 +451,14 @@ function narrativeContributions(
 }
 
 function gateNarrativeEffects(
-  action: EngineAction,
-  event: ResolutionPlan['event'],
+  narrative: Narrative,
+  actionStage: StageKey,
   stages: EngineSnapshot['stages'],
   mechanics: GameMechanics,
 ) {
   return {
-    decision: gatePositiveEffect(action.effect, action.stage, stages, mechanics),
-    event: gatePositiveEffect(event.effect, action.stage, stages, mechanics),
+    decision: gatePositiveEffect(narrative.actionEffect, actionStage, stages, mechanics),
+    event: gatePositiveEffect(narrative.eventEffect, actionStage, stages, mechanics),
   };
 }
 
