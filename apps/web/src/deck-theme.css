@@ -1,0 +1,927 @@
+/* Visual theme based on the talk deck. */
+
+:root {
+  --deck-black: #000;
+  --deck-ink: #1b1b1b;
+  --deck-card: #252525;
+  --deck-card-hover: #303030;
+  --deck-line: #595959;
+  --deck-line-soft: #343434;
+  --deck-white: #fff;
+  --deck-muted: #d3d3d3;
+  --deck-muted-dark: #969696;
+  --deck-purple: #9e61ff;
+  --deck-lilac: #bf8ed7;
+  --deck-purple-soft: rgb(158 97 255 / 18%);
+  --brand-red: #fc4714;
+  --brand-yellow: #ffd700;
+  --brand-purple: #9e61ff;
+  --app-font-body: "YS Text", "YS Geo", Arial, Helvetica, sans-serif;
+  --app-font-display: "YS Text Wide", "YS Text", Arial, Helvetica, sans-serif;
+  --deck-success: #72d4a0;
+  --deck-success-bg: #14261d;
+  --deck-ai-gradient: linear-gradient(160deg, #111 0 42%, #173725 72%, #3b9b69 118%);
+  --deck-danger: #ff7777;
+  --deck-danger-bg: #2a1719;
+  --deck-warning: #ffc852;
+  --deck-warning-bg: #2c2514;
+  --deck-gradient: linear-gradient(
+    160deg,
+    #000 0 42%,
+    #332273 68%,
+    var(--deck-purple) 84%,
+    #8a5ea8 100%
+  );
+  color: var(--deck-white);
+  background: var(--deck-black);
+  color-scheme: dark;
+  font-family: var(--app-font-body);
+}
+
+body {
+  color: var(--deck-white);
+  background:
+    radial-gradient(circle at 98% 105%, rgb(158 97 255 / 34%), transparent 28rem), var(--deck-black);
+  background-attachment: fixed;
+}
+
+button,
+input {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--deck-lilac);
+  outline-offset: 3px;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.eyebrow {
+  margin-bottom: 14px;
+  color: var(--deck-lilac);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+h1 {
+  font-family: var(--app-font-display);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+h2,
+h3,
+.brand {
+  font-family: var(--app-font-display);
+}
+
+.muted,
+.game-meta,
+.option-copy > span,
+.option-copy small,
+.ballot-round-context > p:last-child,
+.round-question > p:last-child,
+.control-panel > p:not(.eyebrow, .form-error),
+.recovery-guide > p {
+  color: var(--deck-muted);
+}
+
+.topbar {
+  width: min(1320px, calc(100% - 48px));
+  height: 78px;
+  border-color: var(--deck-line-soft);
+}
+
+.brand {
+  color: var(--deck-white);
+  font-weight: 700;
+}
+
+.brand span,
+.topbar nav a:hover,
+.share-panel > a {
+  color: var(--deck-lilac);
+}
+
+.topbar nav a {
+  color: var(--deck-muted);
+}
+
+.single-page {
+  min-height: calc(100vh - 78px);
+  padding: 40px 20px;
+}
+
+.entry-card {
+  width: min(680px, 100%);
+  padding: clamp(28px, 6vw, 64px);
+  border-color: var(--deck-line);
+  border-radius: 32px;
+  background: var(--deck-ink);
+  box-shadow: none;
+}
+
+.entry-card > p:not(.eyebrow),
+.player-waiting > p:last-child {
+  color: var(--deck-muted);
+}
+
+.entry-card input {
+  border-color: var(--deck-line);
+  border-radius: 16px;
+  color: var(--deck-white);
+  background: var(--deck-black);
+}
+
+.entry-card input::placeholder {
+  color: var(--deck-muted-dark);
+}
+
+.primary-button {
+  min-height: 54px;
+  border-radius: 16px;
+  color: var(--deck-white);
+  background: linear-gradient(135deg, var(--deck-purple), var(--deck-lilac));
+  font-weight: 700;
+}
+
+.form-error,
+.entry-card > p.form-error {
+  color: var(--deck-danger);
+}
+
+.game-page {
+  width: min(1440px, calc(100% - 48px));
+  padding: 40px 0 88px;
+}
+
+.player-page {
+  width: min(860px, calc(100% - 24px));
+}
+
+.player-waiting,
+.round-focus,
+.prepared-properties,
+.metric-notes,
+.control-panel,
+.share-panel,
+.applied-history {
+  border-color: var(--deck-line-soft);
+  border-radius: 28px;
+  background: rgb(27 27 27 / 94%);
+}
+
+.player-result-note {
+  border-color: rgb(191 142 215 / 48%);
+  border-radius: 16px;
+  color: #e4c8f1;
+  background: var(--deck-purple-soft);
+}
+
+.game-header {
+  padding: 8px 0 30px;
+  border-color: var(--deck-line);
+}
+
+.game-header h1 {
+  font-weight: 700;
+}
+
+.game-meta strong {
+  color: var(--deck-white);
+  font-weight: 500;
+}
+
+.connection::before {
+  background: var(--deck-warning);
+}
+
+.connection.is-online::before {
+  background: var(--deck-success);
+}
+
+.metric-grid {
+  gap: 12px;
+}
+
+.metric-card {
+  min-width: 0;
+  padding: 22px;
+  border: 2px solid var(--deck-line);
+  border-radius: 24px;
+  background: rgb(0 0 0 / 82%);
+}
+
+.metric-label {
+  color: var(--deck-white);
+  font-size: 14px;
+}
+
+.metric-label small,
+.option-votes,
+.stage-votes {
+  color: var(--deck-lilac);
+}
+
+.metric-label .metric-delta-negative,
+.metric-note-card .metric-delta-negative {
+  color: var(--deck-danger);
+}
+
+.metric-card > strong {
+  font-size: 46px;
+  font-weight: 500;
+}
+
+.metric-description,
+.metric-scale,
+.metric-scale b {
+  color: var(--deck-muted);
+}
+
+.metric-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--deck-card-hover);
+  overflow: hidden;
+}
+
+.metric-track i {
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--deck-purple), var(--deck-lilac));
+}
+
+.metric-track b {
+  background: var(--deck-white);
+}
+
+.metric-note-card > header > strong,
+.metric-note-card li b {
+  color: var(--deck-lilac);
+}
+
+.metric-negative .metric-track i,
+.metric-critical .metric-track i {
+  background: var(--deck-danger);
+}
+
+.metric-danger {
+  border-color: rgb(255 200 82 / 60%);
+  background: var(--deck-warning-bg);
+}
+
+.metric-danger .metric-track i {
+  background: var(--deck-warning);
+}
+
+.metric-critical {
+  border-color: rgb(255 119 119 / 68%);
+  background: var(--deck-danger-bg);
+}
+
+.round-focus {
+  padding: clamp(24px, 4vw, 48px);
+}
+
+.round-question h2,
+.section-heading h2,
+.metric-notes-heading h2,
+.control-panel h2 {
+  font-weight: 700;
+}
+
+.ballot-round-context {
+  border-color: var(--deck-line-soft);
+}
+
+.ballot-progress {
+  color: var(--deck-muted);
+}
+
+.ballot-step {
+  padding: 12px 16px;
+  border-color: var(--deck-line-soft);
+  border-radius: 16px;
+  background: var(--deck-card);
+}
+
+.ballot-step.is-active {
+  color: var(--deck-white);
+  border-color: var(--deck-purple);
+  background: linear-gradient(135deg, #503091, var(--deck-purple));
+}
+
+.ballot-step.is-complete {
+  color: var(--deck-white);
+  border-color: var(--deck-line);
+  background: var(--deck-card-hover);
+}
+
+.action-stage-banner {
+  padding: 18px 22px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--deck-gradient);
+}
+
+.action-stage-banner span,
+.action-stage-banner small {
+  color: #d8cbe6;
+}
+
+.option-grid {
+  gap: 14px;
+}
+
+.option-card,
+.option-card.stage-as_is,
+.option-card.stage-ai_enabled,
+.option-card.stage-broken {
+  min-height: 184px;
+  padding: 22px;
+  border: 1px solid var(--deck-line-soft);
+  border-radius: 24px;
+  color: var(--deck-white);
+  background: var(--deck-card);
+}
+
+.option-card.stage-ai_enabled {
+  border-color: rgb(114 212 160 / 56%);
+}
+
+.option-card.stage-broken {
+  border-color: rgb(255 119 119 / 56%);
+}
+
+button.option-card:not(:disabled):hover,
+button.option-card:not(:disabled):focus-visible {
+  border-color: var(--deck-lilac);
+  background: var(--deck-card-hover);
+}
+
+.option-card.is-selected,
+.option-card.is-winner,
+.option-card.stage-as_is.is-selected,
+.option-card.stage-ai_enabled.is-selected,
+.option-card.stage-broken.is-selected,
+.option-card.stage-as_is.is-winner,
+.option-card.stage-ai_enabled.is-winner,
+.option-card.stage-broken.is-winner {
+  border-color: var(--deck-lilac);
+  background: var(--deck-gradient);
+}
+
+.option-card.is-tied {
+  border-color: var(--deck-lilac);
+}
+
+/* Ballot colors follow card position after shuffling, not the meaning of an action. */
+.ballot-focus .option-grid > .option-card {
+  --decision-accent: var(--brand-purple);
+  --decision-selected-ink: var(--deck-black);
+  --decision-selected-muted: rgb(0 0 0 / 82%);
+  position: relative;
+  overflow: hidden;
+  border-color: var(--decision-accent);
+  background: linear-gradient(145deg, rgb(158 97 255 / 28%), var(--deck-ink) 58%);
+  box-shadow: inset 0 7px 0 var(--decision-accent);
+}
+
+.ballot-focus .option-grid > .option-card:nth-child(3n + 2) {
+  --decision-accent: var(--brand-yellow);
+  background: linear-gradient(145deg, rgb(255 215 0 / 22%), var(--deck-ink) 58%);
+}
+
+.ballot-focus .option-grid > .option-card:nth-child(3n) {
+  --decision-accent: var(--brand-red);
+  background: linear-gradient(145deg, rgb(252 71 20 / 28%), var(--deck-ink) 58%);
+}
+
+.ballot-focus .option-grid > button.option-card:not(:disabled):hover,
+.ballot-focus .option-grid > button.option-card:not(:disabled):focus-visible {
+  border-color: var(--decision-accent);
+  background: var(--deck-card-hover);
+  box-shadow: inset 0 9px 0 var(--decision-accent);
+}
+
+.ballot-focus .option-grid > .option-card.is-selected,
+.ballot-focus .option-grid > .option-card.is-winner {
+  border-color: var(--decision-accent);
+  color: var(--decision-selected-ink);
+  background: var(--decision-accent);
+  box-shadow: inset 0 0 0 3px var(--deck-white);
+}
+
+.ballot-focus .option-grid > .option-card.is-selected .option-copy > small,
+.ballot-focus .option-grid > .option-card.is-selected .option-copy > span,
+.ballot-focus .option-grid > .option-card.is-winner .option-copy > small,
+.ballot-focus .option-grid > .option-card.is-winner .option-copy > span {
+  color: var(--decision-selected-muted);
+}
+
+.ballot-focus .option-grid > .option-card.is-selected .option-votes,
+.ballot-focus .option-grid > .option-card.is-winner .option-votes {
+  color: var(--decision-selected-ink);
+}
+
+.option-copy small {
+  color: var(--deck-muted);
+}
+
+.option-copy strong {
+  font-size: 22px;
+}
+
+.option-copy em,
+.vote-confirmation {
+  color: var(--deck-success);
+}
+
+.ballot-focus .option-grid > .option-card.is-selected .option-copy > em,
+.ballot-focus .option-grid > .option-card.is-winner .option-copy > em {
+  color: var(--decision-selected-ink);
+}
+
+.admin-potential,
+.forecast-conditions,
+.stage-actions {
+  border-color: var(--deck-line-soft);
+  color: var(--deck-muted);
+}
+
+.admin-potential > small,
+.condition-group h4,
+.forecast-conditions summary,
+.potential-stages {
+  color: var(--deck-muted);
+}
+
+.ballot-focus .option-grid > .option-card.is-selected .admin-potential,
+.ballot-focus .option-grid > .option-card.is-winner .admin-potential {
+  padding: 12px;
+  border-radius: 14px;
+  color: var(--deck-muted);
+  background: rgb(0 0 0 / 76%);
+}
+
+.potential-chips span,
+.applied-history-effects > span,
+.applied-history-effects li > span {
+  border-radius: 999px;
+  color: #dadada;
+  background: var(--deck-card-hover);
+}
+
+.potential-chips .is-positive,
+.property-list strong,
+.applied-history-effects span.is-positive {
+  color: var(--deck-success);
+  background: var(--deck-success-bg);
+}
+
+.potential-chips .is-negative,
+.applied-history-effects span.is-negative {
+  color: var(--deck-danger);
+  background: var(--deck-danger-bg);
+}
+
+.potential-chips .is-mixed {
+  color: #dfc4eb;
+  background: var(--deck-purple-soft);
+}
+
+.condition-group li,
+.event-branch {
+  border-color: var(--deck-line-soft);
+  border-radius: 12px;
+  color: var(--deck-white);
+  background: rgb(0 0 0 / 30%);
+}
+
+.condition-group li.is-inactive {
+  color: var(--deck-muted);
+  background: var(--deck-ink);
+}
+
+.influence-positive li.is-active {
+  color: var(--deck-success);
+  border-color: rgb(114 212 160 / 48%);
+  background: var(--deck-success-bg);
+}
+
+.influence-positive li.is-inactive {
+  color: var(--deck-danger);
+  border-color: rgb(255 119 119 / 48%);
+  background: var(--deck-danger-bg);
+}
+
+.influence-improves .event-branch.is-selected {
+  color: #d9c4ff;
+  border-color: rgb(158 97 255 / 68%);
+  background: #261941;
+}
+
+.influence-worsens .event-branch.is-selected {
+  color: #ffad94;
+  border-color: rgb(252 71 20 / 68%);
+  background: #3a160c;
+}
+
+.influence-mixed .event-branch.is-selected {
+  color: var(--brand-yellow);
+  border-color: rgb(255 215 0 / 68%);
+  background: #302904;
+}
+
+.event-card {
+  border: 1px solid var(--deck-line);
+  border-left: 8px solid var(--deck-muted);
+  border-radius: 26px;
+  background: var(--deck-card);
+}
+
+/* Event colors are semantic: purple improves, red worsens, yellow mixes both. */
+.event-card.event-improved {
+  border-color: rgb(158 97 255 / 68%);
+  border-left-color: var(--brand-purple);
+  background: linear-gradient(135deg, #1c152a, #35215c);
+}
+
+.event-card.event-worsened {
+  border-color: rgb(252 71 20 / 68%);
+  border-left-color: var(--brand-red);
+  background: linear-gradient(135deg, #24110b, #4a1c0f);
+}
+
+.event-card.event-mixed {
+  border-color: rgb(255 215 0 / 68%);
+  border-left-color: var(--brand-yellow);
+  background: linear-gradient(135deg, #211e0b, #3b3208);
+}
+
+.event-card p {
+  color: #c3c3c3;
+}
+
+.property-list > span,
+.screen-qr small,
+.share-panel > small,
+.applied-history-heading span,
+.applied-history-effects p,
+.metric-note-card li p {
+  color: var(--deck-muted);
+}
+
+.metric-note-card {
+  border-color: var(--deck-line-soft);
+  border-radius: 20px;
+  background: var(--deck-card);
+}
+
+.metric-note-card li,
+.metric-limit-note,
+.recovery-guide + .recovery-guide,
+.applied-history-list > li {
+  border-color: var(--deck-line-soft);
+}
+
+.metric-limit-note {
+  color: var(--deck-warning);
+}
+
+.stage-card,
+.stage-card.stage-as_is {
+  border: 1px solid var(--deck-line-soft);
+  border-radius: 24px;
+  color: var(--deck-white);
+  background: var(--deck-card);
+}
+
+.stage-card.stage-ai_enabled {
+  border-color: rgb(114 212 160 / 58%);
+  color: var(--deck-white);
+  background: var(--deck-ai-gradient);
+}
+
+.stage-card.stage-broken {
+  border-color: rgb(255 119 119 / 58%);
+  color: var(--deck-white);
+  background: var(--deck-danger-bg);
+}
+
+.stage-card span,
+.stage-card small {
+  color: var(--deck-muted);
+}
+
+.stage-card > span:first-child {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-card.stage-ai_enabled > span:first-child,
+.stage-card.stage-ai_enabled > .stage-card-main > small {
+  color: #e4d8f0;
+}
+
+.stage-card.stage-broken > .stage-card-main > small {
+  color: var(--deck-danger);
+}
+
+button.stage-card:not(:disabled):hover,
+button.stage-card:not(:disabled):focus-visible,
+.stage-card.is-selected,
+.stage-card.is-winner {
+  border-color: var(--deck-lilac);
+  box-shadow: inset 0 0 0 2px var(--deck-lilac);
+}
+
+.stage-card.is-tied {
+  border-color: var(--deck-lilac);
+}
+
+.stage-card strong {
+  font-size: 19px;
+}
+
+.victory-map .stage-card {
+  border-color: rgb(114 212 160 / 54%);
+  background: var(--deck-ai-gradient);
+}
+
+.control-panel,
+.share-panel {
+  padding: 26px;
+}
+
+.tie-buttons p {
+  color: var(--deck-lilac);
+}
+
+.tie-buttons button {
+  padding: 14px;
+  border-color: var(--deck-line);
+  border-radius: 14px;
+  color: var(--deck-white);
+  background: var(--deck-card);
+}
+
+.share-panel > strong {
+  color: var(--deck-white);
+}
+
+.share-panel svg {
+  box-sizing: content-box;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--deck-white);
+}
+
+.final-state {
+  border: 1px solid var(--deck-line);
+  border-radius: 32px;
+}
+
+.final-won {
+  color: var(--deck-white);
+  background: var(--deck-gradient);
+}
+
+.final-broken {
+  color: var(--deck-white);
+  border-color: rgb(255 119 119 / 52%);
+  background: var(--deck-danger-bg);
+}
+
+.screen-dashboard {
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 16px;
+  margin-top: 0;
+}
+
+.screen-current-phase {
+  min-height: 176px;
+  padding: 30px 34px;
+  border: 0;
+  border-radius: 32px;
+  background: var(--deck-gradient);
+}
+
+.screen-current-phase .eyebrow {
+  color: #dcc8eb;
+}
+
+.screen-current-phase h2 {
+  font-size: clamp(42px, 5vw, 70px);
+  font-weight: 700;
+}
+
+.screen-dashboard > .map-section {
+  margin-top: 20px;
+}
+
+.screen-qr {
+  border: 0;
+  border-radius: 30px;
+  color: var(--deck-black);
+  background: var(--deck-white);
+}
+
+.screen-dashboard > .screen-qr {
+  align-content: center;
+  padding: 24px 18px;
+}
+
+.screen-qr small {
+  color: #626262;
+}
+
+.screen-qr strong {
+  color: var(--deck-black);
+  font-weight: 500;
+}
+
+.landing-shell {
+  width: min(1320px, calc(100% - 48px));
+  padding: 64px 0 110px;
+}
+
+.landing-hero {
+  max-width: 1080px;
+  padding: 70px 0 76px;
+}
+
+.landing-hero h1 {
+  max-width: 1040px;
+  font-size: clamp(58px, 8vw, 110px);
+}
+
+.lede {
+  max-width: 820px;
+  color: var(--deck-muted);
+}
+
+.role-grid {
+  gap: 18px;
+}
+
+.role-card {
+  min-height: 260px;
+  padding: 30px;
+  border-color: var(--deck-line-soft);
+  border-radius: 30px;
+  color: var(--deck-white);
+  background: var(--deck-card);
+}
+
+.role-card:hover,
+.role-card:focus-visible {
+  border-color: var(--deck-lilac);
+}
+
+.role-card-primary {
+  border-color: rgb(191 142 215 / 54%);
+  background: var(--deck-gradient);
+}
+
+.role-index {
+  color: var(--deck-lilac);
+}
+
+.role-card h2 {
+  font-weight: 700;
+}
+
+.role-card p {
+  color: #b7b7b7;
+}
+
+.role-card-primary p {
+  color: var(--deck-white);
+}
+
+.stage-preview {
+  border-color: var(--deck-line);
+}
+
+.applied-history-heading strong {
+  font-weight: 500;
+}
+
+.option-card:disabled,
+.stage-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+@media (max-width: 1040px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .screen-dashboard {
+    grid-template-areas:
+      "phase"
+      "metrics"
+      "stages"
+      "qr";
+    grid-template-columns: 1fr;
+  }
+
+  .screen-dashboard > .screen-qr {
+    display: flex;
+    justify-items: initial;
+    text-align: left;
+  }
+}
+
+@media (max-width: 820px) {
+  .topbar,
+  .game-page,
+  .landing-shell {
+    width: min(100% - 24px, 720px);
+  }
+
+  .entry-card,
+  .round-focus,
+  .player-waiting,
+  .prepared-properties,
+  .metric-notes,
+  .control-panel,
+  .share-panel,
+  .applied-history {
+    border-radius: 22px;
+  }
+
+  .metric-card,
+  .option-card,
+  .stage-card {
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    background:
+      radial-gradient(circle at 100% 100%, rgb(158 97 255 / 24%), transparent 20rem),
+      var(--deck-black);
+  }
+
+  .topbar {
+    height: 64px;
+  }
+
+  .single-page {
+    min-height: calc(100vh - 64px);
+  }
+
+  .game-page {
+    padding-top: 20px;
+  }
+
+  .landing-hero {
+    padding-top: 46px;
+  }
+
+  .landing-hero h1 {
+    font-size: clamp(46px, 15vw, 72px);
+  }
+
+  .role-card {
+    min-height: 180px;
+  }
+
+  .metric-card {
+    padding: 20px;
+  }
+
+  .option-card {
+    min-height: 160px;
+    padding: 20px;
+  }
+
+  .player-page .stage-ballot-grid .stage-card,
+  .screen-page .stage-ballot-grid .stage-card {
+    min-height: 0;
+  }
+
+  .screen-current-phase {
+    min-height: 150px;
+    padding: 24px;
+    border-radius: 24px;
+  }
+
+  .screen-current-phase h2 {
+    font-size: clamp(38px, 12vw, 54px);
+  }
+}

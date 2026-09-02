@@ -2,7 +2,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { App } from './App';
+import { loadPrivateFonts } from './private-fonts';
 import './styles.css';
+import './deck-theme.css';
+
+loadPrivateFonts();
 
 const root = document.getElementById('root');
 

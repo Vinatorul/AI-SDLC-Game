@@ -36,7 +36,7 @@ export type MetricDefinition = {
   minimumLabel: string;
 };
 export type MetricDefinitions = Record<MetricKey, MetricDefinition>;
-export type MetricImpact = 'IMPROVED' | 'NEUTRAL' | 'WORSENED';
+export type MetricImpact = 'IMPROVED' | 'MIXED' | 'NEUTRAL' | 'WORSENED';
 export type StageKey = (typeof stageKeys)[number];
 export type ProcessProperty = (typeof processProperties)[number];
 export type StageState = 'AS_IS' | 'AI_ENABLED' | 'BROKEN';

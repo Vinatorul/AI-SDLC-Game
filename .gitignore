@@ -11,3 +11,4 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+apps/web/public/private-fonts/

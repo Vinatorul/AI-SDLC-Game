@@ -328,9 +328,12 @@ When adding a tunable setting:
 Runtime configuration:
 
 - **apps/api/.env.example** documents PORT, HOST, DATABASE_PATH, CORS_ORIGINS, and SCENARIO_PATH.
-- **apps/web/.env.example** documents VITE_API_BASE_URL and VITE_BASE_PATH.
+- **apps/web/.env.example** documents VITE_API_BASE_URL, VITE_BASE_PATH, and the optional
+  VITE_FONT_STYLESHEET_URL.
 - Real values belong in deployment settings or ignored local .env files.
 - Never put the host token, player tokens, or any other secret in VITE_* variables.
+- Commercial font binaries belong only in the ignored **apps/web/public/private-fonts** directory.
+  Keep the optional stylesheet URL unset when those files are absent, and never commit the binaries.
 
 ## Set up and run locally
 

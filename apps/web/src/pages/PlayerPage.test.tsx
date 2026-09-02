@@ -163,6 +163,7 @@ describe('PlayerGameView', () => {
   it.each([
     ['IMPROVED', 'event-improved'],
     ['WORSENED', 'event-worsened'],
+    ['MIXED', 'event-mixed'],
     ['NEUTRAL', 'event-neutral'],
   ] as const)('задаёт событию цвет для результата %s', (impact, className) => {
     const html = render(state({ currentRound: eventRound(impact), phase: 'EVENT' }));

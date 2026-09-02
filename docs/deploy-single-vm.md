@@ -25,6 +25,32 @@ export AI_SDLC_ORIGIN="http://${AI_SDLC_PUBLIC_IP}"
 
 `203.0.113.10` — тестовый адрес из документации. Замените его на IP своей виртуалки.
 
+### Необязательные фирменные шрифты
+
+Файлы коммерческих шрифтов не хранятся в Git. Если ваша лицензия разрешает веб-раздачу, перед
+сборкой скопируйте архив на виртуалку:
+
+```bash
+scp '/Users/<USER>/Downloads/Шрифты ГСЯ [RUQo8J].zip' root@<IP-АДРЕС>:/root/
+```
+
+Затем на виртуалке положите нужные файлы в игнорируемую папку и создайте локальную таблицу стилей:
+
+```bash
+cd /opt/AI-SDLC-Game
+mkdir -p apps/web/public/private-fonts
+unzip -jo '/root/Шрифты ГСЯ [RUQo8J].zip' \
+  '*/YSCompressed-Bold.otf' \
+  '*/YSCompressed-Heavy.otf' \
+  '*/YSTextCompact_demo101025-VF.ttf' \
+  -d apps/web/public/private-fonts
+cp apps/web/private-fonts.example.css apps/web/public/private-fonts/fonts.css
+chmod 0644 apps/web/public/private-fonts/*
+```
+
+Эта папка переживёт `git pull`, но попадёт в Docker-образ фронтенда. Если файлов нет, приложение
+использует системные шрифты и не делает лишний HTTP-запрос.
+
 Соберите образы:
 
 ```bash
@@ -32,8 +58,11 @@ docker build -f apps/api/Dockerfile -t ai-sdlc-api .
 docker build -f apps/web/Dockerfile \
   --build-arg VITE_API_BASE_URL="$AI_SDLC_ORIGIN" \
   --build-arg VITE_BASE_PATH=/ \
+  --build-arg VITE_FONT_STYLESHEET_URL=/private-fonts/fonts.css \
   -t ai-sdlc-web .
 ```
+
+Если фирменные шрифты не нужны, уберите строку с `VITE_FONT_STYLESHEET_URL`.
 
 Создайте внутреннюю сеть и постоянный том:
 

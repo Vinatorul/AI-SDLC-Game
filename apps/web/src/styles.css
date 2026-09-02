@@ -49,6 +49,13 @@ p {
   margin-top: 0;
 }
 
+h1,
+h2,
+h3 {
+  font-family: "YS Text Wide", "YS Text", Arial, Helvetica, sans-serif;
+  text-wrap: balance;
+}
+
 h1 {
   max-width: 880px;
   margin-bottom: 24px;
@@ -73,6 +80,7 @@ h1 {
 
 .brand {
   color: #15171a;
+  font-family: "YS Text Wide", "YS Text", Arial, Helvetica, sans-serif;
   font-weight: 900;
   letter-spacing: -0.025em;
   text-decoration: none;
