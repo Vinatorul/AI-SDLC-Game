@@ -1,5 +1,5 @@
 import type { GameState, VoteRequest } from '@ai-sdlc/contracts';
-import { type FormEvent, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { playerTokenKey } from '../api/storage';
@@ -16,26 +16,23 @@ export function PlayerPage() {
   const navigate = useNavigate();
   const { code } = useParams();
   const [joinedSession, setJoinedSession] = useState<PlayerSession | null>(null);
+  const rememberSession = useCallback((nextCode: string, nextToken: string) => {
+    setJoinedSession({ code: nextCode, token: nextToken });
+  }, []);
   const token = playerToken(code, joinedSession);
   const game = useGameState(code, token ?? undefined);
   if (!code) return <PlayerCodeEntry onSubmit={(value) => navigate(`/play/${value}`)} />;
   if (!token) {
-    return (
-      <JoinForm
-        code={code}
-        game={game}
-        onJoined={(nextToken) => setJoinedSession({ code, token: nextToken })}
-      />
-    );
+    return <PlayerJoin code={code} game={game} onJoined={rememberSession} />;
   }
   if (game.error) return <PlayerError message={game.error} />;
   if (!game.state) return <PlayerLoading />;
   return <PlayerGame code={code} game={game} state={game.state} token={token} />;
 }
 
-function PlayerCodeEntry({ onSubmit }: { onSubmit: (code: string) => void }) {
+export function PlayerCodeEntry({ onSubmit }: { onSubmit: (code: string) => void }) {
   return (
-    <Layout>
+    <Layout bare>
       <main className="single-page">
         <CodeEntry
           action="Войти"
@@ -56,70 +53,91 @@ function playerToken(code: string | undefined, joinedSession: PlayerSession | nu
   return localStorage.getItem(playerTokenKey(code));
 }
 
-type JoinFormProps = {
+type PlayerJoinProps = {
   code: string;
   game: ReturnType<typeof useGameState>;
-  onJoined: (token: string) => void;
+  onJoined: (code: string, token: string) => void;
 };
 
-function JoinForm({ code, game, onJoined }: JoinFormProps) {
-  const join = useJoinGame(code, game, onJoined);
+function PlayerJoin({ code, game, onJoined }: PlayerJoinProps) {
+  const [attempt, setAttempt] = useState(0);
+  const error = useAutoJoin(code, game.setState, onJoined, attempt);
   return (
-    <Layout>
+    <Layout bare>
       <main className="single-page">
-        <JoinCard code={code} join={join} />
+        <PlayerJoinView
+          code={code}
+          error={error}
+          onRetry={() => setAttempt((value) => value + 1)}
+        />
       </main>
     </Layout>
   );
 }
 
-function useJoinGame(
+function useAutoJoin(
   code: string,
-  game: ReturnType<typeof useGameState>,
-  onJoined: (token: string) => void,
+  setGameState: ReturnType<typeof useGameState>['setState'],
+  onJoined: PlayerJoinProps['onJoined'],
+  attempt: number,
 ) {
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
+  useEffect(() => {
+    let active = true;
     setError(null);
-    try {
-      const result = await api.join(code, name.trim());
-      localStorage.setItem(playerTokenKey(code), result.playerToken);
-      onJoined(result.playerToken);
-      game.setState(result.state);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не получилось войти в комнату.');
-      setBusy(false);
-    }
-  }
-  return { busy, error, name, setName, submit };
+    void joinOnce(code, attempt)
+      .then((result) => {
+        if (!active) return;
+        localStorage.setItem(playerTokenKey(code), result.playerToken);
+        setGameState(result.state);
+        onJoined(code, result.playerToken);
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setError(caught instanceof Error ? caught.message : 'Не получилось войти в комнату.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt, code, onJoined, setGameState]);
+  return error;
 }
 
-function JoinCard({ code, join }: { code: string; join: ReturnType<typeof useJoinGame> }) {
+const joinRequests = new Map<string, ReturnType<typeof api.join>>();
+
+function joinOnce(code: string, attempt: number) {
+  const key = `${code}:${attempt}`;
+  const current = joinRequests.get(key);
+  if (current) return current;
+  const request = requestJoin(code, key);
+  joinRequests.set(key, request);
+  return request;
+}
+
+async function requestJoin(code: string, key: string) {
+  try {
+    return await api.join(code);
+  } finally {
+    joinRequests.delete(key);
+  }
+}
+
+export function PlayerJoinView({ code, error, onRetry }: PlayerJoinViewProps) {
   return (
-    <section className="entry-card">
+    <section aria-live="polite" className="entry-card player-join-card">
       <p className="eyebrow">Комната {code}</p>
-      <h1>Как вас подписать?</h1>
-      <form onSubmit={join.submit}>
-        <input
-          aria-label="Имя"
-          maxLength={40}
-          onChange={(event) => join.setName(event.target.value)}
-          placeholder="Имя"
-          required
-          value={join.name}
-        />
-        <button className="primary-button" disabled={join.busy} type="submit">
-          {join.busy ? 'Входим…' : 'Присоединиться'}
+      <h1>{error ? 'Не получилось войти' : 'Подключаемся…'}</h1>
+      {error && <p className="form-error">{error}</p>}
+      {error && (
+        <button className="primary-button" onClick={onRetry} type="button">
+          Попробовать ещё раз
         </button>
-      </form>
-      {join.error && <p className="form-error">{join.error}</p>}
+      )}
     </section>
   );
 }
+
+type PlayerJoinViewProps = { code: string; error: string | null; onRetry: () => void };
 
 type PlayerGameProps = {
   code: string;

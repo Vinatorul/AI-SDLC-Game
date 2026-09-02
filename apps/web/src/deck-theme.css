@@ -729,18 +729,18 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .landing-shell {
-  width: min(1320px, calc(100% - 48px));
-  padding: 64px 0 110px;
+  width: min(1440px, calc(100% - 48px));
+  padding: 48px 0;
 }
 
 .landing-hero {
-  max-width: 1080px;
-  padding: 70px 0 76px;
+  max-width: 940px;
+  padding: 0;
 }
 
 .landing-hero h1 {
-  max-width: 1040px;
-  font-size: clamp(58px, 8vw, 110px);
+  max-width: 940px;
+  font-size: clamp(58px, 7.2vw, 112px);
 }
 
 .lede {
@@ -748,47 +748,54 @@ button.stage-card:not(:disabled):focus-visible,
   color: var(--deck-muted);
 }
 
-.role-grid {
-  gap: 18px;
+.landing-actions {
+  gap: 14px;
+  border: var(--deck-border-width) solid var(--deck-border-neutral);
+  background: var(--deck-ink);
 }
 
-.role-card {
-  min-height: 260px;
-  padding: 30px;
+.landing-host-link,
+.landing-join,
+.landing-screen-link {
   border: var(--deck-border-width) solid var(--deck-border-neutral);
-  border-radius: 30px;
   color: var(--deck-white);
   background: var(--deck-card);
 }
 
-.role-card:hover,
-.role-card:focus-visible {
+.landing-host-link:hover,
+.landing-host-link:focus-visible,
+.landing-screen-link:hover,
+.landing-screen-link:focus-visible {
   border-color: var(--deck-lilac);
+  outline: none;
 }
 
-.role-card-primary {
+.landing-host-link {
   border-color: var(--deck-border-purple);
   background: var(--deck-gradient);
 }
 
-.role-index {
-  color: var(--deck-purple-text);
-}
-
-.role-card h2 {
-  font-weight: 700;
-}
-
-.role-card p {
-  color: #b7b7b7;
-}
-
-.role-card-primary p {
+.landing-host-link small,
+.landing-screen-link {
   color: var(--deck-white);
 }
 
-.stage-preview {
+.landing-join > strong {
+  color: var(--deck-muted);
+}
+
+.landing-code-form input {
   border-color: var(--deck-line);
+  color: var(--deck-white);
+  background: var(--deck-black);
+}
+
+.landing-code-form input::placeholder {
+  color: var(--deck-muted-dark);
+}
+
+.player-join-card .primary-button {
+  margin-top: 24px;
 }
 
 .applied-history-heading strong {
@@ -831,6 +838,10 @@ button.stage-card:not(:disabled):focus-visible,
     width: min(100% - 24px, 720px);
   }
 
+  .landing-shell {
+    padding: 56px 0;
+  }
+
   .entry-card,
   .round-focus,
   .player-waiting,
@@ -869,15 +880,15 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .landing-hero {
-    padding-top: 46px;
+    padding: 0;
   }
 
   .landing-hero h1 {
     font-size: clamp(46px, 15vw, 72px);
   }
 
-  .role-card {
-    min-height: 180px;
+  .landing-code-form {
+    flex-direction: column;
   }
 
   .metric-card {

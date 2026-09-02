@@ -48,9 +48,9 @@ function ScreenCurrentPhase({ state }: { state: GameState }) {
   );
 }
 
-function ScreenEntry({ onSubmit }: { onSubmit: (value: string) => void }) {
+export function ScreenEntry({ onSubmit }: { onSubmit: (value: string) => void }) {
   return (
-    <Layout>
+    <Layout bare>
       <main className="single-page">
         <CodeEntry
           action="Открыть"

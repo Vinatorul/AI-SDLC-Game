@@ -37,9 +37,9 @@ export const api = {
     request<GameState>(`/api/games/${code}/state`, {
       ...(token ? { headers: authHeaders(token) } : {}),
     }),
-  join: (code: string, name: string) =>
+  join: (code: string) =>
     request<JoinGameResponse>(`/api/games/${code}/join`, {
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: 'Участник' }),
       method: 'POST',
     }),
   vote: (code: string, token: string, vote: VoteRequest) =>

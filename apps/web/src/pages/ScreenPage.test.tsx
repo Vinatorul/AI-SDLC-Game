@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StageMap } from '../components/StageMap';
-import { ScreenGameView } from './ScreenPage';
+import { ScreenEntry, ScreenGameView } from './ScreenPage';
 
 beforeAll(() => {
   vi.stubGlobal('window', {
@@ -12,6 +12,18 @@ beforeAll(() => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
+
+describe('ScreenEntry', () => {
+  it('показывает вход без общей шапки', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <ScreenEntry onSubmit={() => undefined} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('Общий экран');
+    expect(html).not.toContain('class="topbar"');
+  });
+});
 
 describe('ScreenGameView', () => {
   it('всегда показывает текущий шаг, метрики, состояние SDLC и QR', () => {

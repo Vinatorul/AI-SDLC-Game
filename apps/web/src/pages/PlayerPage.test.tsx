@@ -6,9 +6,35 @@ import type {
   RoundView,
 } from '@ai-sdlc/contracts';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { OptionGrid } from '../components/OptionGrid';
-import { PlayerGameView } from './PlayerPage';
+import { PlayerCodeEntry, PlayerGameView, PlayerJoinView } from './PlayerPage';
+
+describe('PlayerCodeEntry', () => {
+  it('показывает вход без общей шапки', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <PlayerCodeEntry onSubmit={() => undefined} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('Войти в игру');
+    expect(html).not.toContain('class="topbar"');
+  });
+});
+
+describe('PlayerJoinView', () => {
+  it('подключает участника без имени и отдельной формы', () => {
+    const html = renderToStaticMarkup(
+      <PlayerJoinView code="ABC234" error={null} onRetry={() => undefined} />,
+    );
+    expect(html).toContain('Комната ABC234');
+    expect(html).toContain('Подключаемся…');
+    expect(html).not.toContain('<input');
+    expect(html).not.toContain('Имя');
+    expect(html).not.toContain('Как вас подписать?');
+  });
+});
 
 describe('PlayerGameView', () => {
   it('в ожидании показывает только статус и метрики', () => {
