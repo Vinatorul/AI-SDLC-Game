@@ -1,12 +1,12 @@
 :root {
-  --brand-purple: #9e61ff;
-  --brand-purple-border: rgb(158 97 255 / 55%);
-  --brand-purple-soft: rgb(158 97 255 / 14%);
+  --brand-purple: #ffea00;
+  --brand-purple-border: rgb(255 234 0 / 55%);
+  --brand-purple-soft: rgb(255 234 0 / 14%);
   --brand-red: #fc4714;
   --brand-red-border: rgb(252 71 20 / 55%);
   --brand-red-soft: rgb(252 71 20 / 14%);
-  --brand-yellow: #ffd700;
-  --brand-yellow-soft: rgb(255 215 0 / 14%);
+  --brand-yellow: #ffea00;
+  --brand-yellow-soft: rgb(255 234 0 / 14%);
   color: #111214;
   background: #f7f8fa;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

@@ -384,7 +384,8 @@ stores SQLite in the `ai-sdlc-data` volume.
 
 Build the web image with `VITE_API_BASE_URL=http://<SERVER_IP>` and `VITE_BASE_PATH=/`. Start the API
 with the exact same origin in `CORS_ORIGINS`. Do not hardcode a server IP in source files or the
-Nginx configuration. The complete root-user commands are in **docs/deploy-single-vm.md**.
+Nginx configuration. Use **scripts/update-vm.sh** for the root-user deployment workflow;
+its usage is documented in **docs/deploy-single-vm.md**.
 
 This HTTP-only mode is for a temporary demonstration. It does not replace the HTTPS/WSS production
 requirements or the separate GitHub Pages deployment. Do not expose API port 8787 publicly, remove

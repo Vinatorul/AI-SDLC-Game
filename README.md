@@ -68,10 +68,15 @@ docker run --rm -p 8787:8787 \
 Другой сценарий можно подключить без пересборки образа через `SCENARIO_PATH` и read-only volume;
 точная команда приведена в инструкции по сценариям.
 
-Резервную копию можно сделать из собранного образа командой:
+Резервную копию можно сделать из собранного образа, подключив постоянный том и отдельный каталог
+на виртуалке:
 
 ```bash
-node dist/backup.js /data/game.sqlite /backup/game.sqlite
+mkdir -p /var/backups/ai-sdlc-game
+docker run --rm --init --user 0:0 --network none \
+  -v ai-sdlc-data:/data \
+  -v /var/backups/ai-sdlc-game:/backup \
+  ai-sdlc-api node dist/backup.js /data/game.sqlite /backup/game.sqlite
 ```
 
 ## Одна виртуалка без домена
@@ -80,7 +85,9 @@ node dist/backup.js /data/game.sqlite /backup/game.sqlite
 фронтенд на `http://<IP-АДРЕС>/` и проксирует HTTP и WebSocket в API. Наружу открывается только
 порт `80`, а SQLite остаётся в постоянном Docker volume.
 
-Команды первого запуска и обновления: [docs/deploy-single-vm.md](docs/deploy-single-vm.md).
+После `git pull` сборку и перезапуск выполняет
+[`scripts/update-vm.sh`](scripts/update-vm.sh). Полная инструкция:
+[docs/deploy-single-vm.md](docs/deploy-single-vm.md).
 
 ## GitHub Pages
 

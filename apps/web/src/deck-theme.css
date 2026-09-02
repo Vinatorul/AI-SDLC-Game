@@ -9,33 +9,27 @@
   --deck-line-soft: #343434;
   --deck-border-width: 2px;
   --deck-border-neutral: var(--deck-line);
-  --deck-border-purple: rgb(158 97 255 / 72%);
+  --deck-border-purple: rgb(255 234 0 / 72%);
   --deck-border-red: rgb(252 71 20 / 72%);
-  --deck-border-yellow: rgb(255 215 0 / 72%);
+  --deck-border-yellow: rgb(255 234 0 / 72%);
   --deck-white: #fff;
   --deck-muted: #d3d3d3;
   --deck-muted-dark: #969696;
   --deck-purple: var(--brand-purple);
   --deck-lilac: var(--brand-purple);
-  --deck-purple-text: #b88cff;
-  --deck-purple-soft: rgb(158 97 255 / 18%);
+  --deck-purple-text: #ffea00;
+  --deck-purple-soft: rgb(255 234 0 / 18%);
   --app-font-body: "YS Text", "YS Geo", Arial, Helvetica, sans-serif;
   --app-font-display: "YS Text Wide", "YS Text", Arial, Helvetica, sans-serif;
   --deck-success: var(--brand-purple);
-  --deck-success-bg: #1d1426;
-  --deck-ai-gradient: linear-gradient(160deg, #111 0 42%, #261941 72%, var(--brand-purple) 118%);
+  --deck-success-bg: #302c04;
+  --deck-ai-gradient: linear-gradient(160deg, #111 0 42%, #302c04 72%, #5e5600 118%);
   --deck-danger: var(--brand-red);
   --deck-danger-bg: #3a160c;
   --deck-broken-gradient: linear-gradient(160deg, #111 0 42%, #3a160c 72%, var(--brand-red) 118%);
   --deck-warning: var(--brand-yellow);
-  --deck-warning-bg: #302904;
-  --deck-gradient: linear-gradient(
-    160deg,
-    #000 0 42%,
-    #332273 68%,
-    var(--deck-purple) 84%,
-    #8a5ea8 100%
-  );
+  --deck-warning-bg: #302c04;
+  --deck-gradient: linear-gradient(160deg, #000 0 42%, #302c04 72%, #5e5600 118%);
   color: var(--deck-white);
   background: var(--deck-black);
   color-scheme: dark;
@@ -45,7 +39,7 @@
 body {
   color: var(--deck-white);
   background:
-    radial-gradient(circle at 98% 105%, rgb(158 97 255 / 34%), transparent 28rem), var(--deck-black);
+    radial-gradient(circle at 98% 105%, rgb(255 234 0 / 34%), transparent 28rem), var(--deck-black);
   background-attachment: fixed;
 }
 
@@ -319,9 +313,9 @@ h3,
 }
 
 .ballot-step.is-active {
-  color: var(--deck-white);
+  color: var(--deck-black);
   border-color: var(--deck-purple);
-  background: linear-gradient(135deg, #503091, var(--deck-purple));
+  background: var(--deck-purple);
 }
 
 .ballot-step.is-complete {
@@ -511,7 +505,7 @@ button.option-card:not(:disabled):focus-visible {
 .influence-improves .event-branch.is-selected {
   color: var(--deck-white);
   border-color: var(--deck-border-purple);
-  background: #261941;
+  background: var(--deck-success-bg);
 }
 
 .influence-worsens .event-branch.is-selected {
@@ -523,7 +517,7 @@ button.option-card:not(:disabled):focus-visible {
 .influence-mixed .event-branch.is-selected {
   color: var(--deck-white);
   border-color: var(--deck-border-yellow);
-  background: #302904;
+  background: var(--deck-warning-bg);
 }
 
 .event-card {
@@ -532,10 +526,10 @@ button.option-card:not(:disabled):focus-visible {
   background: var(--deck-card);
 }
 
-/* Event colors are semantic: purple improves, red worsens, yellow mixes both. */
+/* Event colors are semantic: yellow improves or mixes outcomes, red worsens them. */
 .event-card.event-improved {
   border-color: var(--deck-border-purple);
-  background: linear-gradient(135deg, #1c152a, #35215c);
+  background: linear-gradient(135deg, #21210b, #3b3608);
 }
 
 .event-card.event-worsened {
@@ -545,7 +539,7 @@ button.option-card:not(:disabled):focus-visible {
 
 .event-card.event-mixed {
   border-color: var(--deck-border-yellow);
-  background: linear-gradient(135deg, #211e0b, #3b3208);
+  background: linear-gradient(135deg, #21210b, #3b3608);
 }
 
 .event-card p {
@@ -863,7 +857,7 @@ button.stage-card:not(:disabled):focus-visible,
 @media (max-width: 520px) {
   body {
     background:
-      radial-gradient(circle at 100% 100%, rgb(158 97 255 / 24%), transparent 20rem),
+      radial-gradient(circle at 100% 100%, rgb(255 234 0 / 24%), transparent 20rem),
       var(--deck-black);
   }
 
