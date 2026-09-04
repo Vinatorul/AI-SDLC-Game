@@ -974,6 +974,28 @@ button.option-card:not(:disabled):focus-visible,
   color: #777c84;
 }
 
+.host-password {
+  display: grid;
+  width: 100%;
+  gap: 5px;
+  justify-items: center;
+  padding-top: 14px;
+  border-top: 1px solid #dfe2e7;
+}
+
+.host-password small {
+  color: #777c84;
+}
+
+.host-password strong {
+  max-width: 100%;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+  text-align: center;
+  user-select: all;
+}
+
 .vote-confirmation {
   margin: 18px 0 0;
   color: var(--brand-purple);

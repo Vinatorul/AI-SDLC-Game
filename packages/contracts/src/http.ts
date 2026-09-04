@@ -1,6 +1,19 @@
 import type { AdminCommand, AdminForecast, GameState } from './domain';
 
+export type CreateGameRequest = {
+  code?: string;
+};
+
 export type CreateGameResponse = {
+  adminToken: string;
+  state: GameState;
+};
+
+export type AdminLoginRequest = {
+  password: string;
+};
+
+export type AdminLoginResponse = {
   adminToken: string;
   state: GameState;
 };

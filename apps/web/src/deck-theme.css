@@ -651,6 +651,18 @@ button.stage-card:not(:disabled):focus-visible,
   color: var(--deck-white);
 }
 
+.host-password {
+  border-color: var(--deck-line-soft);
+}
+
+.host-password small {
+  color: var(--deck-muted);
+}
+
+.host-password strong {
+  color: var(--deck-white);
+}
+
 .share-panel svg {
   box-sizing: content-box;
   padding: 12px;

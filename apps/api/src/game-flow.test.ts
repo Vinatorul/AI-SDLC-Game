@@ -5,6 +5,8 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   type AdminCommandName,
   type AdminForecast,
+  type AdminLoginResponse,
+  type CreateGameRequest,
   type CreateGameResponse,
   type GameState,
   type JoinGameResponse,
@@ -27,6 +29,49 @@ const openApps: FastifyInstance[] = [];
 
 afterEach(async () => {
   await Promise.all(openApps.splice(0).map((app) => app.close()));
+});
+
+describe('создание игры и вход ведущего', () => {
+  it('создаёт комнату с заданным кодом и паролем ведущего', async () => {
+    const app = await testApp();
+    const game = await createGame(app, { code: ' dtn026 ' });
+    expect(game.state.code).toBe('DTN026');
+    expect(game.adminToken).toMatch(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/);
+    expect(JSON.stringify(await getState(app, 'DTN026'))).not.toContain(game.adminToken);
+  });
+
+  it('не создаёт вторую комнату с тем же кодом', async () => {
+    const app = await testApp();
+    await createGame(app, { code: 'DTN026' });
+    const response = await rawCreateGame(app, { code: 'dtn026' });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe('ROOM_CODE_TAKEN');
+  });
+
+  it.each(['ABC', 'ABC-12'])('отклоняет недопустимый код %s', async (code) => {
+    const app = await testApp();
+    const response = await rawCreateGame(app, { code });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe('INVALID_REQUEST');
+  });
+
+  it('разрешает второму ведущему войти по паролю и управлять игрой', async () => {
+    const app = await testApp();
+    const game = await createGame(app, { code: 'DTN026' });
+    const login = await loginAdmin(app, game.state.code, game.adminToken.toLowerCase());
+    const cohost = { ...game, adminToken: login.adminToken };
+    await command(app, game, 'OPEN_VOTING', 0);
+    const state = await command(app, cohost, 'CLOSE_VOTING', 1);
+    expect(state.phase).toBe('RESULT');
+  });
+
+  it('не принимает неверный пароль ведущего', async () => {
+    const app = await testApp();
+    const game = await createGame(app);
+    const response = await rawLoginAdmin(app, game.state.code, 'WRONG-PASSWORD');
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('INVALID_ADMIN_PASSWORD');
+  });
 });
 
 it('заменяет голос за этап и запрещает голосовать после закрытия', async () => {
@@ -612,10 +657,30 @@ async function testApp(databasePath = ':memory:', scenario?: Scenario) {
   return app;
 }
 
-async function createGame(app: FastifyInstance) {
-  const response = await app.inject({ method: 'POST', url: '/api/games' });
+async function createGame(app: FastifyInstance, payload?: CreateGameRequest) {
+  const response = await rawCreateGame(app, payload);
   expect(response.statusCode).toBe(200);
+  expect(response.headers['cache-control']).toBe('no-store');
   return response.json() as CreateGameResponse;
+}
+
+function rawCreateGame(app: FastifyInstance, payload?: CreateGameRequest) {
+  return app.inject({ method: 'POST', ...(payload ? { payload } : {}), url: '/api/games' });
+}
+
+async function loginAdmin(app: FastifyInstance, code: string, password: string) {
+  const response = await rawLoginAdmin(app, code, password);
+  expect(response.statusCode).toBe(200);
+  expect(response.headers['cache-control']).toBe('no-store');
+  return response.json() as AdminLoginResponse;
+}
+
+function rawLoginAdmin(app: FastifyInstance, code: string, password: string) {
+  return app.inject({
+    method: 'POST',
+    payload: { password },
+    url: `/api/games/${code}/admin/login`,
+  });
 }
 
 async function joinGame(app: FastifyInstance, code: string, name: string) {

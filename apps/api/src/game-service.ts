@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type {
   AdminCommand,
   AdminForecast,
+  AdminLoginResponse,
+  CreateGameRequest,
   CreateGameResponse,
   GameRules,
   GameState,
@@ -32,7 +34,7 @@ import {
   type ScenarioRound,
   type StageActionCatalog,
 } from '@ai-sdlc/game-engine';
-import { createRoomCode, createToken, hashToken, tokenMatches } from './auth';
+import { createAdminPassword, createRoomCode, createToken, hashToken, tokenMatches } from './auth';
 import type { GameDatabase } from './db/database';
 import { withTransaction } from './db/database';
 import {
@@ -86,16 +88,23 @@ export class GameService {
     private readonly scenario: Scenario = defaultScenario,
   ) {}
 
-  createGame(): CreateGameResponse {
+  createGame(request: CreateGameRequest = {}): CreateGameResponse {
     const id = randomUUID();
-    const code = this.availableCode();
-    const adminToken = createToken();
+    const code = request.code ?? this.availableCode();
+    const adminPassword = createAdminPassword();
     withTransaction(this.database, () => {
-      insertGame(this.database, this.newGame(id, code, adminToken));
+      if (request.code) this.assertCodeAvailable(code);
+      insertGame(this.database, this.newGame(id, code, adminPassword));
       insertScenario(this.database, id, this.scenario);
       insertAction(this.database, id, 0, 'GAME_CREATED', { scenario: this.scenario.id });
     });
-    return { adminToken, state: this.stateByCode(code) };
+    return { adminToken: adminPassword, state: this.stateByCode(code) };
+  }
+
+  loginAdmin(code: string, password: string): AdminLoginResponse {
+    const game = this.gameByCode(code);
+    const adminToken = this.matchingAdminCredential(game, password);
+    return { adminToken, state: buildGameState(this.database, game) };
   }
 
   join(code: string, name: string): JoinGameResponse {
@@ -169,6 +178,15 @@ export class GameService {
       503,
       'ROOM_CODE_EXHAUSTED',
       'Не получилось создать игру. Попробуйте ещё раз',
+    );
+  }
+
+  private assertCodeAvailable(code: string) {
+    assertCondition(
+      !findGameByCode(this.database, code),
+      409,
+      'ROOM_CODE_TAKEN',
+      'Этот код уже занят. Выберите другой',
     );
   }
 
@@ -596,8 +614,21 @@ export class GameService {
       tokenMatches(token, game.admin_token_hash),
       401,
       'INVALID_ADMIN_TOKEN',
-      'Эта вкладка больше не может управлять игрой. Откройте пульт в браузере, где создали комнату',
+      'Пароль ведущего больше не подходит. Войдите заново',
     );
+  }
+
+  private matchingAdminCredential(game: GameRow, password: string) {
+    const candidate = password.trim();
+    if (tokenMatches(candidate, game.admin_token_hash)) return candidate;
+    const upper = candidate.toUpperCase();
+    assertCondition(
+      tokenMatches(upper, game.admin_token_hash),
+      401,
+      'INVALID_ADMIN_PASSWORD',
+      'Неверный пароль ведущего',
+    );
+    return upper;
   }
 
   private assertVersion(game: GameRow, expected: number) {

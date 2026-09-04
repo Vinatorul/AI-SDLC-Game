@@ -17,11 +17,20 @@ export function tokenMatches(token: string, expectedHash: string) {
 }
 
 export function createRoomCode() {
-  const bytes = randomBytes(6);
-  return [...bytes].map((byte) => roomAlphabet[byte % roomAlphabet.length]).join('');
+  return createReadableSecret(6);
+}
+
+export function createAdminPassword() {
+  const value = createReadableSecret(12);
+  return value.match(/.{4}/g)?.join('-') ?? value;
 }
 
 export function readBearerToken(header: string | undefined) {
   if (!header?.startsWith('Bearer ')) return null;
   return header.slice('Bearer '.length).trim() || null;
+}
+
+function createReadableSecret(length: number) {
+  const bytes = randomBytes(length);
+  return [...bytes].map((byte) => roomAlphabet[byte % roomAlphabet.length]).join('');
 }

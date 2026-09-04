@@ -1,6 +1,6 @@
 import type { AdminCommandName, GameState } from '@ai-sdlc/contracts';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { adminTokenKey } from '../api/storage';
@@ -18,12 +18,12 @@ import { useGameState } from '../realtime/useGameState';
 export function AdminPage() {
   const { code } = useParams();
   const game = useGameState(code);
+  const access = useAdminAccess(code);
   if (!code) return <AdminStart />;
-  const token = sessionStorage.getItem(adminTokenKey(code));
-  if (!token) return <MissingAdminToken code={code} />;
+  if (!access.token) return <AdminLogin code={code} onLogin={access.save} />;
   if (game.error) return <PageError message={game.error} />;
   if (!game.state) return <PageLoading />;
-  return <AdminGame code={code} game={game} token={token} />;
+  return <AdminGame code={code} game={game} token={access.token} />;
 }
 
 function AdminStart() {
@@ -36,29 +36,45 @@ function AdminStart() {
           <h1>Новая игра</h1>
           <p>Создайте комнату. Здесь появятся код для игроков и кнопки управления игрой.</p>
           {createGame.error && <p className="form-error">{createGame.error}</p>}
-          <button
-            className="primary-button"
-            disabled={createGame.busy}
-            onClick={createGame.run}
-            type="button"
-          >
-            {createGame.busy ? 'Создаём…' : 'Создать игру'}
-          </button>
+          <CreateGameForm createGame={createGame} />
         </section>
       </main>
     </Layout>
   );
 }
 
+function CreateGameForm({ createGame }: { createGame: ReturnType<typeof useCreateGame> }) {
+  return (
+    <form onSubmit={createGame.run}>
+      <input
+        aria-label="Код комнаты"
+        autoCapitalize="characters"
+        maxLength={12}
+        onChange={(event) => createGame.setCode(event.target.value.toUpperCase())}
+        pattern="[A-Za-z0-9]{4,12}"
+        placeholder="Код комнаты — необязательно"
+        spellCheck={false}
+        value={createGame.code}
+      />
+      <button className="primary-button" disabled={createGame.busy} type="submit">
+        {createGame.busy ? 'Создаём…' : 'Создать игру'}
+      </button>
+    </form>
+  );
+}
+
 function useCreateGame() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  async function run() {
+  async function run(event: FormEvent) {
+    event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const result = await api.createGame();
+      const normalized = code.trim().toUpperCase();
+      const result = await api.createGame(normalized ? { code: normalized } : {});
       sessionStorage.setItem(adminTokenKey(result.state.code), result.adminToken);
       navigate(`/admin/${result.state.code}`);
     } catch (caught) {
@@ -66,7 +82,7 @@ function useCreateGame() {
       setBusy(false);
     }
   }
-  return { busy, error, run };
+  return { busy, code, error, run, setCode };
 }
 
 type AdminGameProps = {
@@ -94,7 +110,7 @@ function AdminGame({ code, game, token }: AdminGameProps) {
           </div>
           <aside>
             <AdminControls code={code} game={game} state={state} token={token} />
-            <SharePanel code={code} />
+            <SharePanel code={code} password={token} />
           </aside>
         </div>
       </main>
@@ -186,33 +202,90 @@ function TieButtons({ busy, send, state }: Parameters<typeof ControlButtons>[0])
   );
 }
 
-function SharePanel({ code }: { code: string }) {
+function SharePanel({ code, password }: { code: string; password: string }) {
   const playerUrl = `${window.location.origin}${window.location.pathname}#/play/${code}`;
   return (
     <section className="share-panel">
       <p className="eyebrow">Подключение</p>
       <QRCodeSVG bgColor="#ffffff" fgColor="#111214" size={164} value={playerUrl} />
       <strong>{code}</strong>
+      <div className="host-password">
+        <small>Пароль ведущего</small>
+        <strong>{password}</strong>
+      </div>
       <Link to={`/screen/${code}`}>Открыть общий экран</Link>
     </section>
   );
 }
 
-function MissingAdminToken({ code }: { code: string }) {
+function AdminLogin({ code, onLogin }: { code: string; onLogin: (token: string) => void }) {
+  const login = useAdminLogin(code, onLogin);
   return (
     <Layout>
       <main className="single-page">
         <section className="entry-card">
           <p className="eyebrow">Комната {code}</p>
-          <h1>Эта вкладка не может управлять игрой</h1>
-          <p>Вернитесь во вкладку, где создали комнату, или начните новую игру.</p>
-          <Link className="primary-button" to="/admin">
-            Создать новую игру
-          </Link>
+          <h1>Войти в пульт</h1>
+          <p>Введите пароль ведущего. Его можно взять у того, кто создал комнату.</p>
+          {login.error && <p className="form-error">{login.error}</p>}
+          <AdminLoginForm login={login} />
         </section>
       </main>
     </Layout>
   );
+}
+
+function AdminLoginForm({ login }: { login: ReturnType<typeof useAdminLogin> }) {
+  return (
+    <form onSubmit={login.run}>
+      <input
+        aria-label="Пароль ведущего"
+        autoCapitalize="characters"
+        autoComplete="current-password"
+        maxLength={64}
+        minLength={4}
+        onChange={(event) => login.setPassword(event.target.value)}
+        placeholder="XXXX-XXXX-XXXX"
+        spellCheck={false}
+        type="password"
+        value={login.password}
+      />
+      <button className="primary-button" disabled={login.busy} type="submit">
+        {login.busy ? 'Проверяем…' : 'Войти'}
+      </button>
+    </form>
+  );
+}
+
+function useAdminLogin(code: string, onLogin: (token: string) => void) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  async function run(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.loginAdmin(code, password);
+      onLogin(result.adminToken);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не получилось войти в пульт.');
+      setBusy(false);
+    }
+  }
+  return { busy, error, password, run, setPassword };
+}
+
+function useAdminAccess(code: string | undefined) {
+  const [active, setActive] = useState<{ code: string; token: string } | null>(null);
+  const stored = code ? sessionStorage.getItem(adminTokenKey(code)) : null;
+  const token = active && active.code === code ? active.token : stored;
+  function save(next: string) {
+    if (!code) return;
+    sessionStorage.setItem(adminTokenKey(code), next);
+    setActive({ code, token: next });
+  }
+  return { save, token };
 }
 
 function PageLoading() {

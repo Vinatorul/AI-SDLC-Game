@@ -2,7 +2,9 @@ import type {
   AdminCommand,
   AdminCommandResponse,
   AdminForecastResponse,
+  AdminLoginResponse,
   ApiErrorBody,
+  CreateGameRequest,
   CreateGameResponse,
   GameState,
   JoinGameResponse,
@@ -28,7 +30,11 @@ export const api = {
       headers: authHeaders(token),
       method: 'POST',
     }),
-  createGame: () => request<CreateGameResponse>('/api/games', { method: 'POST' }),
+  createGame: (game: CreateGameRequest = {}) =>
+    request<CreateGameResponse>('/api/games', {
+      body: JSON.stringify(game),
+      method: 'POST',
+    }),
   getAdminForecast: (code: string, token: string) =>
     request<AdminForecastResponse>(`/api/games/${code}/admin/forecast`, {
       headers: authHeaders(token),
@@ -40,6 +46,11 @@ export const api = {
   join: (code: string) =>
     request<JoinGameResponse>(`/api/games/${code}/join`, {
       body: JSON.stringify({ name: 'Участник' }),
+      method: 'POST',
+    }),
+  loginAdmin: (code: string, password: string) =>
+    request<AdminLoginResponse>(`/api/games/${code}/admin/login`, {
+      body: JSON.stringify({ password }),
       method: 'POST',
     }),
   vote: (code: string, token: string, vote: VoteRequest) =>

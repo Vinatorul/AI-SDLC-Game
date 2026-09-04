@@ -10,6 +10,17 @@ import { GameService } from './game-service';
 import { GameHub } from './realtime/game-hub';
 
 const codeParams = z.object({ code: z.string().min(4).max(12) });
+const createGameBody = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(4)
+    .max(12)
+    .regex(/^[A-Za-z0-9]+$/)
+    .transform(normalizeCode)
+    .optional(),
+});
+const adminLoginBody = z.object({ password: z.string().trim().min(4).max(64) });
 const joinBody = z.object({ name: z.string().trim().min(1).max(40) });
 const voteBody = z.union([
   z.object({ ballotId: z.string().min(1).max(80), choiceId: z.string().min(1).max(80) }),
@@ -56,7 +67,11 @@ export async function createApp(options: AppOptions) {
 
 function registerHttpRoutes(app: FastifyInstance, service: GameService) {
   app.get('/health', async () => service.health());
-  app.post('/api/games', async () => service.createGame());
+  app.post('/api/games', async (request, reply) => {
+    const body = createGameBody.parse(request.body ?? {});
+    reply.header('cache-control', 'no-store');
+    return service.createGame(body);
+  });
   app.post('/api/games/:code/join', async (request) => {
     const { code } = codeParams.parse(request.params);
     const { name } = joinBody.parse(request.body);
@@ -70,6 +85,12 @@ function registerHttpRoutes(app: FastifyInstance, service: GameService) {
     const { code } = codeParams.parse(request.params);
     reply.header('cache-control', 'no-store');
     return service.getAdminForecast(normalizeCode(code), bearer(request));
+  });
+  app.post('/api/games/:code/admin/login', async (request, reply) => {
+    const { code } = codeParams.parse(request.params);
+    const { password } = adminLoginBody.parse(request.body);
+    reply.header('cache-control', 'no-store');
+    return service.loginAdmin(normalizeCode(code), password);
   });
   app.put('/api/games/:code/vote', async (request) => {
     const { code } = codeParams.parse(request.params);
