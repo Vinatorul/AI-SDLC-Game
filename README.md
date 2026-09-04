@@ -79,14 +79,20 @@ docker run --rm --init --user 0:0 --network none \
   ai-sdlc-api node dist/backup.js /data/game.sqlite /backup/game.sqlite
 ```
 
-## Одна виртуалка без домена
+## Одна виртуалка с HTTPS
 
-Готовая схема без Docker Compose поднимает два контейнера в одной внутренней сети. Nginx раздаёт
-фронтенд на `http://<IP-АДРЕС>/` и проксирует HTTP и WebSocket в API. Наружу открывается только
-порт `80`, а SQLite остаётся в постоянном Docker volume.
+Caddy принимает HTTP и HTTPS, сам получает и обновляет сертификат и передаёт запросы фронтенду.
+API доступен только внутри Docker-сети, SQLite хранится в постоянном томе.
 
-После `git pull` сборку и перезапуск выполняет
-[`scripts/update-vm.sh`](scripts/update-vm.sh). Полная инструкция:
+Перед первым запуском направьте A-запись домена на виртуалку и откройте входящие TCP-порты `80` и
+`443`. После `git pull` передайте домен скрипту:
+
+```bash
+DOMAIN='game.example.com'
+./scripts/update-vm.sh "$DOMAIN"
+```
+
+Для временного HTTP-доступа скрипт по-прежнему принимает IPv4-адрес. Полная инструкция:
 [docs/deploy-single-vm.md](docs/deploy-single-vm.md).
 
 ## GitHub Pages
@@ -95,4 +101,11 @@ Workflow [.github/workflows/pages.yml](.github/workflows/pages.yml) собира
 
 Опубликованный фронтенд: [kuvaev.me/AI-SDLC-Game](https://kuvaev.me/AI-SDLC-Game/).
 
-В настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API. Без неё страница откроется, но создать игру или проголосовать через опубликованный фронтенд не получится. Для API нужно разрешить origin `https://kuvaev.me` в `CORS_ORIGINS`.
+В настройках репозитория нужно задать переменную `VITE_API_BASE_URL` с HTTPS-адресом API. Без неё
+страница откроется, но создать игру или проголосовать через опубликованный фронтенд не получится.
+При обновлении виртуалки разрешите origin опубликованного фронтенда так:
+
+```bash
+DOMAIN='game.example.com'
+EXTRA_CORS_ORIGINS='https://kuvaev.me' ./scripts/update-vm.sh "$DOMAIN"
+```

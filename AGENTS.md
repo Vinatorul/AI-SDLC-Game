@@ -377,19 +377,21 @@ The container must run as a single API instance with a persistent volume mounted
 
 ## Run both applications on one VM without Compose
 
-The bare-IP deployment uses two containers on the `ai-sdlc` Docker network. The web container
-serves the Vite build through Nginx on public port 80 and proxies `/api`, `/health`, and WebSocket
-upgrades to the container named `ai-sdlc-api`. The API container is not published on the host and
-stores SQLite in the `ai-sdlc-data` volume.
+The preferred single-VM deployment uses three containers on the `ai-sdlc` Docker network. Caddy
+owns public ports 80 and 443, manages HTTPS, and forwards requests to `ai-sdlc-web`. Nginx serves
+the Vite build and proxies `/api`, `/health`, and WebSocket upgrades to `ai-sdlc-api`. The API is not
+published on the host and stores SQLite in the `ai-sdlc-data` volume.
 
-Build the web image with `VITE_API_BASE_URL=http://<SERVER_IP>` and `VITE_BASE_PATH=/`. Start the API
-with the exact same origin in `CORS_ORIGINS`. Do not hardcode a server IP in source files or the
-Nginx configuration. Use **scripts/update-vm.sh** for the root-user deployment workflow;
-its usage is documented in **docs/deploy-single-vm.md**.
+Build the web image with the public HTTPS origin in `VITE_API_BASE_URL` and the same exact origin in
+the API's `CORS_ORIGINS`. Add any separately hosted frontend through `EXTRA_CORS_ORIGINS` when
+running the updater. Caddy state belongs in the persistent `ai-sdlc-caddy-data` volume. Use
+**scripts/update-vm.sh** with one bare domain for the root-user deployment workflow; it also keeps
+the previous direct-IP HTTP mode when passed an IPv4 address. Its usage is documented in
+**docs/deploy-single-vm.md**.
 
-This HTTP-only mode is for a temporary demonstration. It does not replace the HTTPS/WSS production
-requirements or the separate GitHub Pages deployment. Do not expose API port 8787 publicly, remove
-the persistent volume during container updates, or run multiple API containers against it.
+Do not hardcode a server IP or domain in source files or Nginx. Do not expose API port 8787,
+remove `ai-sdlc-data` or `ai-sdlc-caddy-data` during updates, or run multiple API containers against
+one SQLite database.
 
 ## How to change code
 
