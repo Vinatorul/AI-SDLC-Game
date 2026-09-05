@@ -85,7 +85,7 @@ function repeatWithoutMetricGain(
   return { nextRound: firstRound + repeats + 1, snapshot: current };
 }
 
-describe('баланс сценария v18', () => {
+describe('баланс основного сценария', () => {
   it('не начисляет баллы повторно за прежнюю цепочку накопления', () => {
     let snapshot = initialSnapshot();
     let nextRound = 1;
@@ -187,6 +187,82 @@ describe('баланс сценария v18', () => {
       stage: 'review',
     });
   });
+});
+
+it.each([
+  ['productDiscovery.knowledge-base', ['productDiscovery.knowledge-skill']],
+  [
+    'coding.project-checks',
+    ['productDiscovery.requirement-draft', 'testing.behavior-checks', 'coding.repository-mcp'],
+  ],
+  ['review.risk-policy', ['testing.behavior-checks', 'review.review-skill']],
+  ['support.telemetry-baseline', ['support.incident-mcp']],
+])('события: %s допускает активацию и сохранение установленного AI', (foundationId, setup) => {
+  const { plans } = play([...setup, foundationId, foundationId]);
+  const foundation = getStageAction(defaultScenario.stageActions, foundationId);
+  const activated = plans.at(-2);
+  expect(activated?.activatedActions).toContainEqual(
+    expect.objectContaining({ actionId: setup.at(-1), completedByActionId: foundationId }),
+  );
+  for (const plan of plans.slice(-2)) {
+    expect(plan.stages[foundation.stage]).toBe('AI_ENABLED');
+    expect(plan.event.description).not.toContain('AI пока не участвует');
+  }
+  expect(plans.at(-1)?.activatedActions).toEqual([]);
+});
+
+it('события: MCP откладывает релиз без автотестов при первом и повторном ходе', () => {
+  const actionId = 'deployment.mcp-tooling';
+  const { plans } = play([actionId, actionId]);
+  for (const [index, plan] of plans.entries()) {
+    expect(plan.event.id).toBe('event-deploy-mcp-without-tests');
+    expect(plan.stages.deployment).toBe('AS_IS');
+    expect(plan.properties).not.toContain('automatedTests');
+    expect(plan.appliedActions.map((action) => action.actionId)).toEqual(
+      Array.from({ length: index + 1 }, () => actionId),
+    );
+    expect(plan.effectContributions).toContainEqual(
+      expect.objectContaining({
+        effect: { deliverySpeed: -1, teamCapacity: -1 },
+        effectReasons: expect.objectContaining({
+          deliverySpeed: expect.stringContaining('сначала нужно добавить'),
+        }),
+        kind: 'EVENT',
+      }),
+    );
+  }
+});
+
+it('события: повторная генерация тестов сохраняет причину из старого документа', () => {
+  const { plans } = play([
+    'testing.behavior-checks',
+    'testing.test-generation-skill',
+    'testing.test-generation-skill',
+  ]);
+  for (const plan of plans.slice(1)) {
+    expect(plan.event.id).toBe('event-test-skill-without-context');
+    expect(plan.stages.testing).toBe('BROKEN');
+    expect(plan.properties).toContain('automatedTests');
+    expect(plan.appliedActions.map(({ actionId }) => actionId)).not.toContain(
+      'productDiscovery.knowledge-base',
+    );
+    const contribution = plan.effectContributions.find(({ kind }) => kind === 'EVENT');
+    expect(contribution?.effect.quality).toBe(-2);
+    expect(contribution?.effectReasons?.quality).toMatch(/стар[а-яё]* документ/);
+    expect(contribution?.effectReasons?.quality).not.toMatch(/догад/);
+  }
+});
+
+it('события: анализ зависимостей объясняет отсутствие всей карты', () => {
+  const plan = applyAction(initialSnapshot(), 'technicalDiscovery.ai-impact-analysis', 1);
+  expect(plan.event.id).toBe('event-impact-graph-missing');
+  expect(plan.event.title).toContain('Без карты зависимостей');
+  expect(plan.event.title).toContain('соседний сервис');
+  expect(plan.event.description).toContain('Карты зависимостей не было');
+  expect(plan.stages.technicalDiscovery).toBe('AS_IS');
+  expect(plan.appliedActions.map(({ actionId }) => actionId)).not.toContain(
+    'technicalDiscovery.dependency-map',
+  );
 });
 
 function nextSeed(seed: number) {
@@ -299,9 +375,9 @@ function findEventWitnesses(maxDepth: number) {
   return { found, targets, visited: seen.size };
 }
 
-describe('достижимость событий сценария v18', () => {
+describe('достижимость событий основного сценария', () => {
   it('находит цепочку решений для каждого условного события', () => {
-    expect(defaultScenario.version).toBe(18);
+    expect(defaultScenario.version).toBe(20);
     const { found, targets, visited } = findEventWitnesses(4);
     expect(targets.size).toBe(63);
     const unreachable = [...targets].filter((eventId) => !found.has(eventId)).sort();
@@ -375,7 +451,7 @@ describe('диагностика сценария с фиксированным 
     const second = simulateBatch(17, 200, 16);
     expect(second).toEqual(first);
     expect(first.BROKEN + first.ONGOING + first.WON).toBe(200);
-    console.info('v18 fixed-seed diagnostic', first);
+    console.info('fixed-seed diagnostic', first);
   });
 
   it('допускает раннее поражение только после двух опасных автономных релизов', () => {

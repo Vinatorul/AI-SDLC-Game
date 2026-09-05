@@ -93,12 +93,20 @@ function ActionConditions({
 type HelpfulConditionsProps = { potential: ActionPotentialView; state: GameState };
 
 function HelpfulConditions({ potential, state }: HelpfulConditionsProps) {
+  return (
+    <>
+      <ActivationConditions potential={potential} />
+      <PositiveEffectConditions potential={potential} state={state} />
+    </>
+  );
+}
+
+function ActivationConditions({ potential }: { potential: ActionPotentialView }) {
   const activationRequirements = potential.activationRequirements ?? [];
-  const positiveEffectRequirements = potential.positiveEffectRequirements ?? [];
-  if (activationRequirements.length === 0 && positiveEffectRequirements.length === 0) return null;
+  if (activationRequirements.length === 0) return null;
   return (
     <section className="condition-group influence-positive">
-      <h4>Помогает получить плюс</h4>
+      <h4>Что нужно, чтобы AI заработал</h4>
       <ul>
         {activationRequirements.map((item) => (
           <ConditionRow
@@ -107,6 +115,18 @@ function HelpfulConditions({ potential, state }: HelpfulConditionsProps) {
             title={item.title}
           />
         ))}
+      </ul>
+    </section>
+  );
+}
+
+function PositiveEffectConditions({ potential, state }: HelpfulConditionsProps) {
+  const positiveEffectRequirements = potential.positiveEffectRequirements ?? [];
+  if (positiveEffectRequirements.length === 0) return null;
+  return (
+    <section className="condition-group influence-positive">
+      <h4>Что нужно для роста метрик</h4>
+      <ul>
         {positiveEffectRequirements.map((item) => (
           <ConditionRow
             key={`effect:${item.metric}:${item.stage}`}
@@ -168,7 +188,7 @@ function ConditionRow({ satisfied, status, title }: ConditionRowProps) {
   return (
     <li className={satisfied ? 'is-active' : 'is-inactive'}>
       <span>{title}</span>
-      <b>{status ?? (satisfied ? 'Активно' : 'Неактивно')}</b>
+      <b>{status ?? (satisfied ? 'Выполнено' : 'Не выполнено')}</b>
     </li>
   );
 }
@@ -192,7 +212,9 @@ function conditionsSummary(potential: ActionPotentialView, branches: EventBranch
 function predicateTitle(condition: ForecastPredicateView): string {
   if (condition.kind === 'ACTION_HISTORY') {
     const prefix =
-      condition.expected === 'APPLIED' ? 'Раньше выбраны все' : 'Раньше не выбрано ни одно';
+      condition.expected === 'APPLIED'
+        ? 'Команда уже применила все решения из списка'
+        : 'Команда ещё не применяла ни одного решения из списка';
     return `${prefix}: ${condition.titles.join('; ')}`;
   }
   if (condition.kind === 'PROPERTY') {
@@ -212,31 +234,45 @@ function predicateTitle(condition: ForecastPredicateView): string {
 }
 
 function countTitle(condition: Extract<ForecastPredicateView, { kind: 'COUNT' }>) {
-  const range = countRange(condition.minimum, condition.maximum);
   const { scope } = condition;
+  const repetitions =
+    scope.kind === 'ACTIONS' || (scope.kind === 'STAGE_SINCE_LAST' && scope.titles !== undefined);
+  const range = countRange(condition.minimum, condition.maximum, repetitions);
   if (scope.kind === 'ALL_ACTIONS') return `Всего принято решений: ${range}`;
-  if (scope.kind === 'STAGE') return `На этапе «${stageLabels[scope.stage]}» выбрано: ${range}`;
-  if (scope.kind === 'ACTIONS') return `Эти решения выбирали ${range}: ${scope.titles.join('; ')}`;
+  if (scope.kind === 'STAGE')
+    return `На этапе «${stageLabels[scope.stage]}» принято решений: ${range}`;
+  if (scope.kind === 'ACTIONS')
+    return `Решения из списка применили суммарно ${range}: ${scope.titles.join('; ')}`;
   const period = scope.sinceStageSeen
     ? `После последнего решения на этапе «${stageLabels[scope.sinceStage]}»`
     : 'С начала игры';
   if (scope.titles) {
-    return `${period} выбирали ${range}: ${scope.titles.join('; ')}`;
+    return `${period} решения из списка применили суммарно ${range}: ${scope.titles.join('; ')}`;
   }
-  return `${period} на этапе «${stageLabels[scope.stage]}» выбрано: ${range}`;
+  return `${period} на этапе «${stageLabels[scope.stage]}» принято решений: ${range}`;
 }
 
-function countRange(minimum?: number, maximum?: number) {
-  if (minimum !== undefined && minimum === maximum) return `${minimum}`;
-  if (minimum !== undefined && maximum !== undefined) return `от ${minimum} до ${maximum}`;
-  if (minimum !== undefined) return `не меньше ${minimum}`;
-  if (maximum !== undefined) return `не больше ${maximum}`;
-  return 'любое число раз';
+function countRange(minimum?: number, maximum?: number, repetitions = false) {
+  const count = maximum ?? minimum;
+  const suffix =
+    repetitions && count !== undefined ? ` ${repetitionWord(count, minimum !== maximum)}` : '';
+  if (minimum !== undefined && minimum === maximum) return `${minimum}${suffix}`;
+  if (minimum !== undefined && maximum !== undefined) return `от ${minimum} до ${maximum}${suffix}`;
+  if (minimum !== undefined) return `не меньше ${minimum}${suffix}`;
+  if (maximum !== undefined) return `не больше ${maximum}${suffix}`;
+  return repetitions ? 'любое число раз' : 'любое число';
+}
+
+function repetitionWord(count: number, genitive: boolean) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (genitive) return mod10 === 1 && mod100 !== 11 ? 'раза' : 'раз';
+  return [2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100) ? 'раза' : 'раз';
 }
 
 function conditionStatus(condition: ForecastPredicateView) {
-  if (condition.kind !== 'COUNT') return condition.satisfied ? 'Активно' : 'Неактивно';
-  return `${condition.satisfied ? 'Активно' : 'Неактивно'} · сейчас ${condition.actual}`;
+  const status = condition.satisfied ? 'Выполнено' : 'Не выполнено';
+  return condition.kind === 'COUNT' ? `${status} · сейчас ${condition.actual}` : status;
 }
 
 function StageOutcomes({ outcomes }: { outcomes: { stage: StageKey; states: StageState[] }[] }) {
