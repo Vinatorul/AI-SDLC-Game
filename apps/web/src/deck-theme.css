@@ -687,16 +687,21 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .screen-dashboard {
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 26vw, 440px);
+  gap: 18px;
   margin-top: 0;
 }
 
+.screen-page {
+  width: min(1600px, calc(100% - 48px));
+  padding: 24px 0 48px;
+}
+
 .screen-current-phase {
-  min-height: 176px;
-  padding: 30px 34px;
+  min-height: 90px;
+  padding: 18px 26px;
   border: var(--deck-border-width) solid var(--deck-border-neutral);
-  border-radius: 32px;
+  border-radius: 24px;
   background: var(--deck-black);
 }
 
@@ -705,12 +710,79 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .screen-current-phase h2 {
-  font-size: clamp(42px, 5vw, 70px);
+  margin: 0;
+  font-size: clamp(30px, 3.2vw, 46px);
   font-weight: 700;
+  line-height: 1;
 }
 
 .screen-dashboard > .map-section {
-  margin-top: 20px;
+  margin-top: 2px;
+}
+
+.screen-page .metric-grid {
+  gap: 16px;
+}
+
+.screen-page .metric-scale,
+.screen-page .metric-label small,
+.screen-page .map-section > .section-heading {
+  display: none;
+}
+
+.screen-page .metric-card {
+  display: flex;
+  min-height: 176px;
+  flex-direction: column;
+  padding: 26px;
+}
+
+.screen-page .metric-label {
+  align-items: flex-start;
+  font-size: clamp(16px, 1.35vw, 22px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.screen-page .metric-card > strong {
+  margin: auto 0 18px;
+  font-size: clamp(56px, 4.8vw, 78px);
+  line-height: 0.9;
+}
+
+.screen-page .metric-track {
+  height: 9px;
+  margin-top: 0;
+}
+
+.screen-page .metric-track b {
+  top: -3px;
+  height: 15px;
+}
+
+.screen-page .stage-grid-compact {
+  gap: 14px;
+}
+
+.screen-page .stage-card-compact {
+  padding: 18px;
+}
+
+.screen-page .stage-card-main {
+  gap: 10px;
+}
+
+.screen-page .stage-card strong {
+  font-size: clamp(17px, 1.35vw, 23px);
+}
+
+.screen-page .stage-card small {
+  font-size: clamp(13px, 1vw, 16px);
+  line-height: 1.2;
+}
+
+.screen-page .stage-card > span:first-child {
+  font-size: clamp(15px, 1.1vw, 18px);
 }
 
 .screen-qr {
@@ -722,15 +794,22 @@ button.stage-card:not(:disabled):focus-visible,
 
 .screen-dashboard > .screen-qr {
   align-content: center;
-  padding: 24px 18px;
+  padding: 28px 24px;
+}
+
+.screen-qr svg {
+  width: min(100%, 320px);
+  height: auto;
 }
 
 .screen-qr small {
   color: #626262;
+  font-size: 17px;
 }
 
 .screen-qr strong {
   color: var(--deck-black);
+  font-size: 34px;
   font-weight: 500;
 }
 
@@ -832,8 +911,18 @@ button.stage-card:not(:disabled):focus-visible,
 
   .screen-dashboard > .screen-qr {
     display: flex;
+    align-items: center;
+    justify-content: center;
     justify-items: initial;
     text-align: left;
+  }
+
+  .screen-qr svg {
+    width: 220px;
+  }
+
+  .screen-page .stage-grid-compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -912,12 +1001,20 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .screen-current-phase {
-    min-height: 150px;
-    padding: 24px;
-    border-radius: 24px;
+    min-height: 96px;
+    padding: 20px;
+    border-radius: 20px;
   }
 
   .screen-current-phase h2 {
-    font-size: clamp(38px, 12vw, 54px);
+    font-size: clamp(30px, 10vw, 42px);
+  }
+
+  .screen-qr svg {
+    width: 160px;
+  }
+
+  .screen-page .stage-grid-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

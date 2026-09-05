@@ -33,6 +33,8 @@ describe('ScreenGameView', () => {
     expect(html).toContain('Состояние SDLC');
     expect(html).toContain('Войти в игру');
     expect(html).toContain('ABCDE');
+    expect(html).toContain('height="320"');
+    expect(html).not.toContain('<p class="eyebrow">Текущая фаза</p>');
     expect(html).not.toContain('class="metric-description"');
     expect(html).not.toContain('0 — исходный процесс');
     expect(html).not.toContain('История решений');
@@ -118,7 +120,7 @@ function render(gameState: GameState) {
 }
 
 function expectInDashboardOrder(html: string) {
-  const decision = html.indexOf('Текущая фаза');
+  const decision = html.indexOf('aria-label="Текущая фаза"');
   const metrics = html.indexOf('aria-label="Метрики SDLC"');
   const stages = html.indexOf('Состояние SDLC');
   const qr = html.indexOf('Войти в игру');

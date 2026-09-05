@@ -41,8 +41,7 @@ export function ScreenGameView({
 
 function ScreenCurrentPhase({ state }: { state: GameState }) {
   return (
-    <section className="screen-current-phase" aria-live="polite">
-      <p className="eyebrow">Текущая фаза</p>
+    <section aria-label="Текущая фаза" className="screen-current-phase" aria-live="polite">
       <h2>{phaseLabels[state.phase]}</h2>
     </section>
   );
@@ -77,7 +76,7 @@ function JoinQr({ code }: { code: string }) {
   const url = `${window.location.origin}${window.location.pathname}#/play/${code}`;
   return (
     <aside className="screen-qr">
-      <QRCodeSVG bgColor="#ffffff" fgColor="#111214" size={116} value={url} />
+      <QRCodeSVG bgColor="#ffffff" fgColor="#111214" size={320} value={url} />
       <div>
         <small>Войти в игру</small>
         <strong>{code}</strong>
