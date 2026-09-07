@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { defaultScenario } from '../../../tests/fixtures/scenario';
 import { evaluateEventRule } from './event-conditions';
 import { createInitialMetrics, createInitialStages } from './resolve';
-import { defaultScenario } from './scenario';
+
 import type { EngineAction, EngineSnapshot, EventRule } from './types';
 
 describe('event condition explanation', () => {
@@ -104,7 +105,7 @@ function scenarioAction(actionId: string): EngineAction {
 }
 
 function scenarioSnapshot(): EngineSnapshot {
-  const stages = createInitialStages();
+  const stages = createInitialStages(defaultScenario.mechanics);
   stages.review = 'BROKEN';
   return {
     appliedActions: [{ actionId: 'review.risk-policy', roundNumber: 1, stage: 'review' }],

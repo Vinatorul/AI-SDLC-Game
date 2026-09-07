@@ -14,6 +14,8 @@ template; its copy and balance are still a technical draft.
 - **apps/api** — Fastify HTTP and WebSocket API backed by SQLite.
 - **packages/contracts** — shared API and game-state types.
 - **packages/game-engine** — pure deterministic game logic with no HTTP, database, or randomness.
+- **content** — setting-specific JSON scenarios, public legacy vocabulary, and authoring guides.
+- **tests/fixtures** — bundled-scenario helpers for tests, never production engine defaults.
 - **docs** — product rules and the MVP architecture.
 
 ## Core invariants
@@ -61,8 +63,8 @@ template; its copy and balance are still a technical draft.
 ## Content source of truth
 
 The bundled MVP scenario is the JSON file
-**packages/game-engine/content/scenarios/technical-mvp.json**. The field guide and authoring
-examples are in **packages/game-engine/content/README.md**.
+**content/scenarios/technical-mvp.json**. The field guide and authoring
+examples are in **content/README.md** and **content/sdlc-authoring.md**.
 
 - **stageActions** is the reusable catalog of actions, effects, availability, and repeatability;
 - **rounds** contains persisted turn templates, stage choices, action references, and
@@ -74,9 +76,33 @@ examples are in **packages/game-engine/content/README.md**.
   final stage state;
 - top-level metadata defines the schema version, scenario id, content version, and status.
 
-**packages/game-engine/src/scenario.ts** only imports and validates the bundled JSON. Do not put
-scenario copy or tuning values back into that TypeScript file. The Zod boundary and semantic checks
-live in **packages/game-engine/src/scenario-schema.ts**.
+**apps/api/src/bundled-scenario.ts** selects and validates the default JSON. The engine must not
+import any bundled scenario, legacy SDLC vocabulary, or application code. The Zod boundary and
+semantic checks live in **packages/game-engine/src/scenario-schema.ts**.
+
+### Reusable engine boundary
+
+- Format 5 scenarios define their own stage, metric, and property IDs. Never add global catalogs
+  to contracts or engine code; derive iteration from the validated scenario or saved room snapshot.
+- `presentation` owns branding, ordered labels, state vocabulary, and setting-specific UI text.
+  `mechanics.initialStages` owns initial stage states; `initialMetrics` and `metricDefinitions`
+  own the metric set. The API snapshots presentation alongside mechanics in the existing JSON column.
+- `AS_IS`, `AI_ENABLED`, and `BROKEN` are stable storage/protocol values. The middle state means
+  ready/upgraded in a generic setting; all visible names come from presentation. The generic
+  victory count is `rules.minReadyStagesToWin`.
+- Preserve the existing high-is-good score model, shared bounds/thresholds, two ballots, ordered
+  conditions, repairs, repeat effects, and activation behavior. New kinds of game mechanics are
+  separate changes, not extra setting-specific branches in the resolver.
+- `apps/api/src/scenario-compatibility.ts` adapts old format-4 files and persisted room fields.
+  Frozen SDLC labels live in `content/legacy-presentation.json`; never borrow the active scenario's
+  values or labels to reconstruct a different saved room.
+- `/api/scenario` exposes only the active scenario's public presentation for entry pages. Joined
+  rooms use their saved `GameState.presentation`. Never return the full scenario from this endpoint.
+- Production web code must not import a full scenario. It may import only the explicitly named
+  frozen public legacy vocabulary for older API responses. Keep generic buttons and phase names
+  separate from setting-specific text; adding another setting must not require editing React.
+- After changes to generic behavior, test a non-SDLC scenario such as `harbor-example.json`,
+  including custom IDs, forecasts, saved state, and rendering. Keep SDLC balance regression tests.
 
 Do not copy scenario text, metric labels, endpoint descriptions, or balance values into React
 components, HTTP handlers, or SQL. The frontend should render the scenario and rules received from
@@ -85,7 +111,7 @@ rooms or API responses created before scenario schema version 3.
 
 ## Adding or changing content
 
-Edit **packages/game-engine/content/scenarios/technical-mvp.json** for the bundled scenario. The
+Edit **content/scenarios/technical-mvp.json** for the bundled scenario. The
 top-level action catalog is reusable across rounds. Each round must have:
 
 - a stable unique id and a sequential number;
@@ -274,7 +300,7 @@ After a content change:
 1. Keep rules.roundLimit equal to the number of round templates. Set rules.roundMode to FINITE for
    one pass or CYCLIC to repeat the saved templates until the win condition is met.
 2. Increment the top-level version.
-3. Run `pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json`.
+3. Run `pnpm scenario:validate content/scenarios/technical-mvp.json`.
 4. Run `pnpm copy:validate`, then manually read every changed visible string aloud.
 5. Add or update focused tests for eligibility, event selection, history, and effect calculation.
 6. Verify that a round cannot lose all useful stage or action choices on reachable histories.
@@ -285,7 +311,7 @@ After a content change:
 9. Create a new room when checking the change; existing rooms use their stored snapshot.
 
 To add another scenario, copy the JSON to
-**packages/game-engine/content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,
+**content/scenarios/<scenario-id>.json**, give it a new stable id, validate it,
 and start the API with an absolute `SCENARIO_PATH`. A bad external file must stop API startup; never
 silently fall back to the bundled scenario. Restart the API after changing an external file.
 
@@ -309,7 +335,7 @@ configuration source rather than copies of the current scenario defaults across 
 `rules.shuffleActionChoices` is enabled, shuffle only the action ballot once on the server and
 persist that order for every client.
 
-The metric keys are stable internal identifiers kept for persisted-room compatibility. Their
+Metric keys are stable within one scenario and its persisted rooms, not a global fixed list. Their
 player-facing meaning comes from `mechanics.metricDefinitions`. The bundled scenario uses a
 high-is-good score from -10 to +10, starts at 0, enters danger at -5, and breaks at -8. Treat those
 numbers as scenario defaults, not engine constants. Keep action, event, and property effects in
@@ -444,9 +470,9 @@ multiple API replicas or has no persistent disk.
   phase-specific content. Do not render the room header, full stage map, or catalog choice keys
   such as A, B, or C in the joined player view.
 - Keep the shared-screen route as a stable dashboard without the site navigation or game header.
-  Show only the generic current phase, compact metrics, all eight stage states, and the join QR.
+  Show only the generic current phase, compact metrics, the configured stage states, and the join QR.
   Do not show the selected action, event details, or applied-action history there. Use only one
-  visible heading for the stage map: **Состояние SDLC**.
+  visible heading for the stage map from presentation (**Состояние SDLC** in the bundled setting).
 - Do not render the generic metric-scale explanation above metric cards. Metric labels, values,
   gauge bounds, and endpoint labels already carry the useful information.
 - Keep stage-ballot cards square on the player and shared screens. Show applied-action history as a

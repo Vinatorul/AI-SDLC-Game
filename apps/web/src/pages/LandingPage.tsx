@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { RoomCodeForm } from '../components/CodeEntry';
 import { Layout } from '../components/Layout';
+import { usePresentation } from '../presentation';
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -15,14 +16,12 @@ export function LandingPage() {
 }
 
 function LandingHero() {
+  const { branding } = usePresentation();
   return (
     <header className="landing-hero">
-      <p className="eyebrow">AI SDLC RPG · 8 этапов</p>
-      <h1>Зал решает, где AI работает в SDLC</h1>
-      <p className="lede">
-        Участники выбирают этап и решение. Игра показывает, что ускорилось, что сломалось и чего не
-        хватает команде.
-      </p>
+      <p className="eyebrow">{branding.eyebrow}</p>
+      <h1>{branding.heading}</h1>
+      <p className="lede">{branding.description}</p>
     </header>
   );
 }

@@ -2,11 +2,16 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
 
 const root = process.cwd();
-const defaultScenario = 'packages/game-engine/content/scenarios/technical-mvp.json';
+const defaultScenario = 'content/scenarios/technical-mvp.json';
 const requestedScenarios = process.argv.slice(2);
 const scenarioFiles = requestedScenarios.length > 0 ? requestedScenarios : bundledScenarios();
 const issues = [];
-const reasonKeys = new Set(['effectReasons', 'propertyEffectReasons', 'stageStateEffectReasons']);
+const reasonKeys = new Set([
+  'effectReasons',
+  'repeatEffectReasons',
+  'propertyEffectReasons',
+  'stageStateEffectReasons',
+]);
 
 const vaguePhrases = [
   [/в рамках/iu, 'назовите конкретное действие вместо «в рамках»'],
@@ -50,6 +55,7 @@ const terminologyPhrases = [
 const visibleJsonKeys = new Set([
   'description',
   'label',
+  'hostHint',
   'maximumDescription',
   'maximumLabel',
   'metricScaleDescription',
@@ -99,7 +105,10 @@ function visitJson(value, filename, path) {
     const itemPath = [...path, key];
     if (reasonKeys.has(key)) {
       validateEffectReasons(item, filename, itemPath);
-    } else if (typeof item === 'string' && visibleJsonKeys.has(key)) {
+    } else if (
+      typeof item === 'string' &&
+      (visibleJsonKeys.has(key) || (path[0] === 'presentation' && key !== 'id'))
+    ) {
       validateText(item, `${filename}:${itemPath.join('.')}`, key);
     } else {
       visitJson(item, filename, itemPath);
@@ -108,7 +117,7 @@ function visitJson(value, filename, path) {
 }
 
 function bundledScenarios() {
-  const directory = resolve(root, 'packages/game-engine/content/scenarios');
+  const directory = resolve(root, 'content/scenarios');
   const files = readdirSync(directory).filter((filename) => extname(filename) === '.json');
   return files.length > 0
     ? files.sort().map((filename) => join(directory, filename))

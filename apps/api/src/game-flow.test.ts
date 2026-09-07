@@ -2,30 +2,29 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  type AdminCommandName,
-  type AdminForecast,
-  type AdminLoginResponse,
-  type CreateGameRequest,
-  type CreateGameResponse,
-  type GameState,
-  type JoinGameResponse,
-  type StageKey,
-  stageKeys,
-  type VoteRequest,
+import { fileURLToPath } from 'node:url';
+import type {
+  AdminCommandName,
+  AdminForecast,
+  AdminLoginResponse,
+  CreateGameRequest,
+  CreateGameResponse,
+  GameState,
+  JoinGameResponse,
+  StageKey,
+  VoteRequest,
 } from '@ai-sdlc/contracts';
-import {
-  createInitialStages,
-  defaultScenario,
-  type EngineOption,
-  type Scenario,
-} from '@ai-sdlc/game-engine';
+import type { EngineOption, Scenario } from '@ai-sdlc/game-engine';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from './app';
 import { hashToken } from './auth';
+import { defaultScenario } from './bundled-scenario';
+import { legacyPresentation } from './scenario-compatibility';
+import { loadScenario } from './scenario-loader';
 
 const openApps: FastifyInstance[] = [];
+const stageKeys = Object.keys(defaultScenario.mechanics.initialStages);
 
 afterEach(async () => {
   await Promise.all(openApps.splice(0).map((app) => app.close()));
@@ -285,9 +284,9 @@ it('позволяет вернуться к этапу, но скрывает �
     opened.state,
   );
   expect(
-    state.stageProgress.technicalDiscovery.appliedActions.map(({ actionId }) => actionId),
+    state.stageProgress.technicalDiscovery?.appliedActions.map(({ actionId }) => actionId),
   ).toEqual(['technicalDiscovery.code-research', 'technicalDiscovery.sync-docs-and-contract']);
-  expect(state.stageProgress.technicalDiscovery.activeAiAction?.actionId).toBe(
+  expect(state.stageProgress.technicalDiscovery?.activeAiAction?.actionId).toBe(
     'technicalDiscovery.sync-docs-and-contract',
   );
 });
@@ -297,14 +296,14 @@ it('чинит сломанный этап следующим решением �
   const game = await createGame(app);
   const player = await joinGame(app, game.state.code, 'Ира');
   let state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 0);
-  expect(state.stageProgress.review.state).toBe('AS_IS');
+  expect(state.stageProgress.review?.state).toBe('AS_IS');
   state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 6);
-  expect(state.stageProgress.review.state).toBe('AS_IS');
+  expect(state.stageProgress.review?.state).toBe('AS_IS');
   state = await playRound(app, game, player, 'coding', 'coding.guided-implementation', 12);
-  expect(state.stageProgress.review.state).toBe('BROKEN');
+  expect(state.stageProgress.review?.state).toBe('BROKEN');
   state = await playRound(app, game, player, 'review', 'review.context-and-human-risk', 18);
-  expect(state.stageProgress.review.state).toBe('AI_ENABLED');
-  expect(state.stageProgress.review.appliedActions[0]?.actionId).toBe(
+  expect(state.stageProgress.review?.state).toBe('AI_ENABLED');
+  expect(state.stageProgress.review?.appliedActions[0]?.actionId).toBe(
     'review.context-and-human-risk',
   );
 });
@@ -377,7 +376,7 @@ it('показывает последнее из одновременно акт
     state = await playRound(app, game, player, stage, actionId, index * 6);
   }
   expect(state.currentRound?.activatedActions).toHaveLength(2);
-  expect(state.stageProgress.deployment.activeAiAction?.actionId).toBe(
+  expect(state.stageProgress.deployment?.activeAiAction?.actionId).toBe(
     'deployment.autonomous-after-tests',
   );
 });
@@ -498,7 +497,7 @@ describe('восстановление SQLite', () => {
     await closeTrackedApp(first);
     const second = await testApp(databasePath);
     const state = await getState(second, game.state.code);
-    expect(state.stageProgress.businessRequest.activeAiAction?.actionId).toBe(
+    expect(state.stageProgress.businessRequest?.activeAiAction?.actionId).toBe(
       'businessRequest.feedback-mcp',
     );
     expect(state.currentRound?.activatedActions?.[0]?.completedByActionId).toBe(
@@ -589,7 +588,7 @@ it('после перезапуска использует сохранённу�
   const first = await testApp(databasePath, scenarioWithContextQuality(2));
   const game = await createGame(first);
   expect(game.state.metricBounds).toEqual({ maximum: 10, minimum: -10 });
-  expect(game.state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
+  expect(game.state.metricDefinitions.teamCapacity?.label).toBe('Баланс Run / Change');
   await closeTrackedApp(first);
   const second = await testApp(databasePath);
   const player = await joinGame(second, game.state.code, 'Ира');
@@ -602,7 +601,7 @@ it('после перезапуска использует сохранённу�
     0,
   );
   expect(state.metrics.quality).toBe(3);
-  expect(state.metricDefinitions.teamCapacity.label).toBe('Баланс Run / Change');
+  expect(state.metricDefinitions.teamCapacity?.label).toBe('Баланс Run / Change');
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 6);
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 12);
   state = await playRound(second, game, player, 'coding', 'coding.guided-implementation', 18);
@@ -621,7 +620,10 @@ it('продолжает старую игру из активного голо�
   let state = await getState(app, 'OLD234');
   expect(state.currentBallot?.kind).toBe('LEGACY_OPTION');
   expect(state.metricBounds).toEqual({ maximum: 100, minimum: 0 });
-  expect(state.metricDefinitions.deliverySpeed.label).toBe('TTM');
+  expect(state.metricDefinitions.deliverySpeed?.label).toBe('TTM');
+  expect(state.presentation).toEqual(legacyPresentation);
+  expect(state.rules.minReadyStagesToWin).toBe(1);
+  expect(state.rules).not.toHaveProperty('minAiStagesToWin');
   const optionId = state.currentRound?.options[0]?.id ?? '';
   await vote(app, 'OLD234', player.playerToken, { optionId });
   state = await legacyCommand(app, 'CLOSE_VOTING', 0);
@@ -655,6 +657,160 @@ async function testApp(databasePath = ':memory:', scenario?: Scenario) {
   const app = await createApp({ databasePath, scenario });
   openApps.push(app);
   return app;
+}
+
+it('показывает только оформление внешнего сценария и прогноз его метрик', async () => {
+  const scenario = harborScenario();
+  scenario.mechanics.initialStages.warehouse = 'AI_ENABLED';
+  const pier = scenario.presentation.stages[0];
+  if (pier) pier.label = 'Старый причал';
+  const app = await testApp(':memory:', scenario);
+  const info = await app.inject({ method: 'GET', url: '/api/scenario' });
+  expect(info.json()).toEqual({ presentation: scenario.presentation });
+  const game = await createGame(app);
+  expect(game.state.presentation).toEqual(scenario.presentation);
+  expect(game.state.metrics).toEqual({ readiness: 1, reserves: 3, safety: 2 });
+  expect(game.state.stages).toEqual(scenario.mechanics.initialStages);
+  expect(Object.keys(game.state.stageProgress)).toEqual(['pier', 'warehouse', 'fleet']);
+  const state = await command(app, game, 'OPEN_VOTING', 0);
+  expect(requiredBallot(state).choices.map(({ id }) => id)).toEqual(['pier', 'warehouse', 'fleet']);
+  expect(requiredBallot(state).choices[0]?.title).toBe('Старый причал');
+  const forecast = await getAdminForecast(app, game);
+  expect(forecast.stagePotentials.map(({ stage }) => stage)).toEqual([
+    'pier',
+    'warehouse',
+    'fleet',
+  ]);
+  for (const potential of forecast.stagePotentials) {
+    expect(Object.keys(potential.metricRanges)).toEqual(['readiness', 'reserves', 'safety']);
+  }
+  expect((await rawAdminForecast(app, game.state.code)).statusCode).toBe(401);
+  expect(JSON.stringify(state)).not.toContain('effectReasons');
+});
+
+it('скрывает последствия внешнего сценария до применения и записывает причины в историю', async () => {
+  const app = await testApp(':memory:', harborScenario());
+  const game = await createGame(app);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  const opened = await openActionBallot(app, game, player, 'pier', 0);
+  const forecast = await getAdminForecast(app, game);
+  expect(
+    forecast.actionPotentials.find(({ actionId }) => actionId === 'pier.secure')?.metricDelta,
+  ).toMatchObject({ readiness: 1, reserves: -1 });
+  expect(JSON.stringify(opened.state)).not.toContain('effectReasons');
+  for (const choice of requiredBallot(opened.state).choices)
+    expect(choice).not.toHaveProperty('effect');
+  await voteFor(app, game, player, requiredBallot(opened.state).id, 'pier.secure');
+  await command(app, game, 'CLOSE_VOTING', 3);
+  const shown = await command(app, game, 'SHOW_EVENT', 4);
+  expect(shown.currentRound?.metricImpact).toBe('MIXED');
+  expect(shown.currentRound?.effectContributions).toBeUndefined();
+  expect(shown.currentRound?.event).not.toHaveProperty('effect');
+  expect(shown.metrics).toEqual(game.state.metrics);
+  const applied = await command(app, game, 'APPLY_CONSEQUENCES', 5);
+  expect(applied.metrics).toEqual({ readiness: 2, reserves: 2, safety: 2 });
+  expectHarborHistory(applied, 'pier.secure', { readiness: 1, reserves: -1 });
+});
+
+it('продолжает внешний сценарий после смены активного файла и перезапуска', async () => {
+  const { app, databasePath, directory, game, player } = await restartedHarborGame();
+  let state = await getState(app, game.state.code);
+  expect(state.presentation).toEqual(harborScenario().presentation);
+  state = await playRound(app, game, player, 'fleet', 'fleet.refit', 0);
+  expect(state.stages.fleet).toBe('AS_IS');
+  state = await playRound(app, game, player, 'warehouse', 'warehouse.stock', 6);
+  expect(state.stages.fleet).toBe('AI_ENABLED');
+  expect(state.properties).toEqual(['spares']);
+  expect(state.currentRound?.activatedActions).toContainEqual(
+    expect.objectContaining({
+      actionId: 'fleet.refit',
+      completedByActionId: 'warehouse.stock',
+      stage: 'fleet',
+    }),
+  );
+  state = await playRound(app, game, player, 'pier', 'pier.rush', 12);
+  expect(state.stages.pier).toBe('BROKEN');
+  expectHarborHistory(state, 'pier.rush', { reserves: -1, safety: -2 });
+  state = await playRound(app, game, player, 'pier', 'pier.secure', 18);
+  expect(state.phase).toBe('WON');
+  expect(state.metrics).toEqual({ readiness: 2, reserves: 2, safety: 0 });
+  await closeTrackedApp(app);
+  const reopened = await testApp(databasePath);
+  const persisted = await getState(reopened, game.state.code);
+  expect(persisted).toEqual(state);
+  await closeTrackedApp(reopened);
+  rmSync(directory, { force: true, recursive: true });
+});
+
+function harborScenario() {
+  return loadScenario(
+    fileURLToPath(new URL('../../../content/scenarios/harbor-example.json', import.meta.url)),
+  );
+}
+
+it('читает сохранённую комнату схемы 4 независимо от активного сценария', async () => {
+  const { databasePath, directory } = temporaryDatabase('legacy-scenario-four-');
+  const first = await testApp(databasePath);
+  const game = await createGame(first);
+  await closeTrackedApp(first);
+  removeNewSnapshotFields(databasePath);
+  const app = await testApp(databasePath, harborScenario());
+  const state = await command(app, game, 'OPEN_VOTING', 0);
+  expect(state.presentation).toEqual(legacyPresentation);
+  expect(state.metrics).toEqual(game.state.metrics);
+  expect(state.rules).toEqual(game.state.rules);
+  expect(requiredBallot(state).choices.map(({ id }) => id)).toEqual(stageKeys);
+  const forecast = await getAdminForecast(app, game);
+  expect(Object.keys(forecast.stagePotentials[0]?.metricRanges ?? {})).toEqual(
+    Object.keys(game.state.metrics),
+  );
+  await closeTrackedApp(app);
+  rmSync(directory, { force: true, recursive: true });
+});
+
+function removeNewSnapshotFields(databasePath: string) {
+  const database = new DatabaseSync(databasePath);
+  const row = database.prepare('SELECT mechanics_json, rules_json FROM games').get();
+  const mechanics = JSON.parse(String(row?.mechanics_json));
+  const { minReadyStagesToWin, ...rules } = JSON.parse(String(row?.rules_json));
+  delete mechanics.presentation;
+  delete mechanics.initialStages;
+  database
+    .prepare('UPDATE games SET mechanics_json = ?, rules_json = ?')
+    .run(
+      JSON.stringify(mechanics),
+      JSON.stringify({ ...rules, minAiStagesToWin: minReadyStagesToWin }),
+    );
+  database.close();
+}
+
+async function restartedHarborGame() {
+  const { databasePath, directory } = temporaryDatabase('generic-harbor-');
+  const first = await testApp(databasePath, harborScenario());
+  const game = await createGame(first);
+  await closeTrackedApp(first);
+  const app = await testApp(databasePath);
+  const player = await joinGame(app, game.state.code, 'Ира');
+  return { app, databasePath, directory, game, player };
+}
+
+function expectHarborHistory(
+  state: GameState,
+  actionId: string,
+  metricDelta: Record<string, number>,
+) {
+  const entry = state.appliedActionHistory?.[0];
+  const source = harborScenario();
+  const action = source.stageActions[actionId];
+  const event = source.rounds[0]?.eventRules.find((rule) =>
+    rule.actionIds?.includes(actionId),
+  )?.event;
+  expect(entry?.actionId).toBe(actionId);
+  expect(entry?.impact?.metricDelta).toMatchObject(metricDelta);
+  for (const metric of Object.keys(metricDelta)) {
+    const reason = action?.effectReasons?.[metric] ?? event?.effectReasons?.[metric];
+    expect(entry?.impact?.reasons[metric]).toContain(reason);
+  }
 }
 
 async function createGame(app: FastifyInstance, payload?: CreateGameRequest) {
@@ -841,11 +997,11 @@ function expectBusinessActivation(state: GameState) {
   expect(activation?.completedByTitle).toBe(
     defaultScenario.stageActions['businessRequest.outcome-metrics']?.title,
   );
-  expect(state.stageProgress.businessRequest.activeAiAction?.actionId).toBe(
+  expect(state.stageProgress.businessRequest?.activeAiAction?.actionId).toBe(
     'businessRequest.feedback-mcp',
   );
   expect(
-    state.stageProgress.businessRequest.appliedActions.map(({ actionId }) => actionId),
+    state.stageProgress.businessRequest?.appliedActions.map(({ actionId }) => actionId),
   ).toEqual(['businessRequest.feedback-mcp', 'businessRequest.outcome-metrics']);
 }
 
@@ -995,25 +1151,32 @@ function seedLegacyGame(databasePath: string, phase: 'VOTING' | 'RESULT' | 'EVEN
   const database = new DatabaseSync(databasePath);
   database.exec(legacySeedSchema);
   const now = new Date().toISOString();
-  database.prepare(legacyGameSql).run(
-    phase,
-    JSON.stringify(defaultScenario.mechanics.initialMetrics),
-    JSON.stringify(createInitialStages()),
-    JSON.stringify({
-      ...defaultScenario.rules,
-      minAiStagesToWin: 1,
-      requireNoBrokenStages: false,
-      roundLimit: 1,
-      roundMode: 'FINITE',
-    }),
-    hashToken('legacy-admin'),
-    now,
-    now,
-  );
+  database
+    .prepare(legacyGameSql)
+    .run(
+      phase,
+      JSON.stringify(defaultScenario.mechanics.initialMetrics),
+      JSON.stringify(defaultScenario.mechanics.initialStages),
+      JSON.stringify(legacyGameRules()),
+      hashToken('legacy-admin'),
+      now,
+      now,
+    );
   database.prepare(legacyRoundSql).run(JSON.stringify([legacyEvent()]));
   for (const option of legacyOptions()) insertLegacyOption(database, option);
   seedLegacyRoundState(database, phase);
   database.close();
+}
+
+function legacyGameRules() {
+  const { minReadyStagesToWin: _minReadyStagesToWin, ...rules } = defaultScenario.rules;
+  return {
+    ...rules,
+    minAiStagesToWin: 1,
+    requireNoBrokenStages: false,
+    roundLimit: 1,
+    roundMode: 'FINITE',
+  };
 }
 
 const legacyGameSql = `INSERT INTO games (
@@ -1073,7 +1236,7 @@ function seedLegacyRoundState(database: DatabaseSync, phase: 'VOTING' | 'RESULT'
 }
 
 function legacyPlan(event: ReturnType<typeof legacyEvent>['event']) {
-  const stages = createInitialStages();
+  const stages = structuredClone(defaultScenario.mechanics.initialStages);
   stages.coding = 'AI_ENABLED';
   const empty = { controllability: 0, deliverySpeed: 0, quality: 0, teamCapacity: 0 };
   return {

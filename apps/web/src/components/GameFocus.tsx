@@ -1,5 +1,5 @@
 import type { AdminForecast, GameState } from '@ai-sdlc/contracts';
-import { outcomeLabels } from '../labels';
+import { presentationFor } from '../presentation';
 import { BallotFocus } from './BallotFocus';
 import { OptionGrid } from './OptionGrid';
 
@@ -53,23 +53,16 @@ export function EventCard({ state }: { state: GameState }) {
 
 export function FinalState({ state }: { state: GameState }) {
   const won = state.phase === 'WON';
+  const presentation = presentationFor(state);
   return (
     <section className={won ? 'final-state final-won' : 'final-state final-broken'}>
       <p className="eyebrow">Финал</p>
       <h2>{won ? 'Победа' : 'Игра окончена'}</h2>
-      <p>{state.outcomeReason ? outcomeLabels[state.outcomeReason] : victoryText(state)}</p>
+      <p>
+        {state.outcomeReason
+          ? presentation.outcomeLabels[state.outcomeReason]
+          : presentation.copy.victoryText}
+      </p>
     </section>
   );
-}
-
-function victoryText(state: GameState) {
-  if (state.rules.minAiStagesToWin === 8) {
-    return 'AI работает на всех восьми этапах. Ни одна метрика не упала до критического уровня.';
-  }
-  const count = state.rules.minAiStagesToWin;
-  return `AI работает минимум на ${count} ${stageLocationWord(count)}. Ни одна метрика не упала до критического уровня.`;
-}
-
-function stageLocationWord(count: number) {
-  return count % 10 === 1 && count % 100 !== 11 ? 'этапе' : 'этапах';
 }

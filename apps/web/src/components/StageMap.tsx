@@ -1,20 +1,24 @@
+import type { AppliedActionView, GameState, MetricKey, StageKey } from '@ai-sdlc/contracts';
 import {
-  type AppliedActionView,
-  type GameState,
-  metricKeys,
-  type StageKey,
-  stageKeys,
-} from '@ai-sdlc/contracts';
-import { propertyLabels, stageLabels, stageStateLabels } from '../labels';
+  gridStyle,
+  metricLabel,
+  presentationFor,
+  propertyLabel,
+  stageLabel,
+} from '../presentation';
 
 export function StageMap({ compact = false, state }: { compact?: boolean; state: GameState }) {
   const won = state.phase === 'WON';
+  const presentation = presentationFor(state);
   return (
     <section className={won ? 'map-section victory-map' : 'map-section'}>
-      <StageMapHeading compact={compact} won={won} />
-      <div className={compact ? 'stage-grid stage-grid-compact' : 'stage-grid'}>
-        {stageKeys.map((key, index) => (
-          <StageCard index={index} key={key} showActions={!compact} stage={key} state={state} />
+      <StageMapHeading compact={compact} state={state} won={won} />
+      <div
+        className={compact ? 'stage-grid stage-grid-compact' : 'stage-grid'}
+        style={gridStyle(presentation.stages.length)}
+      >
+        {presentation.stages.map(({ id }, index) => (
+          <StageCard index={index} key={id} showActions={!compact} stage={id} state={state} />
         ))}
       </div>
       {!won && !compact && <AppliedHistory state={state} />}
@@ -22,43 +26,58 @@ export function StageMap({ compact = false, state }: { compact?: boolean; state:
   );
 }
 
-function StageMapHeading({ compact, won }: { compact: boolean; won: boolean }) {
+function StageMapHeading({
+  compact,
+  state,
+  won,
+}: {
+  compact: boolean;
+  state: GameState;
+  won: boolean;
+}) {
+  const { copy } = presentationFor(state);
   if (compact) {
     return (
       <div className="section-heading">
-        <h2>Состояние SDLC</h2>
+        <h2>{copy.stageMapTitle}</h2>
       </div>
     );
   }
   return (
     <div className="section-heading">
-      <p className="eyebrow">{won ? 'Итоговая карта' : 'Карта SDLC'}</p>
-      <h2>{won ? 'Как теперь работает SDLC' : 'Что уже поменяли'}</h2>
+      <p className="eyebrow">{won ? 'Итоговая карта' : copy.stageMapEyebrow}</p>
+      <h2>{won ? copy.victoryMapTitle : 'Что уже поменяли'}</h2>
     </div>
   );
 }
 
 function StageCard({ index, showActions, stage, state }: StageCardProps) {
   const progress = state.stageProgress?.[stage];
-  const stageState = progress?.state ?? state.stages[stage];
+  const stageState = progress?.state ?? state.stages[stage] ?? 'AS_IS';
   const actions = progress?.appliedActions ?? [];
+  const presentation = presentationFor(state);
   return (
     <article
       className={`stage-card stage-${stageState.toLowerCase()}${showActions ? '' : ' stage-card-compact'}`}
     >
       <span>{String(index + 1).padStart(2, '0')}</span>
       <span className="stage-card-main">
-        <strong>{stageLabels[stage]}</strong>
-        <small>{stageStateLabels[stageState]}</small>
+        <strong>{stageLabel(presentation, stage)}</strong>
+        <small>{presentation.stageStateLabels[stageState]}</small>
       </span>
       {showActions && (
-        <StageActionSummary actions={actions} progress={progress} won={state.phase === 'WON'} />
+        <StageActionSummary
+          actions={actions}
+          progress={progress}
+          won={state.phase === 'WON'}
+          activeLabel={presentation.copy.activeActionLabel}
+        />
       )}
     </article>
   );
 }
 
-function StageActionSummary({ actions, progress, won }: StageActionSummaryProps) {
+function StageActionSummary({ actions, activeLabel, progress, won }: StageActionSummaryProps) {
   if (actions.length === 0) return null;
   if (!won) {
     return (
@@ -75,7 +94,7 @@ function StageActionSummary({ actions, progress, won }: StageActionSummaryProps)
   const lastChange = latest && !sameAction(latest, active) ? latest : null;
   return (
     <span className="stage-actions">
-      <small>{active ? 'AI-решение' : 'Последнее решение'}</small>
+      <small>{active ? activeLabel : 'Последнее решение'}</small>
       <b>{active?.title ?? latest?.title}</b>
       {lastChange && <small>Последнее решение на этапе</small>}
       {lastChange && <b>{lastChange.title}</b>}
@@ -84,6 +103,7 @@ function StageActionSummary({ actions, progress, won }: StageActionSummaryProps)
 }
 
 type StageActionSummaryProps = {
+  activeLabel: string;
   actions: AppliedActionView[];
   progress?: GameState['stageProgress'][StageKey];
   won: boolean;
@@ -123,7 +143,7 @@ function PreparedProperties({ state }: { state: GameState }) {
       <p className="eyebrow">Что команда уже подготовила</p>
       <div className="property-list">
         {state.properties.map((property) => (
-          <strong key={property}>{propertyLabels[property]}</strong>
+          <strong key={property}>{propertyLabel(presentationFor(state), property)}</strong>
         ))}
       </div>
     </section>
@@ -140,7 +160,7 @@ function ActionHistoryList({ actions, state }: { actions: AppliedActionView[]; s
               {state.decisionModel === 'STAGE_ACTION_V2' ? 'Ход' : 'Раунд'} {action.roundNumber}
             </span>
             <strong>
-              {stageLabels[action.stage]} · {action.title}
+              {stageLabel(presentationFor(state), action.stage)} · {action.title}
             </strong>
           </div>
           <HistoryImpact action={action} state={state} />
@@ -152,14 +172,16 @@ function ActionHistoryList({ actions, state }: { actions: AppliedActionView[]; s
 
 function historyActions(state: GameState): AppliedActionView[] {
   if (state.appliedActionHistory) return state.appliedActionHistory;
-  return stageKeys
-    .flatMap((stage) => state.stageProgress?.[stage]?.appliedActions ?? [])
+  return presentationFor(state)
+    .stages.flatMap(({ id }) => state.stageProgress?.[id]?.appliedActions ?? [])
     .sort((left, right) => right.roundNumber - left.roundNumber);
 }
 
 function HistoryImpact({ action, state }: { action: AppliedActionView; state: GameState }) {
   if (!action.impact) return null;
-  const changes = metricKeys.filter((key) => (action.impact?.metricDelta[key] ?? 0) !== 0);
+  const changes = presentationFor(state).metricOrder.filter(
+    (key) => (action.impact?.metricDelta[key] ?? 0) !== 0,
+  );
   return (
     <div className="applied-history-impact">
       <ul className="applied-history-effects">
@@ -171,8 +193,7 @@ function HistoryImpact({ action, state }: { action: AppliedActionView; state: Ga
         {changes.map((key) => (
           <li key={key}>
             <span className={metricClass(action.impact?.metricDelta[key] ?? 0)}>
-              {state.metricDefinitions[key].label}{' '}
-              {formatSigned(action.impact?.metricDelta[key] ?? 0)}
+              {metricLabel(state, key)} {formatSigned(action.impact?.metricDelta[key] ?? 0)}
             </span>
             <MetricReasons action={action} metric={key} />
           </li>
@@ -182,13 +203,11 @@ function HistoryImpact({ action, state }: { action: AppliedActionView; state: Ga
   );
 }
 
-function MetricReasons({ action, metric }: { action: AppliedActionView; metric: StageMetricKey }) {
+function MetricReasons({ action, metric }: { action: AppliedActionView; metric: MetricKey }) {
   const reasons = action.impact?.reasons[metric] ?? [];
   if (reasons.length === 0) return null;
   return <p>{[...new Set(reasons)].join(' ')}</p>;
 }
-
-type StageMetricKey = (typeof metricKeys)[number];
 
 function formatSigned(value: number) {
   return value > 0 ? `+${value}` : String(value);

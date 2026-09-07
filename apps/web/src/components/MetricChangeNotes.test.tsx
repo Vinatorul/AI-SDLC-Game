@@ -72,7 +72,7 @@ describe('MetricChangeNotes', () => {
     const html = renderToStaticMarkup(<MetricChangeNotes state={state} />);
     expect(html).toContain('Выбрали: Ручная проверка');
     expect(html).toContain('Событие: Очередь');
-    expect(html).toContain('Этапы SDLC');
+    expect(html).toContain('Этапы');
     expect(html).toContain('Расчёт: -1');
     expect(html).not.toContain('Итого: -1');
   });

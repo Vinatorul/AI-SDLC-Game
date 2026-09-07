@@ -67,6 +67,7 @@ export async function createApp(options: AppOptions) {
 
 function registerHttpRoutes(app: FastifyInstance, service: GameService) {
   app.get('/health', async () => service.health());
+  app.get('/api/scenario', async () => service.getScenario());
   app.post('/api/games', async (request, reply) => {
     const body = createGameBody.parse(request.body ?? {});
     reply.header('cache-control', 'no-store');

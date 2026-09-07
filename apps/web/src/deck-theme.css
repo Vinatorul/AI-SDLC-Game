@@ -922,7 +922,7 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .screen-page .stage-grid-compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   }
 }
 
@@ -1015,6 +1015,6 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .screen-page .stage-grid-compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
   }
 }

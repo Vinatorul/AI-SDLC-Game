@@ -12,6 +12,7 @@ import { MetricBoard } from '../components/MetricBoard';
 import { MetricChangeNotes } from '../components/MetricChangeNotes';
 import { RecoveryGuides } from '../components/RecoveryGuides';
 import { StageMap } from '../components/StageMap';
+import { RoomPresentation } from '../presentation';
 import { useAdminForecast } from '../realtime/useAdminForecast';
 import { useGameState } from '../realtime/useGameState';
 
@@ -20,7 +21,7 @@ export function AdminPage() {
   const game = useGameState(code);
   const access = useAdminAccess(code);
   if (!code) return <AdminStart />;
-  if (!access.token) return <AdminLogin code={code} onLogin={access.save} />;
+  if (!access.token) return <AdminLogin code={code} onLogin={access.save} state={game.state} />;
   if (game.error) return <PageError message={game.error} />;
   if (!game.state) return <PageLoading />;
   return <AdminGame code={code} game={game} token={access.token} />;
@@ -95,26 +96,28 @@ function AdminGame({ code, game, token }: AdminGameProps) {
   const state = game.state as GameState;
   const forecast = useAdminForecast(code, token, state);
   return (
-    <Layout>
-      <main className="game-page">
-        <GameHeader connected={game.connected} state={state} title="Пульт ведущего" />
-        <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
-        <div className="admin-layout">
-          <div>
-            <GameFocus forecast={forecast.forecast} state={state} />
-            {forecast.error && <p className="form-error">{forecast.error}</p>}
-            <MetricChangeNotes state={state} />
-            <ActivatedActions state={state} />
-            <RecoveryGuides state={state} />
-            <StageMap state={state} />
+    <RoomPresentation state={state}>
+      <Layout>
+        <main className="game-page">
+          <GameHeader connected={game.connected} state={state} title="Пульт ведущего" />
+          <MetricBoard breakdown={state.currentRound?.effectBreakdown} state={state} />
+          <div className="admin-layout">
+            <div>
+              <GameFocus forecast={forecast.forecast} state={state} />
+              {forecast.error && <p className="form-error">{forecast.error}</p>}
+              <MetricChangeNotes state={state} />
+              <ActivatedActions state={state} />
+              <RecoveryGuides state={state} />
+              <StageMap state={state} />
+            </div>
+            <aside>
+              <AdminControls code={code} game={game} state={state} token={token} />
+              <SharePanel code={code} password={token} />
+            </aside>
           </div>
-          <aside>
-            <AdminControls code={code} game={game} state={state} token={token} />
-            <SharePanel code={code} password={token} />
-          </aside>
-        </div>
-      </main>
-    </Layout>
+        </main>
+      </Layout>
+    </RoomPresentation>
   );
 }
 
@@ -218,20 +221,30 @@ function SharePanel({ code, password }: { code: string; password: string }) {
   );
 }
 
-function AdminLogin({ code, onLogin }: { code: string; onLogin: (token: string) => void }) {
+function AdminLogin({
+  code,
+  onLogin,
+  state,
+}: {
+  code: string;
+  onLogin: (token: string) => void;
+  state: GameState | null;
+}) {
   const login = useAdminLogin(code, onLogin);
   return (
-    <Layout>
-      <main className="single-page">
-        <section className="entry-card">
-          <p className="eyebrow">Комната {code}</p>
-          <h1>Войти в пульт</h1>
-          <p>Введите пароль ведущего. Его можно взять у того, кто создал комнату.</p>
-          {login.error && <p className="form-error">{login.error}</p>}
-          <AdminLoginForm login={login} />
-        </section>
-      </main>
-    </Layout>
+    <RoomPresentation state={state}>
+      <Layout neutral={!state}>
+        <main className="single-page">
+          <section className="entry-card">
+            <p className="eyebrow">Комната {code}</p>
+            <h1>Войти в пульт</h1>
+            <p>Введите пароль ведущего. Его можно взять у того, кто создал комнату.</p>
+            {login.error && <p className="form-error">{login.error}</p>}
+            <AdminLoginForm login={login} />
+          </section>
+        </main>
+      </Layout>
+    </RoomPresentation>
   );
 }
 
@@ -290,7 +303,7 @@ function useAdminAccess(code: string | undefined) {
 
 function PageLoading() {
   return (
-    <Layout>
+    <Layout neutral>
       <main className="single-page">
         <p>Загружаем игру…</p>
       </main>
@@ -300,7 +313,7 @@ function PageLoading() {
 
 function PageError({ message }: { message: string }) {
   return (
-    <Layout>
+    <Layout neutral>
       <main className="single-page">
         <p className="form-error">{message}</p>
       </main>

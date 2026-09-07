@@ -1,5 +1,5 @@
-import type { GameState } from '@ai-sdlc/contracts';
-import { stageLabels } from '../labels';
+import type { GameState, ScenarioPresentation } from '@ai-sdlc/contracts';
+import { presentationFor, presentationText, stageLabel } from '../presentation';
 
 export function ActivatedActions({ state }: { state: GameState }) {
   const actions = state.currentRound?.activatedActions ?? [];
@@ -7,16 +7,22 @@ export function ActivatedActions({ state }: { state: GameState }) {
   if (actions.length === 0 && blocked.length === 0) return null;
   return (
     <>
-      {actions.length > 0 && <ActivatedList actions={actions} />}
-      {blocked.length > 0 && <BlockedList actions={blocked} />}
+      {actions.length > 0 && (
+        <ActivatedList actions={actions} presentation={presentationFor(state)} />
+      )}
+      {blocked.length > 0 && (
+        <BlockedList actions={blocked} presentation={presentationFor(state)} />
+      )}
     </>
   );
 }
 
 function ActivatedList({
   actions,
+  presentation,
 }: {
   actions: NonNullable<GameState['currentRound']>['activatedActions'];
+  presentation: ScenarioPresentation;
 }) {
   return (
     <section className="applied-history" aria-labelledby="activated-actions-title">
@@ -25,9 +31,13 @@ function ActivatedList({
       <ul className="applied-history-list">
         {actions?.map((action) => (
           <li key={`${action.actionId}:${action.completedByActionId}`}>
-            <span>{stageLabels[action.stage]}</span>
+            <span>{stageLabel(presentation, action.stage)}</span>
             <strong>
-              После «{action.completedByTitle}» заработало AI-решение «{action.title}».
+              {presentationText(presentation.copy.activatedActionTemplate, {
+                action: action.title,
+                completedBy: action.completedByTitle,
+                stage: stageLabel(presentation, action.stage),
+              })}
             </strong>
           </li>
         ))}
@@ -38,8 +48,10 @@ function ActivatedList({
 
 function BlockedList({
   actions,
+  presentation,
 }: {
   actions: NonNullable<GameState['currentRound']>['blockedActivations'];
+  presentation: ScenarioPresentation;
 }) {
   return (
     <section className="applied-history" aria-labelledby="blocked-actions-title">
@@ -48,8 +60,8 @@ function BlockedList({
       <ul className="applied-history-list">
         {actions?.map((action) => (
           <li key={`${action.actionId}:${action.completedByActionId}`}>
-            <span>{stageLabels[action.stage]}</span>
-            <strong>{blockedActivationText(action)}</strong>
+            <span>{stageLabel(presentation, action.stage)}</span>
+            <strong>{blockedActivationText(action, presentation)}</strong>
           </li>
         ))}
       </ul>
@@ -59,10 +71,15 @@ function BlockedList({
 
 function blockedActivationText(
   action: NonNullable<NonNullable<GameState['currentRound']>['blockedActivations']>[number],
+  presentation: ScenarioPresentation,
 ) {
-  const stage = stageLabels[action.stage];
-  if (action.reason === 'STAGE_REPAIRED') {
-    return `Этап «${stage}» снова работает без AI после решения «${action.completedByTitle}», но AI-решение «${action.title}» не включилось.`;
-  }
-  return `AI-решение «${action.title}» не включилось: этап «${stage}» остался сломан.`;
+  const template =
+    action.reason === 'STAGE_REPAIRED'
+      ? presentation.copy.blockedActivationRepairedTemplate
+      : presentation.copy.blockedActivationBrokenTemplate;
+  return presentationText(template, {
+    action: action.title,
+    completedBy: action.completedByTitle,
+    stage: stageLabel(presentation, action.stage),
+  });
 }

@@ -1,5 +1,6 @@
-import { type GameRules, type MetricDelta, stageKeys } from '@ai-sdlc/contracts';
+import type { GameRules, MetricDelta } from '@ai-sdlc/contracts';
 import { describe, expect, it } from 'vitest';
+import { defaultScenario, stageKeys } from '../../../tests/fixtures/scenario';
 import {
   createInitialMetrics,
   createInitialStages,
@@ -9,7 +10,7 @@ import {
   getStageAction,
   resolveRound,
 } from './resolve';
-import { defaultScenario } from './scenario';
+
 import type {
   EngineAction,
   EngineSnapshot,
@@ -20,6 +21,7 @@ import type {
 
 const mechanics: ScenarioMechanics = {
   initialMetrics: { controllability: 0, deliverySpeed: 0, quality: 0, teamCapacity: 0 },
+  initialStages: defaultScenario.mechanics.initialStages,
   metricBounds: { maximum: 10, minimum: -10 },
   metricDefinitions: defaultScenario.mechanics.metricDefinitions,
   metricScaleDescription: 'Тестовая шкала',
@@ -35,7 +37,7 @@ const mechanics: ScenarioMechanics = {
 const rules: GameRules = {
   criticalThreshold: -8,
   dangerThreshold: -5,
-  minAiStagesToWin: 3,
+  minReadyStagesToWin: 3,
   notableVoteShare: 0.15,
   requireNoBrokenStages: false,
   roundLimit: 5,
@@ -186,7 +188,7 @@ function createSnapshot(): EngineSnapshot {
     appliedActions: [],
     metrics: createInitialMetrics(mechanics),
     properties: [],
-    stages: createInitialStages(),
+    stages: createInitialStages(mechanics),
   };
 }
 
@@ -803,7 +805,7 @@ function createScenarioSnapshot(): EngineSnapshot {
     appliedActions: [],
     metrics: createInitialMetrics(defaultScenario.mechanics),
     properties: [],
-    stages: createInitialStages(),
+    stages: createInitialStages(defaultScenario.mechanics),
   };
 }
 
@@ -820,7 +822,7 @@ function exhaustedScenarioSnapshot(
 
 describe('evaluateOutcome', () => {
   it('считает −8 критическим, а −7 рабочим значением', () => {
-    const stages = createInitialStages();
+    const stages = createInitialStages(defaultScenario.mechanics);
     const critical = { ...createInitialMetrics(mechanics), quality: -8 };
     const safe = { ...createInitialMetrics(mechanics), quality: -7 };
     expect(evaluateOutcome(critical, stages, 1, rules).reason).toBe('CRITICAL_METRIC');
@@ -828,7 +830,7 @@ describe('evaluateOutcome', () => {
   });
 
   it('даёт победу после пяти раундов и трёх AI-этапов', () => {
-    const stages = createInitialStages();
+    const stages = createInitialStages(defaultScenario.mechanics);
     stages.coding = 'AI_ENABLED';
     stages.review = 'AI_ENABLED';
     stages.testing = 'AI_ENABLED';
@@ -839,7 +841,7 @@ describe('evaluateOutcome', () => {
   });
 
   it('считает старые правила без roundMode конечными', () => {
-    const stages = createInitialStages();
+    const stages = createInitialStages(defaultScenario.mechanics);
     stages.coding = 'AI_ENABLED';
     stages.review = 'AI_ENABLED';
     stages.testing = 'AI_ENABLED';
@@ -852,9 +854,9 @@ describe('evaluateOutcome', () => {
   });
 
   it('в циклической игре ждёт, пока позеленеют все восемь этапов', () => {
-    const stages = createInitialStages();
+    const stages = createInitialStages(defaultScenario.mechanics);
     for (const stage of stageKeys.slice(0, -1)) stages[stage] = 'AI_ENABLED';
-    const cyclic = { ...rules, minAiStagesToWin: 8, roundMode: 'CYCLIC' as const };
+    const cyclic = { ...rules, minReadyStagesToWin: 8, roundMode: 'CYCLIC' as const };
     expect(evaluateOutcome(createInitialMetrics(mechanics), stages, 20, cyclic).phase).toBe(
       'FEEDBACK',
     );
@@ -863,9 +865,9 @@ describe('evaluateOutcome', () => {
   });
 
   it('считает критический показатель поражением, даже если все этапы зелёные', () => {
-    const stages = createInitialStages();
+    const stages = createInitialStages(defaultScenario.mechanics);
     for (const stage of stageKeys) stages[stage] = 'AI_ENABLED';
-    const cyclic = { ...rules, minAiStagesToWin: 8, roundMode: 'CYCLIC' as const };
+    const cyclic = { ...rules, minReadyStagesToWin: 8, roundMode: 'CYCLIC' as const };
     const metrics = { ...createInitialMetrics(mechanics), quality: rules.criticalThreshold };
     expect(evaluateOutcome(metrics, stages, 8, cyclic)).toEqual({
       phase: 'BROKEN',

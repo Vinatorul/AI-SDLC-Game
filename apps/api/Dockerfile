@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/api apps/api
 COPY packages packages
+COPY content content
 RUN pnpm --filter @ai-sdlc/api build
 
 FROM node:24-bookworm-slim AS runtime

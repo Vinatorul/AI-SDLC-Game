@@ -257,7 +257,7 @@ const baseState: GameState = {
   rules: {
     criticalThreshold: -8,
     dangerThreshold: -5,
-    minAiStagesToWin: 8,
+    minReadyStagesToWin: 8,
     notableVoteShare: 0.2,
     requireNoBrokenStages: true,
     roundLimit: 1,

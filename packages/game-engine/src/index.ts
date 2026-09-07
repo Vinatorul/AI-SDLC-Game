@@ -8,7 +8,6 @@ export {
   getStageAction,
   resolveRound,
 } from './resolve';
-export { defaultRules, defaultScenario } from './scenario';
 export { parseScenario } from './scenario-schema';
 export type {
   AppliedAction,

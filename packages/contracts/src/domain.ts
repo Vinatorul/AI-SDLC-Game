@@ -1,25 +1,4 @@
-export const metricKeys = ['deliverySpeed', 'controllability', 'teamCapacity', 'quality'] as const;
-
-export const stageKeys = [
-  'businessRequest',
-  'productDiscovery',
-  'technicalDiscovery',
-  'coding',
-  'review',
-  'testing',
-  'deployment',
-  'support',
-] as const;
-
-export const processProperties = [
-  'humanReview',
-  'automatedTests',
-  'currentContext',
-  'observability',
-  'rollback',
-] as const;
-
-export type MetricKey = (typeof metricKeys)[number];
+export type MetricKey = string;
 export type MetricValues = Record<MetricKey, number>;
 export type MetricDelta = Partial<MetricValues>;
 export type MetricReasons = Partial<Record<MetricKey, string>>;
@@ -37,8 +16,8 @@ export type MetricDefinition = {
 };
 export type MetricDefinitions = Record<MetricKey, MetricDefinition>;
 export type MetricImpact = 'IMPROVED' | 'MIXED' | 'NEUTRAL' | 'WORSENED';
-export type StageKey = (typeof stageKeys)[number];
-export type ProcessProperty = (typeof processProperties)[number];
+export type StageKey = string;
+export type ProcessProperty = string;
 export type StageState = 'AS_IS' | 'AI_ENABLED' | 'BROKEN';
 export type GamePhase = 'LOBBY' | 'VOTING' | 'RESULT' | 'EVENT' | 'FEEDBACK' | 'WON' | 'BROKEN';
 export type EvidenceKind = 'FACT' | 'SCENARIO';
@@ -48,7 +27,7 @@ export type BallotKind = 'LEGACY_OPTION' | 'STAGE' | 'ACTION';
 export type GameRules = {
   criticalThreshold: number;
   dangerThreshold: number;
-  minAiStagesToWin: number;
+  minReadyStagesToWin: number;
   notableVoteShare: number;
   requireNoBrokenStages: boolean;
   roundLimit: number;
@@ -340,6 +319,7 @@ export type GameState = {
   outcomeReason: OutcomeReason | null;
   phase: GamePhase;
   playerCount: number;
+  presentation?: ScenarioPresentation;
   properties: ProcessProperty[];
   revision: number;
   roundIndex: number;
@@ -351,6 +331,28 @@ export type GameState = {
 };
 
 export type OutcomeReason = 'CRITICAL_METRIC' | 'AI_NOT_EMBEDDED' | 'BROKEN_STAGES_REMAIN';
+
+export type ScenarioPresentation = {
+  branding: { title: string; eyebrow: string; heading: string; description: string };
+  stages: { id: StageKey; label: string }[];
+  properties: { id: ProcessProperty; label: string }[];
+  metricOrder: MetricKey[];
+  stageStateLabels: Record<StageState, string>;
+  outcomeLabels: Record<OutcomeReason, string>;
+  copy: {
+    metricBoardLabel: string;
+    stageSelectionTitle: string;
+    stageMapTitle: string;
+    stageMapEyebrow: string;
+    victoryMapTitle: string;
+    activeActionLabel: string;
+    activationRequirementsTitle: string;
+    activatedActionTemplate: string;
+    blockedActivationBrokenTemplate: string;
+    blockedActivationRepairedTemplate: string;
+    victoryText: string;
+  };
+};
 
 export type AdminCommandName =
   | 'OPEN_VOTING'

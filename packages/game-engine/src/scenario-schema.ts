@@ -1,39 +1,16 @@
-import {
-  type MetricDelta,
-  type MetricReasons,
-  metricKeys,
-  processProperties,
-  stageKeys,
-} from '@ai-sdlc/contracts';
+import type { MetricDelta, MetricReasons } from '@ai-sdlc/contracts';
 import { z } from 'zod';
+import { identifierSchema, presentationSchema } from './scenario-presentation-schema';
 import type { Scenario } from './types';
 
-const metricDeltaSchema = z
-  .object({
-    controllability: z.number().optional(),
-    deliverySpeed: z.number().optional(),
-    quality: z.number().optional(),
-    teamCapacity: z.number().optional(),
-  })
-  .strict();
+const metricDeltaSchema = z.record(identifierSchema, z.number());
 
-const metricReasonsSchema = z
-  .object({
-    controllability: z.string().trim().min(1).optional(),
-    deliverySpeed: z.string().trim().min(1).optional(),
-    quality: z.string().trim().min(1).optional(),
-    teamCapacity: z.string().trim().min(1).optional(),
-  })
-  .strict();
+const metricReasonsSchema = z.record(identifierSchema, z.string().trim().min(1));
 
-const metricValuesSchema = z
-  .object({
-    controllability: z.number(),
-    deliverySpeed: z.number(),
-    quality: z.number(),
-    teamCapacity: z.number(),
-  })
-  .strict();
+const metricValuesSchema = metricDeltaSchema.refine(
+  (values) => Object.keys(values).length > 0,
+  'нужна хотя бы одна метрика',
+);
 
 const metricDefinitionSchema = z
   .object({
@@ -46,42 +23,17 @@ const metricDefinitionSchema = z
   })
   .strict();
 
-const metricDefinitionsSchema = z
-  .object({
-    controllability: metricDefinitionSchema,
-    deliverySpeed: metricDefinitionSchema,
-    quality: metricDefinitionSchema,
-    teamCapacity: metricDefinitionSchema,
-  })
-  .strict();
+const metricDefinitionsSchema = z.record(identifierSchema, metricDefinitionSchema);
 
-const propertySchema = z.enum(processProperties);
-const stageSchema = z.enum(stageKeys);
+const propertySchema = identifierSchema;
+const stageSchema = identifierSchema;
 const stageStateSchema = z.enum(['AS_IS', 'AI_ENABLED', 'BROKEN']);
 const requiredStagesSchema = z
   .array(stageSchema)
   .min(1)
   .refine((stages) => new Set(stages).size === stages.length, 'этапы не должны повторяться');
-const stageEffectRequirementsSchema = z
-  .object({
-    businessRequest: requiredStagesSchema.optional(),
-    coding: requiredStagesSchema.optional(),
-    deployment: requiredStagesSchema.optional(),
-    productDiscovery: requiredStagesSchema.optional(),
-    review: requiredStagesSchema.optional(),
-    support: requiredStagesSchema.optional(),
-    technicalDiscovery: requiredStagesSchema.optional(),
-    testing: requiredStagesSchema.optional(),
-  })
-  .strict();
-const additionalRequiredStagesSchema = z
-  .object({
-    controllability: stageEffectRequirementsSchema.optional(),
-    deliverySpeed: stageEffectRequirementsSchema.optional(),
-    quality: stageEffectRequirementsSchema.optional(),
-    teamCapacity: stageEffectRequirementsSchema.optional(),
-  })
-  .strict();
+const stageEffectRequirementsSchema = z.record(identifierSchema, requiredStagesSchema);
+const additionalRequiredStagesSchema = z.record(identifierSchema, stageEffectRequirementsSchema);
 const positiveEffectRequirementsSchema = z
   .object({
     additionalStages: additionalRequiredStagesSchema.optional(),
@@ -97,7 +49,7 @@ const stageTransitionsSchema = z
   })
   .strict();
 const actionIdListSchema = z
-  .array(z.string().min(1))
+  .array(identifierSchema)
   .min(1)
   .refine((ids) => new Set(ids).size === ids.length, 'id действия должен быть уникальным');
 const recoveryGuideSchema = z
@@ -122,7 +74,7 @@ const countRangeSchema = z
 
 const appliedActionCountConditionSchema = z
   .object({
-    actionIds: z.array(z.string().min(1)).min(1),
+    actionIds: z.array(identifierSchema).min(1),
     maximum: z.number().int().min(0).optional(),
     minimum: z.number().int().min(0).optional(),
   })
@@ -140,7 +92,7 @@ const stageActionCountSchema = z
 
 const stageActionCountSinceLastSchema = z
   .object({
-    actionIds: z.array(z.string().min(1)).min(1).optional(),
+    actionIds: z.array(identifierSchema).min(1).optional(),
     maximum: z.number().int().min(0).optional(),
     minimum: z.number().int().min(0).optional(),
     sinceStage: stageSchema,
@@ -155,7 +107,7 @@ const eventSchema = z
     effect: metricDeltaSchema,
     effectReasons: metricReasonsSchema.optional(),
     evidence: z.enum(['FACT', 'SCENARIO']),
-    id: z.string().min(1),
+    id: identifierSchema,
     addProperties: z.array(propertySchema).optional(),
     recovery: recoveryGuideSchema.optional(),
     removeProperties: z.array(propertySchema).optional(),
@@ -168,14 +120,14 @@ const eventSchema = z
 
 const eventRuleSchema = z
   .object({
-    actionIds: z.array(z.string().min(1)).min(1).optional(),
+    actionIds: z.array(identifierSchema).min(1).optional(),
     appliedActionCounts: z.array(appliedActionCountConditionSchema).min(1).optional(),
     appliedActionCount: countRangeSchema.optional(),
     event: eventSchema,
-    hasAppliedActions: z.array(z.string().min(1)).min(1).optional(),
+    hasAppliedActions: z.array(identifierSchema).min(1).optional(),
     hasProperty: propertySchema.optional(),
     hasResultingProperty: propertySchema.optional(),
-    missingAppliedActions: z.array(z.string().min(1)).min(1).optional(),
+    missingAppliedActions: z.array(identifierSchema).min(1).optional(),
     missingProperty: propertySchema.optional(),
     missingResultingProperty: propertySchema.optional(),
     stageActionCounts: z.array(stageActionCountSchema).min(1).optional(),
@@ -186,7 +138,7 @@ const eventRuleSchema = z
 
 const stageActionBaseSchema = z
   .object({
-    activationRequirements: z.array(z.string().min(1)).min(1).optional(),
+    activationRequirements: z.array(identifierSchema).min(1).optional(),
     addProperties: z.array(propertySchema),
     availableInStates: z.array(stageStateSchema).min(1),
     description: z.string().min(1),
@@ -211,20 +163,20 @@ const stageActionSchema = z.union([
 
 const stageChoiceSchema = z
   .object({
-    actionIds: z.array(z.string().min(1)).min(1),
+    actionIds: z.array(identifierSchema).min(1),
     description: z.string().min(1),
     stage: stageSchema,
-    title: z.string().min(1),
+    title: z.string().min(1).optional(),
   })
   .strict();
 
 const roundSchema = z
   .object({
     eventRules: z.array(eventRuleSchema).min(1),
-    id: z.string().min(1),
+    id: identifierSchema,
     number: z.number().int().positive(),
     situation: z.string().min(1),
-    stageChoices: z.array(stageChoiceSchema).min(2).max(stageKeys.length),
+    stageChoices: z.array(stageChoiceSchema).min(1),
     title: z.string().min(1),
   })
   .strict();
@@ -233,7 +185,7 @@ const rulesSchema = z
   .object({
     criticalThreshold: z.number(),
     dangerThreshold: z.number(),
-    minAiStagesToWin: z.number().int().min(0).max(stageKeys.length),
+    minReadyStagesToWin: z.number().int().min(0),
     notableVoteShare: z.number().min(0).max(1),
     requireNoBrokenStages: z.boolean(),
     roundLimit: z.number().int().positive(),
@@ -245,29 +197,15 @@ const rulesSchema = z
 const mechanicsSchema = z
   .object({
     initialMetrics: metricValuesSchema,
+    initialStages: z
+      .record(identifierSchema, stageStateSchema)
+      .refine((stages) => Object.keys(stages).length > 0, 'нужен хотя бы один этап'),
     metricBounds: z.object({ maximum: z.number(), minimum: z.number() }).strict(),
     metricDefinitions: metricDefinitionsSchema,
     metricScaleDescription: z.string().min(1),
     positiveEffectRequirements: positiveEffectRequirementsSchema.optional(),
-    propertyEffects: z
-      .object({
-        automatedTests: metricDeltaSchema,
-        currentContext: metricDeltaSchema,
-        humanReview: metricDeltaSchema,
-        observability: metricDeltaSchema,
-        rollback: metricDeltaSchema,
-      })
-      .strict(),
-    propertyEffectReasons: z
-      .object({
-        automatedTests: metricReasonsSchema.optional(),
-        currentContext: metricReasonsSchema.optional(),
-        humanReview: metricReasonsSchema.optional(),
-        observability: metricReasonsSchema.optional(),
-        rollback: metricReasonsSchema.optional(),
-      })
-      .strict()
-      .optional(),
+    propertyEffects: z.record(identifierSchema, metricDeltaSchema),
+    propertyEffectReasons: z.record(identifierSchema, metricReasonsSchema).optional(),
     stageStateEffects: z
       .object({
         AI_ENABLED: metricDeltaSchema,
@@ -291,12 +229,13 @@ const scenarioSchema = z
   .object({
     contentStatus: z.enum(['READY', 'TECHNICAL_DRAFT']),
     decisionModel: z.literal('STAGE_ACTION_V2'),
-    id: z.string().min(1),
+    id: identifierSchema,
     mechanics: mechanicsSchema,
+    presentation: presentationSchema,
     rounds: z.array(roundSchema).min(1),
     rules: rulesSchema,
-    schemaVersion: z.literal(4),
-    stageActions: z.record(z.string().min(1), stageActionSchema),
+    schemaVersion: z.literal(5),
+    stageActions: z.record(identifierSchema, stageActionSchema),
     version: z.number().int().positive(),
   })
   .strict()
@@ -308,14 +247,229 @@ type RecoveryCandidate = ScenarioCandidate['stageActions'][string]['recovery'];
 
 export function parseScenario(input: unknown): Scenario {
   const result = scenarioSchema.safeParse(input);
-  if (result.success) return result.data;
+  if (result.success) return orderScenario(result.data);
   const details = result.error.issues
     .map((issue) => `${issue.path.join('.') || 'scenario'}: ${issue.message}`)
     .join('; ');
   throw new Error(`Сценарий не прошёл проверку: ${details}`);
 }
 
+function orderScenario(scenario: Scenario): Scenario {
+  const { mechanics, presentation } = scenario;
+  return {
+    ...scenario,
+    mechanics: {
+      ...mechanics,
+      initialStages: orderRecord(
+        mechanics.initialStages,
+        presentation.stages.map(({ id }) => id),
+      ),
+      initialMetrics: orderRecord(mechanics.initialMetrics, presentation.metricOrder),
+    },
+  };
+}
+
+function orderRecord<T>(values: Record<string, T>, ids: string[]): Record<string, T> {
+  return Object.fromEntries(
+    ids.map((id) => {
+      const value = values[id];
+      if (value === undefined) throw new Error(`Неизвестный идентификатор ${id}`);
+      return [id, value];
+    }),
+  );
+}
+
+function validateDefinitions(scenario: ScenarioCandidate, context: IssueContext) {
+  const { mechanics, presentation } = scenario;
+  const stageIds = Object.keys(mechanics.initialStages);
+  validateMatchingKeys(
+    presentation.stages.map(({ id }) => id),
+    stageIds,
+    ['presentation', 'stages'],
+    context,
+  );
+  validateMetricDefinitions(scenario, context);
+  validatePropertyDefinitions(scenario, context);
+  if (scenario.rules.minReadyStagesToWin > stageIds.length) {
+    addIssue(context, ['rules', 'minReadyStagesToWin'], 'не может превышать число этапов');
+  }
+  validateMechanicReferences(scenario, context);
+}
+
+function validateMetricDefinitions(scenario: ScenarioCandidate, context: IssueContext) {
+  const { mechanics, presentation } = scenario;
+  const metricIds = Object.keys(mechanics.initialMetrics);
+  validateMatchingKeys(
+    presentation.metricOrder,
+    metricIds,
+    ['presentation', 'metricOrder'],
+    context,
+  );
+  validateMatchingKeys(
+    Object.keys(mechanics.metricDefinitions),
+    metricIds,
+    ['mechanics', 'metricDefinitions'],
+    context,
+  );
+}
+
+function validatePropertyDefinitions(scenario: ScenarioCandidate, context: IssueContext) {
+  const { mechanics, presentation } = scenario;
+  const propertyIds = presentation.properties.map(({ id }) => id);
+  validateMatchingKeys(
+    Object.keys(mechanics.propertyEffects),
+    propertyIds,
+    ['mechanics', 'propertyEffects'],
+    context,
+  );
+  validateUnique(propertyIds, ['presentation', 'properties'], 'id свойства', context);
+}
+
+function validateMatchingKeys(
+  actual: string[],
+  expected: string[],
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  if (new Set(actual).size !== actual.length || !sameKeys(actual, expected)) {
+    addIssue(context, path, 'идентификаторы должны совпадать с настройками сценария без повторов');
+  }
+}
+
+function validateMechanicReferences(scenario: ScenarioCandidate, context: IssueContext) {
+  const { mechanics } = scenario;
+  const metrics = new Set(Object.keys(mechanics.initialMetrics));
+  const properties = new Set(scenario.presentation.properties.map(({ id }) => id));
+  validateKnown(
+    Object.keys(mechanics.propertyEffectReasons ?? {}),
+    properties,
+    ['mechanics', 'propertyEffectReasons'],
+    context,
+  );
+  for (const [property, effect] of Object.entries(mechanics.propertyEffects)) {
+    validateKnown(
+      Object.keys(effect),
+      metrics,
+      ['mechanics', 'propertyEffects', property],
+      context,
+    );
+  }
+  for (const [state, effect] of Object.entries(mechanics.stageStateEffects ?? {})) {
+    validateKnown(Object.keys(effect), metrics, ['mechanics', 'stageStateEffects', state], context);
+  }
+  validatePositiveRequirements(scenario, context);
+}
+
+function validatePositiveRequirements(scenario: ScenarioCandidate, context: IssueContext) {
+  const stages = new Set(Object.keys(scenario.mechanics.initialStages));
+  const metrics = new Set(Object.keys(scenario.mechanics.initialMetrics));
+  const requirements = scenario.mechanics.positiveEffectRequirements?.additionalStages ?? {};
+  const path = ['mechanics', 'positiveEffectRequirements', 'additionalStages'];
+  validateKnown(Object.keys(requirements), metrics, path, context);
+  for (const [metric, byStage] of Object.entries(requirements)) {
+    validateKnown(Object.keys(byStage), stages, [...path, metric], context);
+    for (const [stage, required] of Object.entries(byStage)) {
+      validateKnown(required, stages, [...path, metric, stage], context);
+    }
+  }
+}
+
+function validateActionReferences(
+  id: string,
+  action: ScenarioCandidate['stageActions'][string],
+  scenario: ScenarioCandidate,
+  context: IssueContext,
+) {
+  const stages = new Set(Object.keys(scenario.mechanics.initialStages));
+  const properties = new Set(scenario.presentation.properties.map(({ id }) => id));
+  const path = ['stageActions', id];
+  validateKnown([action.stage], stages, [...path, 'stage'], context);
+  validateKnown(action.addProperties, properties, [...path, 'addProperties'], context);
+  validateEffectReferences(action, scenario, path, context);
+}
+
+function validateEffectReferences(
+  source: { effect: MetricDelta; repeatEffect?: MetricDelta },
+  scenario: ScenarioCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const metrics = new Set(Object.keys(scenario.mechanics.initialMetrics));
+  validateKnown(Object.keys(source.effect), metrics, [...path, 'effect'], context);
+  validateKnown(
+    Object.keys(source.repeatEffect ?? {}),
+    metrics,
+    [...path, 'repeatEffect'],
+    context,
+  );
+}
+
+function validateEventReferences(
+  event: ScenarioCandidate['rounds'][number]['eventRules'][number]['event'],
+  scenario: ScenarioCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const stages = new Set(Object.keys(scenario.mechanics.initialStages));
+  const properties = new Set(scenario.presentation.properties.map(({ id }) => id));
+  validateKnown(
+    event.stageChanges.map(({ stage }) => stage),
+    stages,
+    [...path, 'stageChanges'],
+    context,
+  );
+  validateKnown(event.addProperties, properties, [...path, 'addProperties'], context);
+  validateKnown(event.removeProperties, properties, [...path, 'removeProperties'], context);
+  validateEffectReferences(event, scenario, path, context);
+}
+
+function validateConditionReferences(
+  rule: ScenarioCandidate['rounds'][number]['eventRules'][number],
+  scenario: ScenarioCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const stages = new Set(Object.keys(scenario.mechanics.initialStages));
+  validatePropertyConditions(rule, scenario, path, context);
+  validateKnown(
+    rule.stageStates?.map(({ stage }) => stage),
+    stages,
+    [...path, 'stageStates'],
+    context,
+  );
+  validateKnown(
+    rule.stageActionCounts?.map(({ stage }) => stage),
+    stages,
+    [...path, 'stageActionCounts'],
+    context,
+  );
+  const countedStages = rule.stageActionCountsSinceLast?.flatMap(({ stage, sinceStage }) => [
+    stage,
+    sinceStage,
+  ]);
+  validateKnown(countedStages, stages, [...path, 'stageActionCountsSinceLast'], context);
+}
+
+function validatePropertyConditions(
+  rule: ScenarioCandidate['rounds'][number]['eventRules'][number],
+  scenario: ScenarioCandidate,
+  path: (string | number)[],
+  context: IssueContext,
+) {
+  const properties = new Set(scenario.presentation.properties.map(({ id }) => id));
+  for (const key of [
+    'hasProperty',
+    'missingProperty',
+    'hasResultingProperty',
+    'missingResultingProperty',
+  ] as const) {
+    const property = rule[key];
+    validateKnown(property ? [property] : [], properties, [...path, key], context);
+  }
+}
+
 function validateScenario(scenario: ScenarioCandidate, context: IssueContext) {
+  validateDefinitions(scenario, context);
   validateUnique(
     scenario.rounds.map(({ id }) => id),
     ['rounds'],
@@ -353,8 +507,7 @@ function validateMechanics(scenario: ScenarioCandidate, context: IssueContext) {
       'границы должны находиться по обе стороны от 0',
     );
   }
-  for (const key of metricKeys) {
-    const value = scenario.mechanics.initialMetrics[key];
+  for (const [key, value] of Object.entries(scenario.mechanics.initialMetrics)) {
     if (value < minimum || value > maximum) {
       addIssue(context, ['mechanics', 'initialMetrics', key], 'значение вне границ метрики');
     }
@@ -364,9 +517,9 @@ function validateMechanics(scenario: ScenarioCandidate, context: IssueContext) {
 }
 
 function validateMechanicReasons(scenario: ScenarioCandidate, context: IssueContext) {
-  for (const property of processProperties) {
+  for (const [property, effect] of Object.entries(scenario.mechanics.propertyEffects)) {
     validateEffectReasons(
-      scenario.mechanics.propertyEffects[property],
+      effect,
       scenario.mechanics.propertyEffectReasons?.[property],
       ['mechanics', 'propertyEffectReasons', property],
       context,
@@ -399,6 +552,7 @@ function validateActionCatalog(scenario: ScenarioCandidate, context: IssueContex
     addIssue(context, ['stageActions'], 'каталог действий не должен быть пустым');
   }
   Object.entries(scenario.stageActions).forEach(([id, action]) => {
+    validateActionReferences(id, action, scenario, context);
     validateAction(id, action, scenario, context);
   });
 }
@@ -490,15 +644,21 @@ function validateStageChoice(
   context: IssueContext,
 ) {
   const path = ['rounds', indexes[0], 'stageChoices', indexes[1]] as (string | number)[];
+  validateKnown(
+    [choice.stage],
+    new Set(Object.keys(scenario.mechanics.initialStages)),
+    [...path, 'stage'],
+    context,
+  );
   validateUnique(choice.actionIds, [...path, 'actionIds'], 'id действия', context);
   for (const actionId of choice.actionIds) {
-    const action = scenario.stageActions[actionId];
+    const action = knownAction(scenario, actionId);
     if (!action) addIssue(context, [...path, 'actionIds'], `неизвестный ${actionId}`);
     else if (action.stage !== choice.stage) {
       addIssue(context, [...path, 'actionIds'], `${actionId} относится к другому этапу`);
     }
   }
-  const keys = choice.actionIds.flatMap((id) => scenario.stageActions[id]?.key ?? []);
+  const keys = choice.actionIds.flatMap((id) => knownAction(scenario, id)?.key ?? []);
   validateUnique(keys, [...path, 'actionIds'], 'key действия', context);
 }
 
@@ -604,7 +764,7 @@ function validateRepairAction(
   context: IssueContext,
   expectedStage?: ScenarioCandidate['stageActions'][string]['stage'],
 ) {
-  const action = scenario.stageActions[id];
+  const action = knownAction(scenario, id);
   if (!action) return;
   if (!action.repeatable) addIssue(context, path, 'действие ремонта должно быть повторяемым');
   if (!action.availableInStates.includes('BROKEN')) {
@@ -625,7 +785,7 @@ function validateBrokenStageRepairs(
   context: IssueContext,
 ) {
   const repairStages = new Set(
-    event.recovery?.repairActionIds?.map((id) => scenario.stageActions[id]?.stage),
+    event.recovery?.repairActionIds?.map((id) => knownAction(scenario, id)?.stage),
   );
   for (const { stage, state } of event.stageChanges) {
     if (state === 'BROKEN' && !repairStages.has(stage)) {
@@ -639,7 +799,11 @@ function brokenResult(action: ScenarioCandidate['stageActions'][string]) {
 }
 
 function hasNegativeMetric(effect: MetricDelta | undefined) {
-  return Object.values(effect ?? {}).some((value) => value < 0);
+  return Object.values(effect ?? {}).some((value) => (value ?? 0) < 0);
+}
+
+function knownAction(scenario: ScenarioCandidate, id: string) {
+  return Object.hasOwn(scenario.stageActions, id) ? scenario.stageActions[id] : undefined;
 }
 
 function validateEffectReasons(
@@ -648,8 +812,8 @@ function validateEffectReasons(
   path: (string | number)[],
   context: IssueContext,
 ) {
-  const effectKeys = metricKeys.filter((key) => effect[key] !== undefined && effect[key] !== 0);
-  const reasonKeys = metricKeys.filter((key) => reasons?.[key] !== undefined);
+  const effectKeys = Object.keys(effect).filter((key) => effect[key] !== 0);
+  const reasonKeys = Object.keys(reasons ?? {});
   if (sameKeys(effectKeys, reasonKeys)) return;
   addIssue(context, path, 'нужна отдельная причина для каждого ненулевого эффекта');
 }
@@ -721,6 +885,8 @@ function validateRuleReferences(
   path: (string | number)[],
   context: IssueContext,
 ) {
+  validateConditionReferences(rule, scenario, path, context);
+  validateEventReferences(rule.event, scenario, [...path, 'event'], context);
   const roundIds = new Set(round.stageChoices.flatMap(({ actionIds }) => actionIds));
   validateKnown(rule.actionIds, roundIds, [...path, 'actionIds'], context);
   const catalogIds = new Set(Object.keys(scenario.stageActions));

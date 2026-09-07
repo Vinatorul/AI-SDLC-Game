@@ -1,4 +1,6 @@
-import type { AdminCommand, AdminForecast, GameState } from './domain';
+import type { AdminCommand, AdminForecast, GameState, ScenarioPresentation } from './domain';
+
+export type ScenarioInfoResponse = { presentation: ScenarioPresentation };
 
 export type CreateGameRequest = {
   code?: string;

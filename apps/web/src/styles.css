@@ -265,7 +265,7 @@ h1 {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   gap: 10px;
   margin: 24px 0 38px;
 }
@@ -1181,7 +1181,7 @@ button.option-card:not(:disabled):focus-visible,
 
 .stage-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1229,7 +1229,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .stage-ballot-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   align-items: start;
 }
 
@@ -1240,7 +1240,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .admin-layout .stage-ballot-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
 }
 
 .admin-layout .stage-ballot-grid > .stage-card {
@@ -1249,7 +1249,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .screen-page .stage-ballot-grid {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns-eight, 8), minmax(0, 1fr));
 }
 
 .stage-card-main {
@@ -1403,7 +1403,7 @@ button.stage-card:not(:disabled):focus-visible,
 }
 
 .stage-grid-compact {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--columns-eight, 8), minmax(0, 1fr));
 }
 
 .stage-card-compact {
@@ -1423,11 +1423,11 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .stage-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
   }
 
   .screen-page .stage-ballot-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   }
 
   .topbar,
@@ -1449,7 +1449,7 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .stage-grid-compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-four, 4), minmax(0, 1fr));
   }
 
   .screen-dashboard > .screen-qr {
@@ -1461,7 +1461,7 @@ button.stage-card:not(:disabled):focus-visible,
   .metric-grid,
   .metric-notes-grid,
   .option-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
   }
 
   .screen-qr {
@@ -1484,7 +1484,7 @@ button.stage-card:not(:disabled):focus-visible,
 
   .player-page .stage-ballot-grid,
   .screen-page .stage-ballot-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
   }
 
   .admin-layout .stage-ballot-grid {
@@ -1496,7 +1496,7 @@ button.stage-card:not(:disabled):focus-visible,
   }
 
   .stage-grid-compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--columns-two, 2), minmax(0, 1fr));
   }
 
   .topbar nav {

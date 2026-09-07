@@ -6,6 +6,7 @@ import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
 import { StageMap } from '../components/StageMap';
 import { phaseLabels } from '../labels';
+import { RoomPresentation } from '../presentation';
 import { useGameState } from '../realtime/useGameState';
 
 export function ScreenPage() {
@@ -26,16 +27,18 @@ export function ScreenGameView({
   state: NonNullable<ReturnType<typeof useGameState>['state']>;
 }) {
   return (
-    <Layout bare>
-      <main className="game-page screen-page">
-        <section className="screen-dashboard">
-          <ScreenCurrentPhase state={state} />
-          <MetricBoard compact breakdown={state.currentRound?.effectBreakdown} state={state} />
-          <StageMap compact state={state} />
-          <JoinQr code={code} />
-        </section>
-      </main>
-    </Layout>
+    <RoomPresentation state={state}>
+      <Layout bare>
+        <main className="game-page screen-page">
+          <section className="screen-dashboard">
+            <ScreenCurrentPhase state={state} />
+            <MetricBoard compact breakdown={state.currentRound?.effectBreakdown} state={state} />
+            <StageMap compact state={state} />
+            <JoinQr code={code} />
+          </section>
+        </main>
+      </Layout>
+    </RoomPresentation>
   );
 }
 
@@ -64,7 +67,7 @@ export function ScreenEntry({ onSubmit }: { onSubmit: (value: string) => void })
 
 function ScreenMessage({ error = false, message }: { error?: boolean; message: string }) {
   return (
-    <Layout>
+    <Layout neutral>
       <main className="single-page">
         <p className={error ? 'form-error' : undefined}>{message}</p>
       </main>

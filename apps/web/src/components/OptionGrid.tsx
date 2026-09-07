@@ -1,5 +1,5 @@
 import type { RoundView } from '@ai-sdlc/contracts';
-import { stageLabels } from '../labels';
+import { stageLabel, usePresentation } from '../presentation';
 
 type OptionGridProps = {
   disabled?: boolean;
@@ -10,6 +10,7 @@ type OptionGridProps = {
 };
 
 export function OptionGrid(props: OptionGridProps) {
+  const presentation = usePresentation();
   return (
     <div className="option-grid">
       {props.round.options.map((option) => {
@@ -23,7 +24,7 @@ export function OptionGrid(props: OptionGridProps) {
             type="button"
           >
             <span className="option-copy">
-              <small>{stageLabels[option.stage]}</small>
+              <small>{stageLabel(presentation, option.stage)}</small>
               <strong>{option.title}</strong>
               <span>{option.description}</span>
             </span>

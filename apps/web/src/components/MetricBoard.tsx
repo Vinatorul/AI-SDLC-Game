@@ -1,12 +1,12 @@
-import {
-  type EffectBreakdown,
-  type GameState,
-  type MetricBounds,
-  type MetricDefinition,
-  type MetricDefinitions,
-  type MetricKey,
-  metricKeys,
+import type {
+  EffectBreakdown,
+  GameState,
+  MetricBounds,
+  MetricDefinition,
+  MetricDefinitions,
+  MetricKey,
 } from '@ai-sdlc/contracts';
+import { gridStyle, presentationFor } from '../presentation';
 
 type MetricBoardProps = {
   breakdown?: EffectBreakdown | null;
@@ -28,12 +28,14 @@ type MetricGaugeProps = {
 
 export function MetricBoard({ breakdown, compact = false, state }: MetricBoardProps) {
   const config = metricConfig(state);
+  const presentation = presentationFor(state);
   return (
     <section
       className={`metric-grid${compact ? ' metric-grid-compact' : ''}`}
-      aria-label="Метрики SDLC"
+      aria-label={presentation.copy.metricBoardLabel}
+      style={gridStyle(presentation.metricOrder.length)}
     >
-      {metricKeys.map((key) => (
+      {presentation.metricOrder.map((key) => (
         <MetricCard
           breakdown={breakdown}
           compact={compact}
@@ -57,6 +59,7 @@ function MetricCard({
   const value = state.metrics[metric];
   const delta = breakdown?.applied?.[metric] ?? 0;
   const definition = config.definitions[metric];
+  if (value === undefined || !definition) return null;
   const signed = config.bounds.minimum < 0;
   const zone = metricZone(value, state.rules.criticalThreshold, state.rules.dangerThreshold);
   return (

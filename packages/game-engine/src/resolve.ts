@@ -1,16 +1,14 @@
-import {
-  type ActivatedAction,
-  type EffectContribution,
-  type GameRules,
-  type MetricDelta,
-  type MetricKey,
-  type MetricValues,
-  metricKeys,
-  type ProcessProperty,
-  type StageKey,
-  type StageMutation,
-  type StageState,
-  stageKeys,
+import type {
+  ActivatedAction,
+  EffectContribution,
+  GameRules,
+  MetricDelta,
+  MetricKey,
+  MetricValues,
+  ProcessProperty,
+  StageKey,
+  StageMutation,
+  StageState,
 } from '@ai-sdlc/contracts';
 import { eventRuleMatches } from './event-conditions';
 import type {
@@ -48,8 +46,8 @@ export function createInitialMetrics(mechanics: GameMechanics): MetricValues {
   return { ...mechanics.initialMetrics };
 }
 
-export function createInitialStages(): EngineSnapshot['stages'] {
-  return Object.fromEntries(stageKeys.map((key) => [key, 'AS_IS'])) as EngineSnapshot['stages'];
+export function createInitialStages(mechanics: GameMechanics): EngineSnapshot['stages'] {
+  return { ...mechanics.initialStages };
 }
 
 export function resolveRound(
@@ -135,6 +133,7 @@ function calculateRoundMetrics(
     effects.event.effect,
     propertyDelta,
     pipelineDelta,
+    Object.keys(mechanics.initialMetrics),
   );
   const metrics = applyMetricDelta(snapshot.metrics, raw.total, mechanics);
   const applied = metricDifference(snapshot.metrics, metrics);
@@ -148,7 +147,9 @@ function resolveStages(
   appliedActions: EngineSnapshot['appliedActions'],
   catalog: StageActionCatalog,
 ) {
-  const mutation = actionStageMutation(action, snapshot.stages[action.stage]);
+  const state = snapshot.stages[action.stage];
+  if (!state) throw new Error(`Неизвестный этап ${action.stage}`);
+  const mutation = actionStageMutation(action, state);
   const decisionStages = applyStageChanges(snapshot.stages, [mutation]);
   const eventStages = applyStageChanges(decisionStages, event.stageChanges);
   const repairedStage =
@@ -194,7 +195,9 @@ export function getAvailableActions(
   return choice.actionIds
     .map((id) => getStageAction(catalog, id))
     .filter((action) => action.stage === choice.stage)
-    .filter((action) => action.availableInStates.includes(snapshot.stages[choice.stage]))
+    .filter((action) =>
+      action.availableInStates.some((state) => state === snapshot.stages[choice.stage]),
+    )
     .filter((action) => action.repeatable || !wasApplied(snapshot, action.id));
 }
 
@@ -203,6 +206,7 @@ export function getAvailableStageChoices(
   choices: ScenarioStageChoice[],
   snapshot: EngineSnapshot,
 ) {
+  const stageKeys = Object.keys(snapshot.stages);
   return choices
     .filter((choice) => getAvailableActions(catalog, choice, snapshot).length > 0)
     .sort((left, right) => stageKeys.indexOf(left.stage) - stageKeys.indexOf(right.stage));
@@ -220,16 +224,16 @@ export function evaluateOutcome(
   completedRounds: number,
   rules: GameRules,
 ): OutcomeEvaluation {
-  if (metricKeys.some((key) => metrics[key] <= rules.criticalThreshold)) {
+  if (Object.values(metrics).some((value) => value <= rules.criticalThreshold)) {
     return { phase: 'BROKEN', reason: 'CRITICAL_METRIC' };
   }
-  const aiStages = stageKeys.filter((key) => stages[key] === 'AI_ENABLED').length;
+  const aiStages = Object.values(stages).filter((state) => state === 'AI_ENABLED').length;
   if (rules.roundMode === 'CYCLIC') {
     return cyclicOutcome(stages, aiStages, rules);
   }
   if (completedRounds < rules.roundLimit) return { phase: 'FEEDBACK', reason: null };
-  if (aiStages < rules.minAiStagesToWin) return { phase: 'BROKEN', reason: 'AI_NOT_EMBEDDED' };
-  const hasBrokenStage = stageKeys.some((key) => stages[key] === 'BROKEN');
+  if (aiStages < rules.minReadyStagesToWin) return { phase: 'BROKEN', reason: 'AI_NOT_EMBEDDED' };
+  const hasBrokenStage = Object.values(stages).includes('BROKEN');
   if (rules.requireNoBrokenStages && hasBrokenStage) {
     return { phase: 'BROKEN', reason: 'BROKEN_STAGES_REMAIN' };
   }
@@ -241,8 +245,8 @@ function cyclicOutcome(
   aiStages: number,
   rules: GameRules,
 ): OutcomeEvaluation {
-  if (aiStages < rules.minAiStagesToWin) return { phase: 'FEEDBACK', reason: null };
-  const hasBrokenStage = stageKeys.some((key) => stages[key] === 'BROKEN');
+  if (aiStages < rules.minReadyStagesToWin) return { phase: 'FEEDBACK', reason: null };
+  const hasBrokenStage = Object.values(stages).includes('BROKEN');
   if (rules.requireNoBrokenStages && hasBrokenStage) {
     return { phase: 'FEEDBACK', reason: null };
   }
@@ -358,14 +362,20 @@ function collectPropertyEffects(
   properties: EngineSnapshot['properties'],
   mechanics: GameMechanics,
 ): MetricDelta {
-  return sumDeltas(properties.map((property) => mechanics.propertyEffects[property]));
+  return sumDeltas(
+    properties.map((property) => mechanics.propertyEffects[property] ?? {}),
+    Object.keys(mechanics.initialMetrics),
+  );
 }
 
 function collectStageStateEffects(
   stages: EngineSnapshot['stages'],
   mechanics: GameMechanics,
 ): MetricDelta {
-  return sumDeltas(stageKeys.map((stage) => mechanics.stageStateEffects?.[stages[stage]] ?? {}));
+  return sumDeltas(
+    Object.values(stages).map((state) => mechanics.stageStateEffects?.[state] ?? {}),
+    Object.keys(mechanics.initialMetrics),
+  );
 }
 
 function createEffectContributions(
@@ -430,8 +440,7 @@ function gatePositiveEffect(
   mechanics: GameMechanics,
 ): GatedEffect {
   const result: GatedEffect = { blockedByStages: {}, blockedEffect: {}, effect: {} };
-  for (const metric of metricKeys) {
-    const value = source[metric];
+  for (const [metric, value] of Object.entries(source)) {
     if (value === undefined) continue;
     const required = positiveEffectStages(metric, actionStage, mechanics);
     const blocked = value > 0 ? required.filter((stage) => stages[stage] === 'BROKEN') : [];
@@ -466,7 +475,7 @@ function propertyContributions(
   mechanics: GameMechanics,
 ): EffectContribution[] {
   return properties.map((property) => ({
-    effect: mechanics.propertyEffects[property],
+    effect: mechanics.propertyEffects[property] ?? {},
     ...(mechanics.propertyEffectReasons?.[property]
       ? { effectReasons: mechanics.propertyEffectReasons[property] }
       : {}),
@@ -479,14 +488,14 @@ function stageContributions(
   stages: EngineSnapshot['stages'],
   mechanics: GameMechanics,
 ): EffectContribution[] {
-  return stageKeys.map((stage) => ({
-    effect: mechanics.stageStateEffects?.[stages[stage]] ?? {},
-    ...(mechanics.stageStateEffectReasons?.[stages[stage]]
-      ? { effectReasons: mechanics.stageStateEffectReasons[stages[stage]] }
+  return Object.entries(stages).map(([stage, state]) => ({
+    effect: mechanics.stageStateEffects?.[state] ?? {},
+    ...(mechanics.stageStateEffectReasons?.[state]
+      ? { effectReasons: mechanics.stageStateEffectReasons[state] }
       : {}),
     kind: 'STAGE_STATE' as const,
     stage,
-    state: stages[stage],
+    state,
   }));
 }
 
@@ -495,28 +504,31 @@ function createBreakdown(
   event: MetricDelta,
   properties: MetricDelta,
   pipeline: MetricDelta,
+  metricKeys: string[],
 ) {
   return {
     decision,
     event,
     pipeline,
     properties,
-    total: sumDeltas([decision, event, properties, pipeline]),
+    total: sumDeltas([decision, event, properties, pipeline], metricKeys),
   };
 }
 
-function sumDeltas(deltas: MetricDelta[]): MetricDelta {
+function sumDeltas(deltas: MetricDelta[], metricKeys: string[]): MetricDelta {
   return Object.fromEntries(
     metricKeys.map((key) => [key, deltas.reduce((sum, delta) => sum + (delta[key] ?? 0), 0)]),
   );
 }
 
 function hasMetricEffect(effect: MetricDelta) {
-  return metricKeys.some((key) => (effect[key] ?? 0) !== 0);
+  return Object.values(effect).some((value) => (value ?? 0) !== 0);
 }
 
 function metricDifference(before: MetricValues, after: MetricValues): MetricDelta {
-  return Object.fromEntries(metricKeys.map((key) => [key, after[key] - before[key]]));
+  return Object.fromEntries(
+    Object.entries(before).map(([key, value]) => [key, (after[key] ?? value) - value]),
+  );
 }
 
 function applyMetricDelta(
@@ -525,7 +537,10 @@ function applyMetricDelta(
   mechanics: GameMechanics,
 ): MetricValues {
   return Object.fromEntries(
-    metricKeys.map((key) => [key, clamp(metrics[key] + (delta[key] ?? 0), mechanics)]),
+    Object.entries(metrics).map(([key, value]) => [
+      key,
+      clamp(value + (delta[key] ?? 0), mechanics),
+    ]),
   ) as MetricValues;
 }
 

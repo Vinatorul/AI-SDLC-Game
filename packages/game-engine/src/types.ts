@@ -13,6 +13,7 @@ import type {
   MetricValues,
   ProcessProperty,
   RoundOption,
+  ScenarioPresentation,
   StageKey,
   StageMutation,
   StageState,
@@ -95,7 +96,7 @@ export type ScenarioStageChoice = {
   actionIds: string[];
   description: string;
   stage: StageKey;
-  title: string;
+  title?: string;
 };
 
 export type ScenarioRound = {
@@ -109,6 +110,7 @@ export type ScenarioRound = {
 
 export type GameMechanics = {
   initialMetrics: MetricValues;
+  initialStages: Record<StageKey, StageState>;
   metricBounds: MetricBounds;
   positiveEffectRequirements?: PositiveEffectRequirements;
   propertyEffects: Record<ProcessProperty, MetricDelta>;
@@ -127,9 +129,10 @@ export type Scenario = {
   decisionModel: 'STAGE_ACTION_V2';
   id: string;
   mechanics: ScenarioMechanics;
+  presentation: ScenarioPresentation;
   rounds: ScenarioRound[];
   rules: GameRules;
-  schemaVersion: 4;
+  schemaVersion: 5;
   stageActions: StageActionCatalog;
   version: number;
 };

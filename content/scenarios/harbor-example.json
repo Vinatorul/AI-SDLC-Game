@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 5,
+  "id": "harbor-example",
+  "version": 1,
+  "contentStatus": "TECHNICAL_DRAFT",
+  "decisionModel": "STAGE_ACTION_V2",
+  "presentation": {
+    "branding": {
+      "title": "Порт перед штормом",
+      "eyebrow": "Учебный сценарий · 3 участка",
+      "heading": "Подготовьте порт к шторму",
+      "description": "Выбирайте, где работать и на что потратить запасы. Подготовьте причал, склад и флот, пока порт ещё может принимать суда."
+    },
+    "stages": [
+      {
+        "id": "pier",
+        "label": "Причал"
+      },
+      {
+        "id": "warehouse",
+        "label": "Склад"
+      },
+      {
+        "id": "fleet",
+        "label": "Флот"
+      }
+    ],
+    "properties": [
+      {
+        "id": "spares",
+        "label": "Запасные детали"
+      }
+    ],
+    "metricOrder": ["readiness", "reserves", "safety"],
+    "stageStateLabels": {
+      "AS_IS": "Ещё не готово",
+      "AI_ENABLED": "Готово к шторму",
+      "BROKEN": "Требуется ремонт"
+    },
+    "outcomeLabels": {
+      "AI_NOT_EMBEDDED": "Порт не успели подготовить к шторму.",
+      "BROKEN_STAGES_REMAIN": "В порту осталось повреждённое оборудование.",
+      "CRITICAL_METRIC": "Порт больше не может безопасно принимать суда."
+    },
+    "copy": {
+      "metricBoardLabel": "Состояние порта",
+      "stageSelectionTitle": "Выберите участок порта",
+      "stageMapTitle": "Участки порта",
+      "stageMapEyebrow": "Подготовка к шторму",
+      "victoryMapTitle": "Порт готов к шторму",
+      "activeActionLabel": "Что подготовили",
+      "activationRequirementsTitle": "Что нужно для подготовки",
+      "activatedActionTemplate": "После «{completedBy}» удалось завершить работу «{action}».",
+      "blockedActivationBrokenTemplate": "Работа «{action}» не завершена: участок «{stage}» требует ремонта.",
+      "blockedActivationRepairedTemplate": "После «{completedBy}» участок «{stage}» снова работает, но подготовку «{action}» ещё не завершили.",
+      "victoryText": "Все участки готовы. Порт встречает шторм с исправным оборудованием и запасами."
+    }
+  },
+  "rules": {
+    "roundLimit": 1,
+    "roundMode": "CYCLIC",
+    "criticalThreshold": -4,
+    "dangerThreshold": -2,
+    "minReadyStagesToWin": 3,
+    "requireNoBrokenStages": true,
+    "notableVoteShare": 0.2,
+    "shuffleActionChoices": false
+  },
+  "mechanics": {
+    "initialStages": {
+      "pier": "AS_IS",
+      "warehouse": "AS_IS",
+      "fleet": "AS_IS"
+    },
+    "initialMetrics": {
+      "readiness": 1,
+      "reserves": 3,
+      "safety": 2
+    },
+    "metricBounds": {
+      "minimum": -6,
+      "maximum": 6
+    },
+    "metricScaleDescription": "Чем выше балл, тем лучше порт подготовлен к шторму.",
+    "metricDefinitions": {
+      "readiness": {
+        "label": "Готовность порта",
+        "description": "Сколько работы осталось до прихода шторма.",
+        "minimumLabel": "Ничего не готово",
+        "maximumLabel": "Можно встречать шторм",
+        "minimumDescription": "Суда и береговые службы не готовы к сильному ветру.",
+        "maximumDescription": "Команда завершила подготовку и проверила оборудование."
+      },
+      "reserves": {
+        "label": "Запасы",
+        "description": "Хватит ли деталей и материалов для работы и ремонта.",
+        "minimumLabel": "Склад пуст",
+        "maximumLabel": "Всего хватает",
+        "minimumDescription": "Ремонт встал, потому что нет материалов.",
+        "maximumDescription": "На складе есть всё нужное, включая запас на непредвиденный ремонт."
+      },
+      "safety": {
+        "label": "Безопасность",
+        "description": "Могут ли экипажи и береговая команда работать без риска.",
+        "minimumLabel": "Работать опасно",
+        "maximumLabel": "Оборудование проверено",
+        "minimumDescription": "Повреждения угрожают людям и судам.",
+        "maximumDescription": "Команда проверила крепления, двигатели и аварийное оборудование."
+      }
+    },
+    "positiveEffectRequirements": {
+      "requireActionStage": true
+    },
+    "propertyEffects": {
+      "spares": {}
+    },
+    "stageStateEffects": {
+      "AS_IS": {},
+      "AI_ENABLED": {},
+      "BROKEN": {}
+    }
+  },
+  "stageActions": {
+    "pier.secure": {
+      "key": "secure",
+      "title": "Заменить повреждённые крепления и закрепить суда",
+      "description": "Береговая команда проверяет крепления, заменяет повреждённые и натягивает швартовы. На замену уйдёт часть запасов.",
+      "stage": "pier",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Исправные крепления удержат суда у причала, но новые детали придётся взять со склада.",
+      "effect": {
+        "readiness": 1,
+        "reserves": -1
+      },
+      "effectReasons": {
+        "readiness": "Команда закрепила суда, поэтому перед штормом не придётся переставлять их в спешке.",
+        "reserves": "Команда взяла со склада детали для замены повреждённых креплений."
+      },
+      "addProperties": [],
+      "repeatable": true,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "resultingStageState": "AI_ENABLED"
+    },
+    "pier.rush": {
+      "key": "rush",
+      "title": "Принять ещё одно судно без осмотра причала",
+      "description": "Диспетчер разрешает швартовку, хотя команда ещё не проверила крепления.",
+      "stage": "pier",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Судно приняли раньше, но повреждённое крепление не выдержало нагрузки.",
+      "effect": {},
+      "addProperties": [],
+      "repeatable": false,
+      "availableInStates": ["AS_IS", "AI_ENABLED"],
+      "resultingStageState": "AI_ENABLED"
+    },
+    "warehouse.stock": {
+      "key": "stock",
+      "title": "Привезти запасные детали",
+      "description": "Кладовщик сверяет список ремонта с остатками и заказывает недостающие детали.",
+      "stage": "warehouse",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Теперь механикам не придётся ждать поставку, чтобы закончить ремонт.",
+      "effect": {
+        "reserves": 1
+      },
+      "effectReasons": {
+        "reserves": "На склад привезли детали, которых не хватало для ремонта."
+      },
+      "addProperties": ["spares"],
+      "repeatable": true,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "resultingStageState": "AI_ENABLED"
+    },
+    "fleet.refit": {
+      "key": "refit",
+      "title": "Подготовить буксиры к шторму",
+      "description": "Механики осматривают двигатели и меняют изношенные детали. Без запасных деталей буксиры останутся у причала.",
+      "stage": "fleet",
+      "evidence": "SCENARIO",
+      "shortFeedback": "Буксиры выйдут на дежурство, когда механики закончат замену деталей.",
+      "effect": {},
+      "addProperties": [],
+      "repeatable": true,
+      "availableInStates": ["AS_IS", "AI_ENABLED", "BROKEN"],
+      "resultingStageState": "AI_ENABLED",
+      "activationRequirements": ["warehouse.stock"],
+      "recovery": {
+        "hostHint": "Механикам нужны запасные детали. После поставки они закончат начатую подготовку буксиров.",
+        "prerequisiteActionIds": ["warehouse.stock"],
+        "repairActionIds": ["fleet.refit"]
+      }
+    }
+  },
+  "rounds": [
+    {
+      "id": "prepare-port",
+      "number": 1,
+      "title": "Выберите участок порта",
+      "situation": "Шторм приближается. Где команда будет работать сейчас?",
+      "stageChoices": [
+        {
+          "stage": "pier",
+          "description": "Крепления и швартовка судов.",
+          "actionIds": ["pier.secure", "pier.rush"]
+        },
+        {
+          "stage": "warehouse",
+          "description": "Детали и материалы для ремонта.",
+          "actionIds": ["warehouse.stock"]
+        },
+        {
+          "stage": "fleet",
+          "description": "Буксиры и их экипажи.",
+          "actionIds": ["fleet.refit"]
+        }
+      ],
+      "eventRules": [
+        {
+          "actionIds": ["fleet.refit"],
+          "missingAppliedActions": ["warehouse.stock"],
+          "event": {
+            "id": "fleet-awaits-parts",
+            "title": "Механики ждут детали",
+            "description": "Механики осмотрели буксиры, но на складе не оказалось нужных деталей. Буксиры остались у причала до поставки.",
+            "evidence": "SCENARIO",
+            "effect": {},
+            "stageChanges": [
+              {
+                "stage": "fleet",
+                "state": "AS_IS"
+              }
+            ],
+            "recovery": {
+              "hostHint": "Привезите запасные детали. Механики закончат уже начатую подготовку без повторного выбора этого действия.",
+              "prerequisiteActionIds": ["warehouse.stock"]
+            }
+          }
+        },
+        {
+          "actionIds": ["pier.rush"],
+          "event": {
+            "id": "pier-damaged",
+            "title": "Крепление не выдержало швартовки",
+            "description": "Повреждённое крепление не выдержало нагрузки. Команда остановила швартовку и потратила материалы на временное крепление судна.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "safety": -2,
+              "reserves": -1
+            },
+            "effectReasons": {
+              "safety": "Судно осталось без надёжного крепления, поэтому швартоваться рядом стало опасно.",
+              "reserves": "Команда потратила материалы на временное крепление судна."
+            },
+            "stageChanges": [
+              {
+                "stage": "pier",
+                "state": "BROKEN"
+              }
+            ],
+            "recovery": {
+              "hostHint": "Замените повреждённые крепления, чтобы снова безопасно принимать суда.",
+              "repairActionIds": ["pier.secure"]
+            }
+          }
+        },
+        {
+          "actionIds": ["fleet.refit"],
+          "event": {
+            "id": "fleet-ready",
+            "title": "Буксиры готовы выйти на дежурство",
+            "description": "Механики заменили изношенные детали и проверили двигатели. Экипажи могут безопасно работать в шторм.",
+            "evidence": "SCENARIO",
+            "effect": {
+              "safety": 1
+            },
+            "effectReasons": {
+              "safety": "Механики заменили изношенные детали и проверили двигатели перед выходом."
+            },
+            "stageChanges": []
+          }
+        },
+        {
+          "event": {
+            "id": "work-completed",
+            "title": "Команда закончила работу",
+            "description": "Ответственный проверил выполненную работу. Можно переходить к следующему участку.",
+            "evidence": "SCENARIO",
+            "effect": {},
+            "stageChanges": []
+          }
+        }
+      ]
+    }
+  ]
+}

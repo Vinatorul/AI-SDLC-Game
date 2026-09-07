@@ -1,13 +1,12 @@
-import {
-  type ActionBallotChoice,
-  type AdminForecast,
-  type BallotView,
-  type GameState,
-  type StageBallotChoice,
-  type StageKey,
-  stageKeys,
+import type {
+  ActionBallotChoice,
+  AdminForecast,
+  BallotView,
+  GameState,
+  StageBallotChoice,
+  StageKey,
 } from '@ai-sdlc/contracts';
-import { stageLabels, stageStateLabels } from '../labels';
+import { gridStyle, presentationFor, stageLabel } from '../presentation';
 import { ActionPotential, StagePotential } from './AdminPotential';
 import { BallotProgress } from './BallotProgress';
 
@@ -41,11 +40,14 @@ export function BallotFocus(props: BallotFocusProps) {
 
 function StageBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotView }) {
   const choices = ballot.choices.filter(isStageChoice);
-  const title = props.state.phase === 'RESULT' ? 'Итоги голосования' : 'Выберите этап SDLC';
+  const title =
+    props.state.phase === 'RESULT'
+      ? 'Итоги голосования'
+      : presentationFor(props.state).copy.stageSelectionTitle;
   return (
     <>
       {props.variant === 'player' && <BallotHeading title={title} />}
-      <div className="stage-grid stage-ballot-grid">
+      <div className="stage-grid stage-ballot-grid" style={gridStyle(choices.length)}>
         {choices.map((choice) => (
           <StageChoiceCard choice={choice} key={choice.id} {...props} />
         ))}
@@ -65,10 +67,16 @@ function StageChoiceCard({ choice, ...props }: BallotFocusProps & StageChoiceCar
       onClick={() => props.onSelect?.(choice.id)}
       type="button"
     >
-      <span>{stageNumber(choice.stage)}</span>
+      <span>{stageNumber(choice.stage, props.state)}</span>
       <span className="stage-card-main">
         <strong>{choice.title}</strong>
-        <small>{stageStateLabels[progress.state]}</small>
+        <small>
+          {
+            presentationFor(props.state).stageStateLabels[
+              progress?.state ?? props.state.stages[choice.stage] ?? 'AS_IS'
+            ]
+          }
+        </small>
       </span>
       {props.state.phase === 'RESULT' && <b className="stage-votes">{tally?.count ?? 0}</b>}
       {props.variant !== 'player' && (
@@ -87,7 +95,7 @@ function ActionBallot({ ballot, ...props }: BallotFocusProps & { ballot: BallotV
   const title =
     props.variant === 'player'
       ? playerTitle
-      : `Что сделаем на этапе «${stage ? stageLabels[stage] : 'выбранный этап'}»?`;
+      : `Что сделаем на этапе «${stage ? stageLabel(presentationFor(props.state), stage) : 'выбранный этап'}»?`;
   return (
     <>
       {props.variant !== 'player' && <ActionStageBanner stage={stage} state={props.state} />}
@@ -134,7 +142,9 @@ function ActionChoiceCard({ choice, ...props }: BallotFocusProps & { choice: Act
 
 function ActionChoiceContent({ choice, props, showFeedback, tally }: ActionChoiceContentProps) {
   const host = props.variant !== 'player';
-  const copy = <ActionChoiceCopy choice={choice} host={host} showFeedback={showFeedback} />;
+  const copy = (
+    <ActionChoiceCopy choice={choice} host={host} showFeedback={showFeedback} state={props.state} />
+  );
   return (
     <>
       {host ? (
@@ -150,10 +160,10 @@ function ActionChoiceContent({ choice, props, showFeedback, tally }: ActionChoic
   );
 }
 
-function ActionChoiceCopy({ choice, host, showFeedback }: ActionChoiceCopyProps) {
+function ActionChoiceCopy({ choice, host, showFeedback, state }: ActionChoiceCopyProps) {
   return (
     <>
-      <small>{stageLabels[choice.stage]}</small>
+      <small>{stageLabel(presentationFor(state), choice.stage)}</small>
       <strong>{choice.title}</strong>
       <span>{choice.description}</span>
       {choice.shortFeedback && showFeedback && host && <em>{choice.shortFeedback}</em>}
@@ -172,6 +182,7 @@ type ActionChoiceCopyProps = {
   choice: ActionBallotChoice;
   host: boolean;
   showFeedback: boolean;
+  state: GameState;
 };
 
 function feedbackChoiceIds(state: GameState) {
@@ -211,8 +222,10 @@ function ActionStageBanner({ stage, state }: { stage?: StageKey; state: GameStat
   return (
     <div className="action-stage-banner">
       <span>Выбранный этап</span>
-      <strong>{stageLabels[stage]}</strong>
-      <small>{stageStateLabels[progress.state]}</small>
+      <strong>{stageLabel(presentationFor(state), stage)}</strong>
+      <small>
+        {presentationFor(state).stageStateLabels[progress?.state ?? state.stages[stage] ?? 'AS_IS']}
+      </small>
     </div>
   );
 }
@@ -236,11 +249,16 @@ function choiceClass(base: string, id: string, state: GameState, selected?: stri
 
 function choiceStage(id: string, state: GameState) {
   const choice = state.currentBallot?.choices.find((item) => item.id === id);
-  return choice ? state.stageProgress[choice.stage].state : 'AS_IS';
+  return choice
+    ? (state.stageProgress[choice.stage]?.state ?? state.stages[choice.stage] ?? 'AS_IS')
+    : 'AS_IS';
 }
 
-function stageNumber(stage: StageKey) {
-  return String(stageKeys.indexOf(stage) + 1).padStart(2, '0');
+function stageNumber(stage: StageKey, state: GameState) {
+  return String(presentationFor(state).stages.findIndex(({ id }) => id === stage) + 1).padStart(
+    2,
+    '0',
+  );
 }
 
 function isStageChoice(choice: BallotView['choices'][number]): choice is StageBallotChoice {

@@ -14,15 +14,15 @@
 будут доработаны отдельно.
 
 Контент и баланс вынесены в
-[`packages/game-engine/content/scenarios/technical-mvp.json`](packages/game-engine/content/scenarios/technical-mvp.json).
+[`content/scenarios/technical-mvp.json`](content/scenarios/technical-mvp.json).
 Инструкция по полям и добавлению сценария лежит рядом в
-[`packages/game-engine/content/README.md`](packages/game-engine/content/README.md).
+[`content/README.md`](content/README.md).
 Действия описываются один раз в общем каталоге. Условия событий смотрят на выбранное действие,
 состояние этапов, свойства процесса и историю. Поэтому не нужно заранее выписывать отдельную
 ветку для каждой комбинации решений.
 
 ```bash
-pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json
+pnpm scenario:validate content/scenarios/technical-mvp.json
 ```
 
 ## Локальный запуск
@@ -53,7 +53,8 @@ pnpm test
 pnpm build
 ```
 
-Тесты движка и API используют только технический сценарий и временную SQLite.
+Тесты движка и API проверяют основной сценарий и отдельный пример с другими этапами и метриками.
+Для проверок API используется временная SQLite.
 
 ## API в Docker
 

@@ -1,38 +1,34 @@
-import {
-  type ActionBallotChoice,
-  type ActivatedActionView,
-  type AdminCommandName,
-  type AppliedActionView,
-  type BallotChoice,
-  type BallotTally,
-  type BallotView,
-  type BlockedActivationView,
-  type GameEvent,
-  type GameRules,
-  type GameState,
-  type MetricDefinitions,
-  type MetricDelta,
-  type MetricValues,
-  metricKeys,
-  type ProcessProperty,
-  type RecoveryActionView,
-  type RecoveryGuideView,
-  type RoundOption,
-  type RoundView,
-  type StageKey,
-  type StageProgress,
-  type StageState,
-  stageKeys,
-  type VoteTally,
+import type {
+  ActionBallotChoice,
+  ActivatedActionView,
+  AdminCommandName,
+  AppliedActionView,
+  BallotChoice,
+  BallotTally,
+  BallotView,
+  BlockedActivationView,
+  GameEvent,
+  GameState,
+  MetricDefinitions,
+  MetricDelta,
+  MetricKey,
+  MetricValues,
+  ProcessProperty,
+  RecoveryActionView,
+  RecoveryGuideView,
+  RoundOption,
+  RoundView,
+  StageKey,
+  StageProgress,
+  StageState,
+  VoteTally,
 } from '@ai-sdlc/contracts';
 import type {
   EngineAction,
   EngineEvent,
   EngineOption,
-  GameMechanics,
   RecoveryGuide,
   ResolutionPlan,
-  ScenarioMechanics,
 } from '@ai-sdlc/game-engine';
 import type { GameDatabase } from './db/database';
 import {
@@ -58,11 +54,16 @@ import {
   type RoundRow,
 } from './db/store';
 import { metricImpact } from './metric-impact';
+import {
+  type StoredScenarioMechanics,
+  storedMechanics,
+  storedRules,
+} from './scenario-compatibility';
 
 export function buildGameState(database: GameDatabase, game: GameRow): GameState {
   const round = currentRound(database, game);
   const ballot = round ? buildBallot(database, game, round) : null;
-  const mechanics = JSON.parse(game.mechanics_json) as StoredScenarioMechanics;
+  const mechanics = storedMechanics(game);
   const stages = JSON.parse(game.stages_json) as Record<StageKey, StageState>;
   const actionHistory = gameActionHistory(database, game.id);
   return {
@@ -72,7 +73,7 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
     currentBallot: ballot,
     currentRound: round ? buildRoundView(database, game, round, ballot) : null,
     decisionModel: game.decision_model,
-    ...publicMetricConfig(mechanics),
+    ...publicScenarioConfig(mechanics),
     metrics: JSON.parse(game.metrics_json) as MetricValues,
     myVoteChoiceId: null,
     myVoteOptionId: null,
@@ -82,7 +83,7 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
     properties: JSON.parse(game.properties_json) as ProcessProperty[],
     revision: game.revision,
     roundIndex: game.current_round,
-    rules: JSON.parse(game.rules_json) as GameRules,
+    rules: storedRules(game.rules_json),
     stageProgress: buildStageProgress(database, game, stages, actionHistory),
     stages,
     transitionVersion: game.transition_version,
@@ -90,14 +91,12 @@ export function buildGameState(database: GameDatabase, game: GameRow): GameState
   };
 }
 
-type StoredScenarioMechanics = GameMechanics &
-  Partial<Pick<ScenarioMechanics, 'metricDefinitions' | 'metricScaleDescription'>>;
-
-function publicMetricConfig(mechanics: StoredScenarioMechanics) {
+function publicScenarioConfig(mechanics: StoredScenarioMechanics) {
   return {
     metricBounds: mechanics.metricBounds,
     metricDefinitions: mechanics.metricDefinitions ?? legacyMetricDefinitions,
     metricScaleDescription: mechanics.metricScaleDescription ?? 'Чем выше балл, тем лучше',
+    presentation: mechanics.presentation,
   };
 }
 
@@ -218,17 +217,21 @@ function decisionChoices(
   ballot: BallotRow,
 ): BallotChoice[] {
   const choiceIds = listBallotChoiceIds(database, ballot.id);
-  if (ballot.kind === 'STAGE') return stageChoices(database, round, choiceIds);
+  if (ballot.kind === 'STAGE') return stageChoices(database, game, round, choiceIds);
   return choiceIds.map((id) => actionChoice(database, game, id));
 }
 
 function stageChoices(
   database: GameDatabase,
+  game: GameRow,
   round: RoundRow,
   choiceIds: string[],
 ): BallotChoice[] {
   const configured = findRoundDecision(database, round.id)?.stageChoices ?? [];
   const byStage = new Map(configured.map((choice) => [choice.stage, choice]));
+  const labels = new Map(
+    storedMechanics(game).presentation.stages.map(({ id, label }) => [id, label]),
+  );
   return choiceIds.map((id) => {
     const choice = byStage.get(id as StageKey);
     if (!choice) throw new Error(`Неизвестный этап ${id}`);
@@ -237,7 +240,7 @@ function stageChoices(
       id: choice.stage,
       kind: 'STAGE',
       stage: choice.stage,
-      title: choice.title,
+      title: labels.get(id) ?? choice.title ?? id,
     };
   });
 }
@@ -340,19 +343,12 @@ function buildStageProgress(
 ): Record<StageKey, StageProgress> {
   const activations = recordedActivations(database, game.id);
   return Object.fromEntries(
-    stageKeys.map((stage) => [
+    Object.entries(stages).map(([stage, state]) => [
       stage,
       {
-        activeAiAction: activeAiAction(
-          database,
-          game.id,
-          stage,
-          stages[stage],
-          history,
-          activations,
-        ),
+        activeAiAction: activeAiAction(database, game.id, stage, state, history, activations),
         appliedActions: history.filter((item) => item.stage === stage),
-        state: stages[stage],
+        state,
       },
     ]),
   ) as Record<StageKey, StageProgress>;
@@ -524,7 +520,7 @@ function historicalImpact(plan: ResolutionPlan): AppliedActionView['impact'] | n
   const metricDelta = plan.breakdown.applied;
   if (!metricDelta) return null;
   const reasons = Object.fromEntries(
-    metricKeys.flatMap((metric) => {
+    Object.keys(metricDelta).flatMap((metric) => {
       if ((metricDelta[metric] ?? 0) === 0) return [];
       const items = historicalReasons(plan, metric);
       return items.length > 0 ? [[metric, items]] : [];
@@ -533,7 +529,7 @@ function historicalImpact(plan: ResolutionPlan): AppliedActionView['impact'] | n
   return { metricDelta, reasons };
 }
 
-function historicalReasons(plan: ResolutionPlan, metric: (typeof metricKeys)[number]) {
+function historicalReasons(plan: ResolutionPlan, metric: MetricKey) {
   const reasons = (plan.effectContributions ?? []).flatMap((item) => {
     if ((item.effect[metric] ?? 0) === 0) return [];
     const explicit = item.effectReasons?.[metric];
@@ -587,7 +583,7 @@ function legacyPendingEffect(game: GameRow, plan: ResolutionPlan): MetricDelta |
   if (game.phase !== 'EVENT') return null;
   const current = JSON.parse(game.metrics_json) as MetricValues;
   return Object.fromEntries(
-    metricKeys.map((key) => [key, plan.metrics[key] - current[key]]),
+    Object.keys(current).map((key) => [key, (plan.metrics[key] ?? 0) - (current[key] ?? 0)]),
   ) as MetricDelta;
 }
 

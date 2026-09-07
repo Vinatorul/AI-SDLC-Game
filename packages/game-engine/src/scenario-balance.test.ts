@@ -1,5 +1,5 @@
-import { metricKeys, stageKeys } from '@ai-sdlc/contracts';
 import { describe, expect, it } from 'vitest';
+import { defaultScenario, metricKeys, stageKeys } from '../../../tests/fixtures/scenario';
 import {
   createInitialMetrics,
   createInitialStages,
@@ -9,7 +9,7 @@ import {
   getStageAction,
   resolveRound,
 } from './resolve';
-import { defaultScenario } from './scenario';
+
 import type { EngineSnapshot, ResolutionPlan, ScenarioRound } from './types';
 
 type SimulationResult = 'BROKEN' | 'ONGOING' | 'WON';
@@ -19,7 +19,7 @@ function initialSnapshot(): EngineSnapshot {
     appliedActions: [],
     metrics: createInitialMetrics(defaultScenario.mechanics),
     properties: [],
-    stages: createInitialStages(),
+    stages: createInitialStages(defaultScenario.mechanics),
   };
 }
 
@@ -78,7 +78,9 @@ function repeatWithoutMetricGain(
   for (let offset = 1; offset <= repeats; offset += 1) {
     const next = snapshotFrom(applyAction(current, actionId, firstRound + offset));
     for (const metric of metricKeys) {
-      expect(next.metrics[metric]).toBeLessThanOrEqual(current.metrics[metric]);
+      const previous = current.metrics[metric];
+      if (previous === undefined) throw new Error(`Нет метрики ${metric}`);
+      expect(next.metrics[metric]).toBeLessThanOrEqual(previous);
     }
     current = next;
   }
@@ -377,7 +379,7 @@ function findEventWitnesses(maxDepth: number) {
 
 describe('достижимость событий основного сценария', () => {
   it('находит цепочку решений для каждого условного события', () => {
-    expect(defaultScenario.version).toBe(20);
+    expect(defaultScenario.version).toBe(21);
     const { found, targets, visited } = findEventWitnesses(4);
     expect(targets.size).toBe(63);
     const unreachable = [...targets].filter((eventId) => !found.has(eventId)).sort();

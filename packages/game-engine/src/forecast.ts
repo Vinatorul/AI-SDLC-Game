@@ -1,10 +1,8 @@
-import {
-  type ActionPotentialView,
-  metricKeys,
-  type StageKey,
-  type StagePotentialView,
-  type StageState,
-  stageKeys,
+import type {
+  ActionPotentialView,
+  StageKey,
+  StagePotentialView,
+  StageState,
 } from '@ai-sdlc/contracts';
 import { activationRequirements, eventBranches, positiveRequirements } from './forecast-conditions';
 import { getAvailableActions, resolveRound } from './resolve';
@@ -48,19 +46,19 @@ export function forecastStage(
   );
   return {
     actionCount: potentials.length,
-    metricRanges: metricRanges(potentials),
+    metricRanges: metricRanges(potentials, Object.keys(mechanics.initialMetrics)),
     stage: choice.stage,
     stageChanges: possibleStageChanges(potentials, snapshot),
   };
 }
 
 function changedStages(before: Record<StageKey, StageState>, after: Record<StageKey, StageState>) {
-  return stageKeys.flatMap((stage) =>
-    before[stage] === after[stage] ? [] : [{ stage, state: after[stage] }],
+  return Object.entries(after).flatMap(([stage, state]) =>
+    before[stage] === state ? [] : [{ stage, state }],
   );
 }
 
-function metricRanges(actions: ActionPotentialView[]) {
+function metricRanges(actions: ActionPotentialView[], metricKeys: string[]) {
   return Object.fromEntries(
     metricKeys.map((metric) => {
       const values = actions.map(({ metricDelta }) => metricDelta[metric] ?? 0);
@@ -75,18 +73,16 @@ function range(values: number[]) {
 }
 
 function possibleStageChanges(actions: ActionPotentialView[], snapshot: EngineSnapshot) {
-  return stageKeys.flatMap((stage) => {
+  return Object.entries(snapshot.stages).flatMap(([stage, state]) => {
     const affected = actions.some(({ stageChanges }) =>
       stageChanges.some((change) => change.stage === stage),
     );
     if (!affected) return [];
-    const states = actions.map((action) => finalState(action, stage, snapshot));
+    const states = actions.map((action) => finalState(action, stage, state));
     return [{ stage, states: [...new Set(states)] }];
   });
 }
 
-function finalState(action: ActionPotentialView, stage: StageKey, snapshot: EngineSnapshot) {
-  return (
-    action.stageChanges.find((change) => change.stage === stage)?.state ?? snapshot.stages[stage]
-  );
+function finalState(action: ActionPotentialView, stage: StageKey, current: StageState) {
+  return action.stageChanges.find((change) => change.stage === stage)?.state ?? current;
 }

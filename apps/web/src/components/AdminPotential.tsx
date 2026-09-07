@@ -1,23 +1,24 @@
-import {
-  type ActionPotentialView,
-  type AdminForecast,
-  type EventBranchView,
-  type ForecastInfluence,
-  type ForecastPredicateView,
-  type GameState,
-  type MetricPotentialRange,
-  metricKeys,
-  type StageKey,
-  type StageState,
+import type {
+  ActionPotentialView,
+  AdminForecast,
+  EventBranchView,
+  ForecastInfluence,
+  ForecastPredicateView,
+  GameState,
+  MetricPotentialRange,
+  StageKey,
+  StageState,
 } from '@ai-sdlc/contracts';
-import { propertyLabels, stageLabels, stageStateLabels } from '../labels';
+import { metricLabel, presentationFor, propertyLabel, stageLabel } from '../presentation';
 
 type PotentialProps = { forecast?: AdminForecast | null; state: GameState };
 
 export function StagePotential({ forecast, stage, state }: PotentialProps & { stage: StageKey }) {
   const potential = forecast?.stagePotentials.find((item) => item.stage === stage);
   if (!potential) return null;
-  const metrics = metricKeys.filter((key) => isChangedRange(potential.metricRanges[key]));
+  const metrics = presentationFor(state).metricOrder.filter((key) =>
+    isChangedRange(potential.metricRanges[key]),
+  );
   return (
     <span className="admin-potential">
       <small>Диапазон вариантов</small>
@@ -25,11 +26,11 @@ export function StagePotential({ forecast, stage, state }: PotentialProps & { st
         {metrics.length === 0 && <span>Метрики без изменений</span>}
         {metrics.map((key) => (
           <span className={rangeClass(potential.metricRanges[key])} key={key}>
-            {state.metricDefinitions[key].label} {formatRange(potential.metricRanges[key])}
+            {metricLabel(state, key)} {formatRange(potential.metricRanges[key])}
           </span>
         ))}
       </span>
-      <StageOutcomes outcomes={potential.stageChanges} />
+      <StageOutcomes outcomes={potential.stageChanges} state={state} />
     </span>
   );
 }
@@ -41,7 +42,9 @@ export function ActionPotential({
 }: PotentialProps & { actionId: string }) {
   const potential = forecast?.actionPotentials.find((item) => item.actionId === actionId);
   if (!potential) return null;
-  const metrics = metricKeys.filter((key) => (potential.metricDelta[key] ?? 0) !== 0);
+  const metrics = presentationFor(state).metricOrder.filter(
+    (key) => (potential.metricDelta[key] ?? 0) !== 0,
+  );
   return (
     <div className="admin-potential">
       <small>Если выберут сейчас</small>
@@ -49,11 +52,12 @@ export function ActionPotential({
         {metrics.length === 0 && <span>Метрики без изменений</span>}
         {metrics.map((key) => (
           <span className={valueClass(potential.metricDelta[key] ?? 0)} key={key}>
-            {state.metricDefinitions[key].label} {formatSigned(potential.metricDelta[key] ?? 0)}
+            {metricLabel(state, key)} {formatSigned(potential.metricDelta[key] ?? 0)}
           </span>
         ))}
       </span>
       <StageOutcomes
+        state={state}
         outcomes={potential.stageChanges.map((change) => ({ ...change, states: [change.state] }))}
       />
       <ActionConditions potential={potential} state={state} />
@@ -81,10 +85,7 @@ function ActionConditions({
       <summary>{conditionsSummary(potential, branches)}</summary>
       <div className="forecast-condition-groups">
         <HelpfulConditions potential={potential} state={state} />
-        <BranchGroup branches={branches} influence="IMPROVES" title="Может улучшить" />
-        <BranchGroup branches={branches} influence="WORSENS" title="Может ухудшить" />
-        <BranchGroup branches={branches} influence="MIXED" title="Смешанный результат" />
-        <BranchGroup branches={branches} influence="NEUTRAL" title="Без изменения баллов" />
+        <EventBranchGroups branches={branches} state={state} />
       </div>
     </details>
   );
@@ -95,18 +96,18 @@ type HelpfulConditionsProps = { potential: ActionPotentialView; state: GameState
 function HelpfulConditions({ potential, state }: HelpfulConditionsProps) {
   return (
     <>
-      <ActivationConditions potential={potential} />
+      <ActivationConditions potential={potential} state={state} />
       <PositiveEffectConditions potential={potential} state={state} />
     </>
   );
 }
 
-function ActivationConditions({ potential }: { potential: ActionPotentialView }) {
+function ActivationConditions({ potential, state }: HelpfulConditionsProps) {
   const activationRequirements = potential.activationRequirements ?? [];
   if (activationRequirements.length === 0) return null;
   return (
     <section className="condition-group influence-positive">
-      <h4>Что нужно, чтобы AI заработал</h4>
+      <h4>{presentationFor(state).copy.activationRequirementsTitle}</h4>
       <ul>
         {activationRequirements.map((item) => (
           <ConditionRow
@@ -131,7 +132,7 @@ function PositiveEffectConditions({ potential, state }: HelpfulConditionsProps) 
           <ConditionRow
             key={`effect:${item.metric}:${item.stage}`}
             satisfied={item.satisfied}
-            title={`${state.metricDefinitions[item.metric].label}: этап «${stageLabels[item.stage]}» работает`}
+            title={`${metricLabel(state, item.metric)}: этап «${stageLabel(presentationFor(state), item.stage)}» работает`}
           />
         ))}
       </ul>
@@ -139,14 +140,14 @@ function PositiveEffectConditions({ potential, state }: HelpfulConditionsProps) 
   );
 }
 
-function BranchGroup({ branches, influence, title }: BranchGroupProps) {
+function BranchGroup({ branches, influence, state, title }: BranchGroupProps) {
   const relevant = branches.filter((branch) => branch.influence === influence);
   if (relevant.length === 0) return null;
   return (
     <section className={`condition-group influence-${influence.toLowerCase()}`}>
       <h4>{title}</h4>
       {relevant.map((branch) => (
-        <EventBranch branch={branch} key={branch.eventId} />
+        <EventBranch branch={branch} key={branch.eventId} state={state} />
       ))}
     </section>
   );
@@ -155,10 +156,23 @@ function BranchGroup({ branches, influence, title }: BranchGroupProps) {
 type BranchGroupProps = {
   branches: EventBranchView[];
   influence: ForecastInfluence;
+  state: GameState;
   title: string;
 };
 
-function EventBranch({ branch }: { branch: EventBranchView }) {
+function EventBranchGroups({ branches, state }: Pick<BranchGroupProps, 'branches' | 'state'>) {
+  const groups: { influence: ForecastInfluence; title: string }[] = [
+    { influence: 'IMPROVES', title: 'Может улучшить' },
+    { influence: 'WORSENS', title: 'Может ухудшить' },
+    { influence: 'MIXED', title: 'Смешанный результат' },
+    { influence: 'NEUTRAL', title: 'Без изменения баллов' },
+  ];
+  return groups.map((group) => (
+    <BranchGroup branches={branches} key={group.influence} state={state} {...group} />
+  ));
+}
+
+function EventBranch({ branch, state }: { branch: EventBranchView; state: GameState }) {
   const status = branch.selected
     ? 'Сработает сейчас'
     : branch.matched
@@ -176,7 +190,7 @@ function EventBranch({ branch }: { branch: EventBranchView }) {
             key={`${branch.eventId}:${index}`}
             satisfied={condition.satisfied}
             status={conditionStatus(condition)}
-            title={predicateTitle(condition)}
+            title={predicateTitle(condition, state)}
           />
         ))}
       </ul>
@@ -209,7 +223,7 @@ function conditionsSummary(potential: ActionPotentialView, branches: EventBranch
   return `Условия: ${preparation} · активных рисков ${risks}`;
 }
 
-function predicateTitle(condition: ForecastPredicateView): string {
+function predicateTitle(condition: ForecastPredicateView, state: GameState): string {
   if (condition.kind === 'ACTION_HISTORY') {
     const prefix =
       condition.expected === 'APPLIED'
@@ -225,31 +239,34 @@ function predicateTitle(condition: ForecastPredicateView): string {
         : condition.timing === 'BEFORE_ACTION'
           ? 'нет'
           : 'не будет';
-    return `${timing} ${presence}: ${propertyLabels[condition.property]}`;
+    return `${timing} ${presence}: ${propertyLabel(presentationFor(state), condition.property)}`;
   }
   if (condition.kind === 'STAGE_STATE') {
-    return `Этап «${stageLabels[condition.stage]}»: ${stageStateLabels[condition.expected]}`;
+    return `Этап «${stageLabel(presentationFor(state), condition.stage)}»: ${presentationFor(state).stageStateLabels[condition.expected]}`;
   }
-  return countTitle(condition);
+  return countTitle(condition, state);
 }
 
-function countTitle(condition: Extract<ForecastPredicateView, { kind: 'COUNT' }>) {
+function countTitle(
+  condition: Extract<ForecastPredicateView, { kind: 'COUNT' }>,
+  state: GameState,
+) {
   const { scope } = condition;
   const repetitions =
     scope.kind === 'ACTIONS' || (scope.kind === 'STAGE_SINCE_LAST' && scope.titles !== undefined);
   const range = countRange(condition.minimum, condition.maximum, repetitions);
   if (scope.kind === 'ALL_ACTIONS') return `Всего принято решений: ${range}`;
   if (scope.kind === 'STAGE')
-    return `На этапе «${stageLabels[scope.stage]}» принято решений: ${range}`;
+    return `На этапе «${stageLabel(presentationFor(state), scope.stage)}» принято решений: ${range}`;
   if (scope.kind === 'ACTIONS')
     return `Решения из списка применили суммарно ${range}: ${scope.titles.join('; ')}`;
   const period = scope.sinceStageSeen
-    ? `После последнего решения на этапе «${stageLabels[scope.sinceStage]}»`
+    ? `После последнего решения на этапе «${stageLabel(presentationFor(state), scope.sinceStage)}»`
     : 'С начала игры';
   if (scope.titles) {
     return `${period} решения из списка применили суммарно ${range}: ${scope.titles.join('; ')}`;
   }
-  return `${period} на этапе «${stageLabels[scope.stage]}» принято решений: ${range}`;
+  return `${period} на этапе «${stageLabel(presentationFor(state), scope.stage)}» принято решений: ${range}`;
 }
 
 function countRange(minimum?: number, maximum?: number, repetitions = false) {
@@ -275,7 +292,13 @@ function conditionStatus(condition: ForecastPredicateView) {
   return condition.kind === 'COUNT' ? `${status} · сейчас ${condition.actual}` : status;
 }
 
-function StageOutcomes({ outcomes }: { outcomes: { stage: StageKey; states: StageState[] }[] }) {
+function StageOutcomes({
+  outcomes,
+  state,
+}: {
+  outcomes: { stage: StageKey; states: StageState[] }[];
+  state: GameState;
+}) {
   if (outcomes.length === 0) {
     return <span className="potential-stages">Этапы останутся как есть</span>;
   }
@@ -283,19 +306,22 @@ function StageOutcomes({ outcomes }: { outcomes: { stage: StageKey; states: Stag
     <span className="potential-stages">
       {outcomes.map((outcome) => (
         <span key={outcome.stage}>
-          {stageLabels[outcome.stage]} →{' '}
-          {outcome.states.map((value) => stageStateLabels[value]).join(' / ')}
+          {stageLabel(presentationFor(state), outcome.stage)} →{' '}
+          {outcome.states
+            .map((value) => presentationFor(state).stageStateLabels[value])
+            .join(' / ')}
         </span>
       ))}
     </span>
   );
 }
 
-function isChangedRange(range: MetricPotentialRange) {
-  return range.minimum !== 0 || range.maximum !== 0;
+function isChangedRange(range: MetricPotentialRange | undefined) {
+  return Boolean(range && (range.minimum !== 0 || range.maximum !== 0));
 }
 
-function formatRange(range: MetricPotentialRange) {
+function formatRange(range: MetricPotentialRange | undefined) {
+  if (!range) return '0';
   if (range.minimum === range.maximum) return formatSigned(range.minimum);
   return `${formatSigned(range.minimum)}…${formatSigned(range.maximum)}`;
 }
@@ -304,7 +330,8 @@ function formatSigned(value: number) {
   return value > 0 ? `+${value}` : String(value);
 }
 
-function rangeClass(range: MetricPotentialRange) {
+function rangeClass(range: MetricPotentialRange | undefined) {
+  if (!range) return '';
   if (range.maximum <= 0) return 'is-negative';
   if (range.minimum >= 0) return 'is-positive';
   return 'is-mixed';

@@ -1,6 +1,6 @@
-import { stageKeys } from '@ai-sdlc/contracts';
 import { describe, expect, it } from 'vitest';
-import { defaultScenario } from './scenario';
+import { defaultScenario, stageKeys } from '../../../tests/fixtures/scenario';
+
 import { parseScenario } from './scenario-schema';
 
 const processActionIds = new Set([
@@ -77,7 +77,7 @@ describe('parseScenario', () => {
       ({ actionIds, event: _, ...conditions }) => actionIds && Object.keys(conditions).length === 0,
     );
     for (const rule of ordinaryRules) {
-      const reward = Object.values(rule.event.effect).reduce(
+      const reward = Object.values(rule.event.effect).reduce<number>(
         (sum, value) => sum + Math.max(0, value ?? 0),
         0,
       );
@@ -430,7 +430,9 @@ describe('parseScenario', () => {
 
   it('не принимает пустое описание показателя', () => {
     const source = structuredClone(defaultScenario);
-    source.mechanics.metricDefinitions.teamCapacity.minimumDescription = '';
+    const metric = source.mechanics.metricDefinitions.teamCapacity;
+    if (!metric) throw new Error('Нет метрики teamCapacity');
+    metric.minimumDescription = '';
     expect(() => parseScenario(source)).toThrow(/metricDefinitions\.teamCapacity/);
   });
 
@@ -488,8 +490,8 @@ describe('parseScenario', () => {
   });
 
   it('проверяет положительный TTM кодинга по следующим этапам', () => {
-    expect(defaultScenario.mechanics.propertyEffects.automatedTests.deliverySpeed).toBeUndefined();
-    expect(defaultScenario.mechanics.propertyEffects.currentContext.deliverySpeed).toBeUndefined();
+    expect(defaultScenario.mechanics.propertyEffects.automatedTests?.deliverySpeed).toBeUndefined();
+    expect(defaultScenario.mechanics.propertyEffects.currentContext?.deliverySpeed).toBeUndefined();
     expect(defaultScenario.stageActions['coding.parallel-agents']?.effect.deliverySpeed).toBe(2);
     expect(
       defaultScenario.mechanics.positiveEffectRequirements?.additionalStages?.deliverySpeed?.coding,

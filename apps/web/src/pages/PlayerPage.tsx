@@ -10,6 +10,7 @@ import { Layout } from '../components/Layout';
 import { MetricBoard } from '../components/MetricBoard';
 import { OptionGrid } from '../components/OptionGrid';
 import { AppliedHistory } from '../components/StageMap';
+import { RoomPresentation } from '../presentation';
 import { useGameState } from '../realtime/useGameState';
 
 export function PlayerPage() {
@@ -63,15 +64,17 @@ function PlayerJoin({ code, game, onJoined }: PlayerJoinProps) {
   const [attempt, setAttempt] = useState(0);
   const error = useAutoJoin(code, game.setState, onJoined, attempt);
   return (
-    <Layout bare>
-      <main className="single-page">
-        <PlayerJoinView
-          code={code}
-          error={error}
-          onRetry={() => setAttempt((value) => value + 1)}
-        />
-      </main>
-    </Layout>
+    <RoomPresentation state={game.state}>
+      <Layout bare>
+        <main className="single-page">
+          <PlayerJoinView
+            code={code}
+            error={error}
+            onRetry={() => setAttempt((value) => value + 1)}
+          />
+        </main>
+      </Layout>
+    </RoomPresentation>
   );
 }
 
@@ -153,12 +156,14 @@ function PlayerGame({ code, game, state, token }: PlayerGameProps) {
 
 export function PlayerGameView({ error, onVote, state }: PlayerDecisionProps) {
   return (
-    <Layout bare>
-      <main className="game-page player-page">
-        <PlayerDecision error={error} onVote={onVote} state={state} />
-        <AppliedHistory state={state} />
-      </main>
-    </Layout>
+    <RoomPresentation state={state}>
+      <Layout bare>
+        <main className="game-page player-page">
+          <PlayerDecision error={error} onVote={onVote} state={state} />
+          <AppliedHistory state={state} />
+        </main>
+      </Layout>
+    </RoomPresentation>
   );
 }
 
@@ -310,7 +315,7 @@ function VoteConfirmation({ kind }: { kind: 'STAGE' | 'ACTION' }) {
 
 function PlayerLoading() {
   return (
-    <Layout>
+    <Layout neutral>
       <main className="single-page">
         <p>Загружаем игру…</p>
       </main>
@@ -320,7 +325,7 @@ function PlayerLoading() {
 
 function PlayerError({ message }: { message: string }) {
   return (
-    <Layout>
+    <Layout neutral>
       <main className="single-page">
         <p className="form-error">{message}</p>
       </main>

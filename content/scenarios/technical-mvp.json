@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "id": "technical-mvp",
-  "version": 20,
+  "version": 21,
   "contentStatus": "TECHNICAL_DRAFT",
   "decisionModel": "STAGE_ACTION_V2",
   "rules": {
@@ -9,10 +9,10 @@
     "roundMode": "CYCLIC",
     "criticalThreshold": -8,
     "dangerThreshold": -5,
-    "minAiStagesToWin": 8,
     "requireNoBrokenStages": true,
     "notableVoteShare": 0.15,
-    "shuffleActionChoices": true
+    "shuffleActionChoices": true,
+    "minReadyStagesToWin": 8
   },
   "mechanics": {
     "initialMetrics": {
@@ -103,6 +103,16 @@
       "AS_IS": {},
       "AI_ENABLED": {},
       "BROKEN": {}
+    },
+    "initialStages": {
+      "businessRequest": "AS_IS",
+      "productDiscovery": "AS_IS",
+      "technicalDiscovery": "AS_IS",
+      "coding": "AS_IS",
+      "review": "AS_IS",
+      "testing": "AS_IS",
+      "deployment": "AS_IS",
+      "support": "AS_IS"
     }
   },
   "stageActions": {
@@ -2379,7 +2389,6 @@
       "stageChoices": [
         {
           "stage": "businessRequest",
-          "title": "Бизнес-заказ",
           "description": "Разобрать запрос, договориться о результате или связать обратную связь с продуктовыми метриками.",
           "actionIds": [
             "businessRequest.production-signals",
@@ -2390,7 +2399,6 @@
         },
         {
           "stage": "productDiscovery",
-          "title": "Продуктовая проработка",
           "description": "Уточнить задачу, проверить спорную идею на прототипе или собрать актуальные продуктовые решения.",
           "actionIds": [
             "productDiscovery.requirement-draft",
@@ -2401,7 +2409,6 @@
         },
         {
           "stage": "technicalDiscovery",
-          "title": "Техническая проработка",
           "description": "Разобраться в коде, сверить документацию или проверить зависимости между системами.",
           "actionIds": [
             "technicalDiscovery.code-research",
@@ -2412,7 +2419,6 @@
         },
         {
           "stage": "coding",
-          "title": "Написание кода",
           "description": "Написать изменение с AI, настроить единые команды сборки, линтера и тестов или дать AI инструменты репозитория.",
           "actionIds": [
             "coding.guided-implementation",
@@ -2424,7 +2430,6 @@
         },
         {
           "stage": "review",
-          "title": "Ревью",
           "description": "Подключить AI к ревью или сначала записать, какие изменения считаются рискованными и кто должен их проверять.",
           "actionIds": [
             "review.context-and-human-risk",
@@ -2435,7 +2440,6 @@
         },
         {
           "stage": "testing",
-          "title": "Тестирование",
           "description": "Писать тесты с AI, закрыть критичные сценарии автотестами или настроить скилл команды.",
           "actionIds": [
             "testing.ai-checks-with-qa",
@@ -2447,7 +2451,6 @@
         },
         {
           "stage": "deployment",
-          "title": "Деплой",
           "description": "Готовить релиз и откат с AI, подключить пайплайн через MCP или автоматически запускать релиз.",
           "actionIds": [
             "deployment.human-approved-plan",
@@ -2459,7 +2462,6 @@
         },
         {
           "stage": "support",
-          "title": "Поддержка",
           "description": "Связать данные инцидента с релизами, подключить AI к разбору или доверить ему исправление.",
           "actionIds": [
             "support.change-linked-signals",
@@ -2470,5 +2472,93 @@
         }
       ]
     }
-  ]
+  ],
+  "presentation": {
+    "branding": {
+      "title": "AI SDLC RPG",
+      "eyebrow": "AI SDLC RPG · 8 этапов",
+      "heading": "Зал решает, где AI работает в SDLC",
+      "description": "Участники выбирают этап и решение. Игра показывает, что ускорилось, что сломалось и чего не хватает команде."
+    },
+    "stages": [
+      {
+        "id": "businessRequest",
+        "label": "Бизнес-заказ"
+      },
+      {
+        "id": "productDiscovery",
+        "label": "Продуктовая проработка"
+      },
+      {
+        "id": "technicalDiscovery",
+        "label": "Техническая проработка"
+      },
+      {
+        "id": "coding",
+        "label": "Написание кода"
+      },
+      {
+        "id": "review",
+        "label": "Ревью"
+      },
+      {
+        "id": "testing",
+        "label": "Тестирование"
+      },
+      {
+        "id": "deployment",
+        "label": "Деплой"
+      },
+      {
+        "id": "support",
+        "label": "Поддержка"
+      }
+    ],
+    "properties": [
+      {
+        "id": "humanReview",
+        "label": "Проверка человеком"
+      },
+      {
+        "id": "automatedTests",
+        "label": "Автоматические тесты"
+      },
+      {
+        "id": "currentContext",
+        "label": "Актуальные данные и документация"
+      },
+      {
+        "id": "observability",
+        "label": "Мониторинг и логи"
+      },
+      {
+        "id": "rollback",
+        "label": "Быстрый откат"
+      }
+    ],
+    "metricOrder": ["deliverySpeed", "controllability", "teamCapacity", "quality"],
+    "stageStateLabels": {
+      "AI_ENABLED": "AI встроен",
+      "AS_IS": "Работает как раньше",
+      "BROKEN": "Сломано"
+    },
+    "outcomeLabels": {
+      "AI_NOT_EMBEDDED": "Игра закончилась раньше, чем AI заработал на нужном числе этапов.",
+      "BROKEN_STAGES_REMAIN": "Не все сломанные этапы удалось починить.",
+      "CRITICAL_METRIC": "Одна из метрик упала до критического уровня."
+    },
+    "copy": {
+      "metricBoardLabel": "Метрики SDLC",
+      "stageSelectionTitle": "Выберите этап SDLC",
+      "stageMapTitle": "Состояние SDLC",
+      "stageMapEyebrow": "Карта SDLC",
+      "victoryMapTitle": "Как теперь работает SDLC",
+      "activeActionLabel": "AI-решение",
+      "activationRequirementsTitle": "Что нужно, чтобы AI заработал",
+      "activatedActionTemplate": "После «{completedBy}» заработало AI-решение «{action}».",
+      "blockedActivationBrokenTemplate": "AI-решение «{action}» не включилось: этап «{stage}» остался сломан.",
+      "blockedActivationRepairedTemplate": "Этап «{stage}» снова работает без AI после решения «{completedBy}», но AI-решение «{action}» не включилось.",
+      "victoryText": "AI работает на нужном числе этапов. Ни одна метрика не упала до критического уровня."
+    }
+  }
 }

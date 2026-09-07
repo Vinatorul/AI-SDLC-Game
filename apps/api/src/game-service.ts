@@ -10,6 +10,7 @@ import type {
   JoinGameResponse,
   MetricValues,
   ProcessProperty,
+  ScenarioInfoResponse,
   StageKey,
   StageMutation,
   StageState,
@@ -18,8 +19,6 @@ import type {
 } from '@ai-sdlc/contracts';
 import {
   createInitialMetrics,
-  createInitialStages,
-  defaultScenario,
   type EngineAction,
   type EngineOption,
   type EngineSnapshot,
@@ -35,6 +34,7 @@ import {
   type StageActionCatalog,
 } from '@ai-sdlc/game-engine';
 import { createAdminPassword, createRoomCode, createToken, hashToken, tokenMatches } from './auth';
+import { defaultScenario } from './bundled-scenario';
 import type { GameDatabase } from './db/database';
 import { withTransaction } from './db/database';
 import {
@@ -78,6 +78,7 @@ import {
 } from './db/store';
 import { AppError, assertCondition, assertFound } from './errors';
 import type { GameHub } from './realtime/game-hub';
+import { storedMechanics, storedRules } from './scenario-compatibility';
 import { shuffledIds } from './shuffle';
 import { buildGameState } from './state';
 
@@ -153,19 +154,26 @@ export class GameService {
     return { status: 'ok' as const };
   }
 
+  getScenario(): ScenarioInfoResponse {
+    return { presentation: this.scenario.presentation };
+  }
+
   private newGame(id: string, code: string, token: string) {
     return {
       admin_token_hash: hashToken(token),
       code,
       decision_model: this.scenario.decisionModel,
       id,
-      mechanics_json: JSON.stringify(this.scenario.mechanics),
+      mechanics_json: JSON.stringify({
+        ...this.scenario.mechanics,
+        presentation: this.scenario.presentation,
+      }),
       metrics_json: JSON.stringify(createInitialMetrics(this.scenario.mechanics)),
       properties_json: '[]',
       rules_json: JSON.stringify(this.scenario.rules),
       scenario_id: this.scenario.id,
       scenario_version: this.scenario.version,
-      stages_json: JSON.stringify(createInitialStages()),
+      stages_json: JSON.stringify(this.scenario.mechanics.initialStages),
     };
   }
 
@@ -786,7 +794,7 @@ function resolveLegacy(
   const snapshot = engineSnapshot(database, game);
   const stages = applyLegacyStageChanges(snapshot.stages, option.stageChanges);
   const projected = { ...snapshot, stages };
-  const action = legacyAction(option, stages[option.stage]);
+  const action = legacyAction(option, stages[option.stage] as StageState);
   const legacyRound = { ...scenarioRound(database, round), eventRules: legacyEventRules(round) };
   return resolveRound(projected, legacyRound, action, parseMechanics(game), {});
 }
@@ -843,11 +851,11 @@ function assertLeader(choiceId: string | undefined, leaders: string[]) {
 }
 
 function parseRules(game: GameRow): GameRules {
-  return JSON.parse(game.rules_json) as GameRules;
+  return storedRules(game.rules_json);
 }
 
 function parseMechanics(game: GameRow): GameMechanics {
-  return JSON.parse(game.mechanics_json) as GameMechanics;
+  return storedMechanics(game);
 }
 
 function parseIds(value: string) {

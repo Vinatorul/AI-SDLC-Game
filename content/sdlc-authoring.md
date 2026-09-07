@@ -1,10 +1,10 @@
-# Сценарии игры
+# Как редактировать сценарий AI SDLC RPG
 
 Основной технический сценарий лежит в `scenarios/technical-mvp.json`. Здесь можно менять тексты,
 доступные ходы, события, численные эффекты и правила игры. После изменения проверьте файл:
 
 ```bash
-pnpm scenario:validate packages/game-engine/content/scenarios/technical-mvp.json
+pnpm scenario:validate content/scenarios/technical-mvp.json
 pnpm copy:validate
 ```
 
@@ -321,13 +321,13 @@ AI: подготовка или ремонт могут включить уст�
 ## Новый сценарий
 
 1. Скопируйте существующий JSON в новый файл в `scenarios`.
-2. Задайте новый стабильный `id`, начните `version` с 1, сохраните `schemaVersion: 4` и
+2. Задайте новый стабильный `id`, начните `version` с 1, сохраните `schemaVersion: 5` и
    отредактируйте содержимое.
 3. Проверьте файл командой `pnpm scenario:validate <путь>`.
 4. Запустите API с абсолютным путём в `SCENARIO_PATH`.
 
 ```bash
-SCENARIO_PATH="$PWD/packages/game-engine/content/scenarios/my-scenario.json" pnpm dev:api
+SCENARIO_PATH="$PWD/content/scenarios/my-scenario.json" pnpm dev:api
 ```
 
 В Docker файл можно подключить без пересборки образа:

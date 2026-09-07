@@ -1,5 +1,5 @@
-import { metricKeys, stageKeys } from '@ai-sdlc/contracts';
 import { describe, expect, it } from 'vitest';
+import { defaultScenario, metricKeys, stageKeys } from '../../../tests/fixtures/scenario';
 import { forecastAction, forecastStage } from './forecast';
 import {
   createInitialMetrics,
@@ -7,7 +7,7 @@ import {
   getAvailableActions,
   resolveRound,
 } from './resolve';
-import { defaultScenario } from './scenario';
+
 import type { EngineSnapshot } from './types';
 
 describe('admin forecast', () => {
@@ -139,7 +139,7 @@ function setup() {
     appliedActions: [],
     metrics: createInitialMetrics(defaultScenario.mechanics),
     properties: [],
-    stages: createInitialStages(),
+    stages: createInitialStages(defaultScenario.mechanics),
   };
   return {
     catalog: defaultScenario.stageActions,

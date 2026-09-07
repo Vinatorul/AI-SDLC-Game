@@ -1,6 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from './client';
 
+describe('api.getScenario', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('читает публичное оформление до создания комнаты без токена', async () => {
+    const result = { presentation: { branding: { title: 'Порт перед штормом' } } };
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => result, ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await api.getScenario()).toEqual(result);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:8787/api/scenario');
+    expect(new Headers(init.headers).has('authorization')).toBe(false);
+  });
+});
+
 describe('api.join', () => {
   afterEach(() => vi.unstubAllGlobals());
 

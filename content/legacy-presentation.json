@@ -1,0 +1,49 @@
+{
+  "branding": {
+    "title": "AI SDLC RPG",
+    "eyebrow": "AI SDLC RPG · 8 этапов",
+    "heading": "Зал решает, где AI работает в SDLC",
+    "description": "Участники выбирают этап и решение. Игра показывает, что ускорилось, что сломалось и чего не хватает команде."
+  },
+  "stages": [
+    { "id": "businessRequest", "label": "Бизнес-заказ" },
+    { "id": "productDiscovery", "label": "Продуктовая проработка" },
+    { "id": "technicalDiscovery", "label": "Техническая проработка" },
+    { "id": "coding", "label": "Написание кода" },
+    { "id": "review", "label": "Ревью" },
+    { "id": "testing", "label": "Тестирование" },
+    { "id": "deployment", "label": "Деплой" },
+    { "id": "support", "label": "Поддержка" }
+  ],
+  "properties": [
+    { "id": "humanReview", "label": "Проверка человеком" },
+    { "id": "automatedTests", "label": "Автоматические тесты" },
+    { "id": "currentContext", "label": "Актуальные данные и документация" },
+    { "id": "observability", "label": "Мониторинг и логи" },
+    { "id": "rollback", "label": "Быстрый откат" }
+  ],
+  "metricOrder": ["deliverySpeed", "controllability", "teamCapacity", "quality"],
+  "stageStateLabels": {
+    "AI_ENABLED": "AI встроен",
+    "AS_IS": "Работает как раньше",
+    "BROKEN": "Сломано"
+  },
+  "outcomeLabels": {
+    "AI_NOT_EMBEDDED": "Игра закончилась раньше, чем AI заработал на нужном числе этапов.",
+    "BROKEN_STAGES_REMAIN": "Не все сломанные этапы удалось починить.",
+    "CRITICAL_METRIC": "Одна из метрик упала до критического уровня."
+  },
+  "copy": {
+    "metricBoardLabel": "Метрики SDLC",
+    "stageSelectionTitle": "Выберите этап SDLC",
+    "stageMapTitle": "Состояние SDLC",
+    "stageMapEyebrow": "Карта SDLC",
+    "victoryMapTitle": "Как теперь работает SDLC",
+    "activeActionLabel": "AI-решение",
+    "activationRequirementsTitle": "Что нужно, чтобы AI заработал",
+    "activatedActionTemplate": "После «{completedBy}» заработало AI-решение «{action}».",
+    "blockedActivationBrokenTemplate": "AI-решение «{action}» не включилось: этап «{stage}» остался сломан.",
+    "blockedActivationRepairedTemplate": "Этап «{stage}» снова работает без AI после решения «{completedBy}», но AI-решение «{action}» не включилось.",
+    "victoryText": "AI работает на нужном числе этапов. Ни одна метрика не упала до критического уровня."
+  }
+}

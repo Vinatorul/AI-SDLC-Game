@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/web apps/web
 COPY packages/contracts packages/contracts
+COPY content/legacy-presentation.json content/legacy-presentation.json
 
 ARG VITE_API_BASE_URL
 ARG VITE_BASE_PATH=/

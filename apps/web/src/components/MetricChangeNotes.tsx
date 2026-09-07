@@ -1,12 +1,16 @@
-import {
-  type EffectContribution,
-  type GameState,
-  type MetricDelta,
-  type MetricKey,
-  metricKeys,
-  type StageKey,
+import type {
+  EffectContribution,
+  GameState,
+  MetricDelta,
+  MetricKey,
+  StageKey,
 } from '@ai-sdlc/contracts';
-import { propertyLabels, stageLabels, stageStateLabels } from '../labels';
+import {
+  metricLabel as displayMetricLabel,
+  presentationFor,
+  propertyLabel,
+  stageLabel,
+} from '../presentation';
 
 type ChangeReason = { blocked?: boolean; description: string; effect: number; label: string };
 type FallbackSource = { delta: MetricDelta; description: string; label: string };
@@ -43,11 +47,10 @@ function MetricExplanationCard({
   explanation: MetricExplanation;
   state: GameState;
 }) {
-  const definition = state.metricDefinitions[explanation.key];
   return (
     <article className="metric-note-card">
       <header>
-        <h3>{definition.label}</h3>
+        <h3>{displayMetricLabel(state, explanation.key)}</h3>
         <strong
           className={(explanation.applied ?? explanation.raw) < 0 ? 'metric-delta-negative' : ''}
         >
@@ -83,7 +86,7 @@ function ReasonRow({ reason }: { reason: ChangeReason }) {
 function buildExplanations(state: GameState): MetricExplanation[] {
   const breakdown = state.currentRound?.effectBreakdown;
   if (!breakdown) return [];
-  return metricKeys.flatMap((key) => {
+  return presentationFor(state).metricOrder.flatMap((key) => {
     const reasons = reasonsForMetric(state, key);
     if (reasons.length === 0) return [];
     return [
@@ -158,9 +161,9 @@ function blockedEffectDescription(
   state: GameState,
   expectedReason?: string,
 ) {
-  const names = stages.map((stage) => `«${stageLabels[stage]}»`);
+  const names = stages.map((stage) => `«${stageLabel(presentationFor(state), stage)}»`);
   const subject = names.length === 1 ? `Сломан этап ${names[0]}` : `Сломаны этапы ${list(names)}`;
-  const metricLabel = state.metricDefinitions[metric].label;
+  const metricLabel = displayMetricLabel(state, metric);
   const blocked = `${subject}, поэтому ${formatSigned(effect)} к метрике «${metricLabel}» не начислили.`;
   return expectedReason ? `${expectedReason} ${blocked}` : blocked;
 }
@@ -176,11 +179,11 @@ function propertyReason(
   effect: number,
   state: GameState,
 ): ChangeReason {
-  const metricLabel = state.metricDefinitions[metric].label;
+  const metricLabel = displayMetricLabel(state, metric);
   return {
     description: item.effectReasons?.[metric] ?? legacyPropertyReason(effect, metricLabel),
     effect,
-    label: `Практика: ${propertyLabels[item.property]}`,
+    label: `Практика: ${propertyLabel(presentationFor(state), item.property)}`,
   };
 }
 
@@ -190,11 +193,15 @@ function stageReason(
   effect: number,
   state: GameState,
 ): ChangeReason {
-  const stage = stageLabels[item.stage];
-  const metricLabel = state.metricDefinitions[metric].label;
+  const stage = stageLabel(presentationFor(state), item.stage);
+  const metricLabel = displayMetricLabel(state, metric);
   const description =
     item.effectReasons?.[metric] ?? legacyStageReason(item, stage, metricLabel, effect);
-  return { description, effect, label: `${stage}: ${stageStateLabels[item.state]}` };
+  return {
+    description,
+    effect,
+    label: `${stage}: ${presentationFor(state).stageStateLabels[item.state]}`,
+  };
 }
 
 function legacyPropertyReason(effect: number, metric: string) {
@@ -266,7 +273,7 @@ function fallbackSystemSources(state: GameState): FallbackSource[] {
       delta: breakdown.pipeline ?? {},
       description:
         'Эта комната создана в старой версии, поэтому здесь есть только общая сумма по всем этапам.',
-      label: 'Этапы SDLC',
+      label: 'Этапы',
     },
   ];
 }

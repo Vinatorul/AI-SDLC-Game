@@ -7,6 +7,9 @@ describe('metricImpact', () => {
     [{ controllability: -1, quality: -2 }, 'WORSENED'],
     [{ deliverySpeed: 1, teamCapacity: -1 }, 'MIXED'],
     [{ deliverySpeed: 0 }, 'NEUTRAL'],
+    [{ supplies: 2, crew: -1 }, 'MIXED'],
+    [{ morale: 1 }, 'IMPROVED'],
+    [{ supplies: -1 }, 'WORSENED'],
   ] as const)('определяет направление изменений %#', (effect, expected) => {
     expect(metricImpact(effect)).toBe(expected);
   });

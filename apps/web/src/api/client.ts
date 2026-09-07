@@ -8,6 +8,7 @@ import type {
   CreateGameResponse,
   GameState,
   JoinGameResponse,
+  ScenarioInfoResponse,
   VoteRequest,
   VoteResponse,
 } from '@ai-sdlc/contracts';
@@ -24,6 +25,7 @@ export class ApiClientError extends Error {
 }
 
 export const api = {
+  getScenario: () => request<ScenarioInfoResponse>('/api/scenario'),
   command: (code: string, token: string, command: AdminCommand) =>
     request<AdminCommandResponse>(`/api/games/${code}/admin/commands`, {
       body: JSON.stringify(command),

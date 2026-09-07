@@ -1,11 +1,9 @@
-import {
-  type ActionPotentialView,
-  type EventBranchView,
-  type ForecastInfluence,
-  metricKeys,
-  type ProcessProperty,
-  type StageState,
-  stageKeys,
+import type {
+  ActionPotentialView,
+  EventBranchView,
+  ForecastInfluence,
+  ProcessProperty,
+  StageState,
 } from '@ai-sdlc/contracts';
 import { evaluateEventRule } from './event-conditions';
 import { positiveEffectStages, resolveRoundWithEvent } from './resolve';
@@ -74,7 +72,7 @@ export function positiveRequirements(
 ): ActionPotentialView['positiveEffectRequirements'] {
   const requirements = plan.effectContributions.flatMap((contribution) => {
     if (contribution.kind !== 'DECISION' && contribution.kind !== 'EVENT') return [];
-    return metricKeys.flatMap((metric) => {
+    return Object.keys(mechanics.initialMetrics).flatMap((metric) => {
       const value =
         (contribution.effect[metric] ?? 0) + (contribution.blockedEffect?.[metric] ?? 0);
       if (value <= 0) return [];
@@ -131,10 +129,12 @@ function hasDynamicConditions(rule: EventRule) {
 }
 
 function comparePlans(candidate: ResolutionPlan, baseline: ResolutionPlan): ForecastInfluence {
-  const metricSigns = metricKeys.map((key) =>
-    Math.sign(candidate.metrics[key] - baseline.metrics[key]),
+  const metricSigns = Object.entries(candidate.metrics).map(([key, value]) =>
+    Math.sign(value - (baseline.metrics[key] ?? value)),
   );
-  const stageSigns = stageKeys.map((key) => stageSign(candidate.stages[key], baseline.stages[key]));
+  const stageSigns = Object.entries(candidate.stages).map(([key, state]) =>
+    stageSign(state, baseline.stages[key] ?? state),
+  );
   const propertySigns = propertySignsBetween(candidate.properties, baseline.properties);
   const signs = [...metricSigns, ...stageSigns, ...propertySigns];
   const improves = signs.some((value) => value > 0);
