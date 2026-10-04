@@ -91,12 +91,15 @@ ensure_docker_objects() {
 
 prepare_caddy() {
   [[ "$DEPLOY_MODE" == "https" ]] || return 0
-  mkdir -p "$CADDY_CONFIG_DIR"
-  printf '%s\n' "$DOMAIN {" "    reverse_proxy ${WEB_CONTAINER}:80" "}" >"$CADDY_FILE"
-  chmod 0644 "$CADDY_FILE"
+  local config_dir="$1" config_file="$1/Caddyfile"
+  mkdir -p "$config_dir"
+  if [[ ! -e "$config_file" && ! -L "$config_file" ]]; then
+    printf '%s\n' "$DOMAIN {" "    reverse_proxy ${WEB_CONTAINER}:80" "}" >"$config_file"
+    chmod 0644 "$config_file"
+  fi
   docker pull "$CADDY_IMAGE"
   docker run --rm --network none \
-    -v "${CADDY_FILE}:/etc/caddy/Caddyfile:ro" \
+    -v "${config_file}:/etc/caddy/Caddyfile:ro" \
     "$CADDY_IMAGE" caddy validate --config /etc/caddy/Caddyfile
 }
 
@@ -169,7 +172,7 @@ main() {
   ensure_docker_connection
   build_images
   ensure_docker_objects
-  prepare_caddy
+  prepare_caddy "$CADDY_CONFIG_DIR"
   backup_database
   printf '\n==> Перезапускаю контейнеры\n'
   remove_container "$PROXY_CONTAINER"
